@@ -1,0 +1,16 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+*.sqlite
+*.sqlite3
+*.db
+.team-ai/local/
+.team-ai/compiled/
+.team-ai/cache/
+.team-ai/tmp/
+.team-ai/logs/
+output/
+outputs/

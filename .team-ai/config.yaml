@@ -1,0 +1,22 @@
+source_roots:
+  - .team-ai/sources
+  - .team-ai/project.yaml
+  - .team-ai/decisions
+  - .team-ai/state.yaml
+
+project_config: .team-ai/project.yaml
+
+shared_pack_roots:
+  - ../team-ai/shared/packs
+
+scope_inference:
+  - path: .team-ai/**
+    scope: project:replica-mvp
+  - path: src/**
+    scope: project:replica-mvp
+  - path: tests/**
+    scope: project:replica-mvp
+
+verification:
+  commands:
+    - PYTHONPATH=src python -m unittest discover -s tests

@@ -1,0 +1,51 @@
+project_id: replica-mvp
+scope: project:replica-mvp
+
+harness:
+  required_version: ">=0.1.0"
+  mode: project_local
+
+default_write_scope: project:replica-mvp
+
+imports:
+  - scope: org:jo
+    path: ../team-ai/shared/packs/org-jo
+    required: false
+  - scope: harness:team-ai
+    path: ../team-ai/shared/packs/harness-team-ai
+    required: false
+
+scope_modes:
+  normal:
+    include:
+      - project:replica-mvp
+      - org:jo
+    exclude_other_projects: true
+  implementation:
+    include:
+      - project:replica-mvp
+      - org:jo
+    exclude_other_projects: true
+  harness:
+    include:
+      - org:jo
+      - harness:team-ai
+    exclude_project_sources_by_default: true
+  compare_projects:
+    require_explicit_user_intent: true
+
+source_scope_rules:
+  - path: .team-ai/project.yaml
+    scope: project:replica-mvp
+  - path: .team-ai/state.yaml
+    scope: project:replica-mvp
+  - path: .team-ai/decisions/**
+    scope: project:replica-mvp
+  - path: .team-ai/memory/**
+    scope: project:replica-mvp
+  - path: .team-ai/sources/**
+    scope: project:replica-mvp
+  - path: src/**
+    scope: project:replica-mvp
+  - path: tests/**
+    scope: project:replica-mvp
