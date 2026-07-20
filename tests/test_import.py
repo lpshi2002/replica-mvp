@@ -53,4 +53,9 @@ class ReplicaProjectTest(unittest.TestCase):
 
             self.assertEqual(3, len(results))
             self.assertTrue(all(result["pass"] for result in results))
-            self.assertIn("3/3 통과", (root / "report.md").read_text(encoding="utf-8"))
+            report = (root / "report.md").read_text(encoding="utf-8")
+            self.assertIn("3/3 통과", report)
+            self.assertIn("## 검토한 공개 주장", report)
+            self.assertIn("## 평가 방법", report)
+            self.assertIn("## 사례별 상세 결과", report)
+            self.assertIn("부채비율 100%", report)

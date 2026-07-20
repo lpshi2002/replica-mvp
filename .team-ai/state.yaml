@@ -1,14 +1,14 @@
 project_id: replica-mvp
 status: mvp_ready
 current_goal: >
-  첫 실제 대상 기업 하나를 골라 공개 근거부터 평가 리포트까지 전체 흐름을 실행한다
+  사용자가 현재 Codex 대화에 기업 정보만 주면 공개 조사부터 평가 리포트까지 전체 흐름을 실행한다
 
 selected_direction:
   idea: 공개 근거를 테스트 가능한 기능으로 바꾸고, 실행 가능한 AI Replica를 제작·평가해 외부 관찰 범위의 구현 가능성을 보고하는 프로젝트
-  decision: null
+  decision: DEC-INIT-0002
   source_pack: null
 
 next_actions:
-  - choose one text-in/text-out AI capability and collect one public source
-  - fill evidence.json, spec.json, and three independent test cases
-  - connect separate Replica and Judge model commands and run evaluation
+  - accept one company name or public URL from the user in Codex
+  - research and select one bounded text-in/text-out AI capability
+  - produce evidence, spec, tests, Replica results, Judge results, and report in work/<company-slug>

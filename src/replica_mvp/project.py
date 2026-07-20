@@ -261,6 +261,7 @@ def _read_results(path: Path) -> list[dict[str, Any]]:
 def write_report(root: Path) -> Path:
     evidence = _read_json(root / "evidence.json", dict)
     spec = _read_json(root / "spec.json", dict)
+    tests = _read_json(root / "tests.json", list)
     results = _read_results(root / "results.jsonl")
     passed = sum(result.get("pass") is True for result in results)
     level = evidence.get("evidence_level")
@@ -268,12 +269,53 @@ def write_report(root: Path) -> Path:
         raise ValueError("evidence.json has an invalid evidence_level")
     level_label, success_label = EVIDENCE_LEVELS[level]
     verdict = success_label if passed == len(results) else ("부분 구현" if passed else "현재 Replica 미구현")
-    cases = "\n".join(
-        f"- `{result.get('case_id', 'unknown')}`: {'PASS' if result.get('pass') else 'FAIL'} — {result.get('reason', '')}"
-        for result in results
+    sources = "\n\n".join(
+        f"### 근거 {index}: {source.get('type', 'source')}\n\n"
+        f"- 출처: [{source.get('url', 'unknown')}]({source.get('url', 'unknown')})\n"
+        f"- 검토한 주장: {source.get('excerpt', '')}"
+        for index, source in enumerate(evidence.get("sources", []), start=1)
+        if isinstance(source, dict)
     )
+    criteria = "\n".join(f"{index}. {item}" for index, item in enumerate(spec.get("acceptance_criteria", []), start=1))
+    method_notes = "\n".join(f"- {item}" for item in evidence.get("evaluation_method", []))
+    tests_by_id = {
+        case.get("id", f"case-{index}"): case
+        for index, case in enumerate(tests, start=1)
+        if isinstance(case, dict)
+    }
+    case_sections = []
+    for result in results:
+        case_id = result.get("case_id", "unknown")
+        case = tests_by_id.get(case_id, {})
+        output = result.get("replica_output", "")
+        output_text = (
+            json.dumps(output, ensure_ascii=False, indent=2)
+            if isinstance(output, (dict, list))
+            else str(output)
+        )
+        reference_facts = "\n".join(f"- {fact}" for fact in case.get("reference_facts", [])) or "- 없음"
+        case_sections.append(
+            f"### `{case_id}` — {'PASS' if result.get('pass') else 'FAIL'}\n\n"
+            f"- 기대 동작: {case.get('expected_behavior', '')}\n"
+            f"- Judge 결론: {result.get('reason', '')}\n\n"
+            f"#### 검토 입력\n\n```text\n{case.get('input', result.get('input', ''))}\n```\n\n"
+            f"#### 참조 사실\n\n{reference_facts}\n\n"
+            f"#### Replica 결과\n\n```json\n{output_text}\n```"
+        )
+    cases = "\n\n".join(case_sections)
     limitations = "\n".join(f"- {item}" for item in spec.get("out_of_scope", []))
+    original_outputs = any(
+        isinstance(case, dict) and case.get("original_output") not in (None, "")
+        for case in tests
+    )
+    comparison_note = (
+        "원제품 출력이 포함되어 직접 비교했다."
+        if original_outputs
+        else "원제품 출력은 확보하지 못했다. 따라서 공개 설명을 기준으로 기능 구현 가능성만 평가했다."
+    )
     report = f"""# {evidence.get('project', 'Replica')} 결과
+
+## 요약
 
 - 대상 기업: {evidence.get('company', '')}
 - 대상 기능: {evidence.get('capability', '')}
@@ -281,9 +323,47 @@ def write_report(root: Path) -> Path:
 - 테스트 결과: {passed}/{len(results)} 통과
 - 판정: **{verdict}**
 
-## 사례
+이 평가는 `{evidence.get('capability', '')}`라는 공개 주장을 최소한의 텍스트 입출력 기능으로 재구성해 검토한 결과다. {comparison_note}
+
+## 검토한 공개 주장
+
+{sources or '- 기록된 공개 출처 없음'}
+
+### 근거 한계
+
+{evidence.get('evidence_limit', comparison_note)}
+
+## 평가 방법
+
+### 입력 계약
+
+{spec.get('input_description', '')}
+
+### 출력 계약
+
+{spec.get('output_description', '')}
+
+### 통과 기준
+
+{criteria}
+
+### 실행 방식
+
+- 테스트 사례와 기대 동작, 참조 사실을 Replica 실행 전에 고정했다.
+- 각 Replica 결과를 통과 기준, 기대 동작, 참조 사실에 대조해 Judge가 PASS 또는 FAIL로 판정했다.
+- 전체 테스트가 끝난 뒤 통과 수를 집계했다.
+{method_notes}
+
+## 사례별 상세 결과
 
 {cases}
+
+## 결론
+
+- 현재 Replica는 준비한 {len(results)}개 사례 중 {passed}개를 통과했다.
+- 현재 근거 수준에서의 결론은 **{verdict}**이다.
+- 이 결론이 지지하는 범위는 선택한 공개 기능과 명시된 테스트 계약 안에서의 구현 가능성이다.
+- 이 결론은 원제품과 같은 모델, 정확도, UX, 보안, 통합 기능 또는 전체 계약 검토 성능을 입증하지 않는다.
 
 ## 확인하지 못한 범위
 
