@@ -1,8 +1,8 @@
 # Replica MVP
 
-기업이 공개적으로 주장하는 AI 기능 하나를 조사하고, 그 기능을 테스트 가능한
-입출력 계약으로 바꾼 뒤, 프롬프트 기반 Replica와 별도 Judge 패스로 구현
-가능성을 평가하는 Codex 운영 하네스입니다.
+기업이 공개적으로 주장하는 AI 기능들을 넓게 조사하고, 점수 기준을 통과한 주장만
+개별적으로 심층 검증한 뒤 테스트 가능한 입출력 계약과 프롬프트 기반 Replica로
+구현 가능성을 평가하는 Codex 운영 하네스입니다.
 
 사용자는 현재 Codex 대화에 기업명이나 공식 URL만 입력합니다. Codex가 공개
 자료 조사, 기능 선정, 사양 작성, 테스트 설계, Replica 실행, Judge 판정,
@@ -56,7 +56,8 @@
 ```
 
 URL을 모르면 기업명만 입력해도 됩니다. 특정 기능을 지정하지 않으면 Codex가
-공개 근거가 가장 구체적이고 독립 테스트가 가능한 기능 하나를 선택합니다.
+공개 주장을 넓게 추출하고 `moat`, `business`, `separability`를 각각 0~2점으로
+채점합니다. 복제형이면서 총점 4점 이상인 주장은 모두 2차 심층 조사로 보냅니다.
 
 사용자가 직접 작성하지 않는 항목은 다음과 같습니다.
 
@@ -74,25 +75,68 @@ URL을 모르면 기업명만 입력해도 됩니다. 특정 기능을 지정하
 
 ```mermaid
 flowchart TD
-    A["사용자: 기업명 또는 URL"] --> B["Codex: 공개 자료 조사"]
-    B --> C["검증 가능한 기능 하나 선정"]
-    C --> D["근거·사양·테스트 고정"]
-    D --> E["Replica 프롬프트 빌드"]
-    E --> F["Replica 패스: 후보 출력 생성"]
-    F --> G["Judge 패스: 기준별 판정"]
-    G --> H["상세 보고서 생성"]
+    A["사용자: 기업명 또는 URL"] --> B["1차: 회사 전체에서 주장 발견"]
+    B --> C["정규화·라우팅·3축 점수화"]
+    C --> D["4점 이상 복제형 주장 선정"]
+    D --> E["2차: 주장 검증 + 데이터·구현·평가 자료 수집"]
+    E --> F{"복제 준비 완료?"}
+    F -->|아니오| G["부분·차단·병합·기각"]
+    F -->|예| H["복제 계약 동결"]
+    G --> K["1차+2차 통합 research.json"]
+    H --> K
+    K --> I["선택한 주장만 실행 파일 생성·Judge 평가"]
+    I --> J["주장별·회사별 보고"]
 ```
 
-### 1. 공개 자료 조사
+### 1. 1차 주장 발견
 
-기업 공식 사이트, 제품 설명, 문서, 공개 데모, 고객 사례를 우선 조사하고 가능한
-경우 신뢰할 수 있는 독립 출처 하나 이상을 추가합니다. 확인한 주장은 URL과
-함께 `evidence.json`에 기록합니다.
+회사 전체를 넓게 훑어 주장 누락을 줄입니다. 공식 사이트, 제품 설명, 문서, 공개
+데모, 고객 사례와 기술 블로그를 우선 조사하고 주장 후보와 출처 URL을 기록합니다.
+이 단계에서는 구현 데이터, 최종 입출력 계약이나 테스트를 확정하지 않습니다.
 
-마케팅 문구 전체를 한꺼번에 재현하지 않습니다. 실제 입력과 출력을 정의할 수
-있고 테스트 결과를 객관적으로 판정할 수 있는 주장 하나만 선택합니다.
+후보를 정규화·중복 제거하고 복제형과 소명-only로 라우팅합니다. 사람이 확정한
+후보를 `moat`, `business`, `separability` 세 축으로 채점하고, 복제형이면서 총점
+4점 이상인 주장을 모두 2차 조사 대상으로 선정합니다.
 
-### 2. 근거 수준 결정
+### 2. 2차 복제 자료 수집
+
+선정된 주장 하나에서 시작해 관련 자료만 깊게 봅니다. 1차 출처를 다시 열고 정확한
+기능명으로 공식 제품·기술 자료, 데모, 고객·파트너 발표, 인터뷰와 채용공고를
+재검색합니다. 회사 전체를 다시 크롤링하지 않습니다.
+
+목표는 원제품을 직접 써보는 것이 아니라, 공개 자료만으로 해당 주장을 복제할 수
+있는지 판정하고 바로 구현할 수 있을 만큼 자료를 준비하는 것입니다. 각 주장에
+대해 다음을 수집합니다.
+
+- 공개 데이터셋, 샘플 문서와 입력 예시
+- 필드·문서·출력 스키마와 파일 형식
+- API·SDK·공개 구현, 논문·특허의 기술 단서
+- 벤치마크, 참조 답안, 규칙과 합성 평가 사례
+- 접근 방법, 라이선스·사용 제한과 공개 데이터가 없을 때의 합성 대안
+
+조사는 두 번 나눠 수행하지만 결과 파일은 회사당
+`work/<company-slug>/research.json` 하나입니다. 1차의 모든 후보 주장 가운데
+선택된 주장에만 `second_pass` 결과를 덧붙입니다.
+
+- 원 주장과 공개 근거로 확정한 canonical claim
+- 정확한 입력, 처리, 출력과 기능 경계
+- 공식·독립 근거와 반대 증거
+- 사용할 데이터·스키마·구현 단서·평가 자료
+- 최소 복제 방법과 `ready | partial | blocked` 준비도
+- 공개되지 않은 부분, 한계와 미해결 질문
+- `confirmed | refined | merged | rejected` 상태
+- `build | merge | evidence_request | reject` handoff
+
+통합 구조는 `templates/company-research.json`을 따릅니다.
+
+모든 조사 질문이 답변되거나 공개적으로 알 수 없다고 표시되고, 필요한 입력마다
+사용 가능한 공개 자료나 합성 대안이 있으며, 구현 경로와 평가 방법이 정해져야
+`ready`입니다. `ready`인 주장은 같은 항목의 `replication_contract`에 근거 수준,
+입출력 계약, acceptance criteria, output schema, 제외 범위와 최소 세 테스트를
+동결합니다. 2차가 끝날 때 별도 dossier나 실행 파일을 만들지 않습니다. 임의의
+최소 출처 수는 두지 않습니다.
+
+### 3. 근거 수준 결정
 
 근거 수준은 결론의 강도를 제한합니다.
 
@@ -104,9 +148,10 @@ flowchart TD
 
 원제품 출력이 없으면 테스트를 모두 통과해도 동일성을 주장하지 않습니다.
 
-### 3. 사양 작성
+### 4. 복제 계약 작성
 
-선택한 기능을 `spec.json`의 다음 항목으로 변환합니다.
+선택한 기능을 `research.json`의
+`claims[].second_pass.replication_contract`에 다음 항목으로 변환합니다.
 
 - 입력 설명
 - 출력 설명과 구조
@@ -117,9 +162,9 @@ flowchart TD
 주관적인 표현보다 “각 차이에 문서명과 조항 번호를 포함한다”처럼 관찰 가능한
 조건을 사용합니다.
 
-### 4. 테스트 설계
+### 5. 테스트 설계
 
-`tests.json`에는 최소 세 사례를 먼저 고정합니다.
+같은 `replication_contract.tests`에는 최소 세 사례를 먼저 고정합니다.
 
 1. `normal`: 기능의 핵심 동작을 확인하는 정상 사례
 2. `boundary`: 예외, 우선순위, 상충 규칙처럼 단순 패턴 매칭으로 틀리기 쉬운 사례
@@ -128,10 +173,11 @@ flowchart TD
 각 사례에는 입력뿐 아니라 기대 동작과 판정에 사용할 참조 사실을 함께 기록합니다.
 테스트와 기대값을 Replica 출력 이후에 수정하지 않습니다.
 
-### 5. Replica 빌드
+### 6. Replica 빌드
 
-`evidence.json`과 `spec.json`을 합쳐 `replica.json`을 만듭니다. 여기에는 다음이
-포함됩니다.
+사용자가 실제 복제를 시작하면 해당 ready 주장 하나만
+`work/<company-slug>/runs/<capability-slug>/`에 `evidence.json`, `spec.json`,
+`tests.json`으로 펼친 뒤 `replica.json`을 만듭니다. 여기에는 다음이 포함됩니다.
 
 - 대상 기업과 기능
 - 공개 근거와 근거 수준
@@ -141,7 +187,7 @@ flowchart TD
 
 현재 Replica의 실체는 `replica.json` 안의 `system_prompt`입니다.
 
-### 6. Replica 실행
+### 7. Replica 실행
 
 Replica 패스는 고정된 시스템 프롬프트와 각 테스트 입력을 받아 후보 출력을
 생성합니다. 결과는 `replica_outputs.jsonl`에 사례별로 저장합니다.
@@ -149,7 +195,7 @@ Replica 패스는 고정된 시스템 프롬프트와 각 테스트 입력을 �
 가능하면 별도 작업자가 Replica 출력만 담당하며 PASS/FAIL 판정에는 참여하지
 않습니다.
 
-### 7. Judge 평가
+### 8. Judge 평가
 
 Judge 패스는 다음 자료를 사용합니다.
 
@@ -163,9 +209,9 @@ Judge는 `pass`와 구체적인 `reason`을 사례별로 `results.jsonl`에 기�
 가능하면 Replica와 분리된 작업자가 판정하며 `replica.json`은 읽지 않습니다.
 같은 Codex 세션에서 분리된 패스만 사용했다면 보고서에 독립성 한계를 밝힙니다.
 
-### 8. 보고서 생성
+### 9. 보고서 생성
 
-`report.md`에는 다음이 포함됩니다.
+실행이 끝난 주장의 `report.md`에는 다음이 포함됩니다.
 
 - 대상 기업, 기능, 근거 수준, 통과 수
 - 검토한 공개 주장과 출처
@@ -176,17 +222,21 @@ Judge는 `pass`와 구체적인 `reason`을 사례별로 `results.jsonl`에 기�
 
 ## 산출물
 
-기업별 산출물은 `work/<company-slug>/`에 생성됩니다.
+기업별 1·2차 조사는 한 파일이고, 실제 실행 산출물만 별도 run 디렉터리에
+생성됩니다.
 
 ```text
 work/acme/
-├── evidence.json          # 공개 주장, 출처, 근거 수준과 한계
-├── spec.json              # 입출력 계약, 출력 구조, 통과 기준
-├── tests.json             # 정상·경계·정보 부족 사례
-├── replica.json           # 실행할 시스템 프롬프트
-├── replica_outputs.jsonl  # Judge가 보기 전의 후보 출력
-├── results.jsonl          # 사례별 PASS/FAIL과 판정 이유
-└── report.md              # 사람이 읽는 상세 보고서
+├── research.json                       # 1차 전수 주장 + 선택된 주장의 2차 결과
+└── runs/                               # 실제 복제를 시작한 뒤에만 생성
+    └── claim-a/
+        ├── evidence.json
+        ├── spec.json
+        ├── tests.json
+        ├── replica.json
+        ├── replica_outputs.jsonl
+        ├── results.jsonl
+        └── report.md
 ```
 
 `work/`는 실제 기업 분석 결과를 저장하는 로컬 작업 영역이며 Git에서 제외됩니다.
@@ -228,7 +278,7 @@ python -m pip install -e .
 ### 프로젝트 골격 생성
 
 ```bash
-replica-mvp init work/acme \
+replica-mvp init work/acme/runs/claim-a \
   --name acme-capability \
   --company "Acme AI" \
   --url "https://example.com" \
@@ -236,19 +286,19 @@ replica-mvp init work/acme \
   --evidence-level public
 ```
 
-이 명령은 `evidence.json`, `spec.json`, `tests.json`의 골격을 만듭니다. Codex가
-공개 조사 결과와 기능별 테스트로 `CHANGE_ME` 값을 모두 교체합니다.
+이 명령은 실제 실행을 시작한 주장에만 `evidence.json`, `spec.json`,
+`tests.json`의 골격을 만듭니다. 조사 단계에서는 호출하지 않습니다.
 
 ### Replica 프롬프트 빌드
 
 ```bash
-replica-mvp build work/acme
+replica-mvp build work/acme/runs/claim-a
 ```
 
 ### 보고서 재생성
 
 ```bash
-replica-mvp report work/acme
+replica-mvp report work/acme/runs/claim-a
 ```
 
 ### 선택적 외부 Runner
@@ -257,7 +307,7 @@ CI나 독립 재현에서 별도 stdin/stdout 모델 명령을 사용하려면 �
 사용할 수 있습니다.
 
 ```bash
-replica-mvp evaluate work/acme \
+replica-mvp evaluate work/acme/runs/claim-a \
   --replica-command "YOUR_REPLICA_COMMAND" \
   --judge-command "YOUR_JUDGE_COMMAND"
 ```
@@ -278,6 +328,7 @@ replica-mvp evaluate work/acme \
 ├── AGENTS.md                  # Codex 운영 규칙
 ├── README.md                  # 프로젝트 설명
 ├── pyproject.toml             # Python 패키지와 CLI 엔트리포인트
+├── templates/                 # 회사 단위 통합 조사 계약
 ├── src/replica_mvp/
 │   ├── cli.py                 # init/build/evaluate/report 명령
 │   └── project.py             # 파일 생성, 실행, 판정, 보고서 로직

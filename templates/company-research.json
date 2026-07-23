@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "company": {
+    "name": "CHANGE_ME",
+    "url": "CHANGE_ME",
+    "accessed_at": "CHANGE_ME"
+  },
+  "workflow": {
+    "status": "CHANGE_ME: pass_1_complete | pass_2_complete",
+    "pass_1": {
+      "completed_at": "CHANGE_ME",
+      "coverage": {}
+    },
+    "pass_2": {
+      "completed_at": null,
+      "selected_count": 0,
+      "ready_count": 0,
+      "partial_count": 0,
+      "blocked_count": 0
+    }
+  },
+  "rubric": {
+    "axes": {
+      "moat": {"0": "단순 기능", "1": "일부 차별점", "2": "반복 강조 핵심 해자"},
+      "business": {"0": "부가 기능", "1": "고객 편의", "2": "구매·유지 핵심"},
+      "separability": {"0": "영업·브랜드·계약", "1": "기술·사업 혼합", "2": "제한된 입력→출력 기술"}
+    },
+    "selection_rule": "confirmed, replicable, total >= 4"
+  },
+  "claims": [
+    {
+      "id": "CHANGE_ME",
+      "slug": "CHANGE_ME",
+      "first_pass": {
+        "claim": "CHANGE_ME",
+        "sources": [],
+        "testable_claim": "CHANGE_ME",
+        "routing": "CHANGE_ME",
+        "replicable": true,
+        "scores": {
+          "moat": {"value": 0, "reason": "CHANGE_ME"},
+          "business": {"value": 0, "reason": "CHANGE_ME"},
+          "separability": {"value": 0, "reason": "CHANGE_ME"}
+        },
+        "total": 0,
+        "selected": false,
+        "disposition": "CHANGE_ME"
+      },
+      "second_pass": null
+    }
+  ],
+  "summary": {
+    "candidate_count": 0,
+    "selected_count": 0,
+    "ready_count": 0,
+    "partial_count": 0,
+    "blocked_count": 0,
+    "next_step": "CHANGE_ME"
+  }
+}

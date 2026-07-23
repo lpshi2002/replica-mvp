@@ -10,5 +10,6 @@ selected_direction:
 
 next_actions:
   - accept one company name or public URL from the user in Codex
-  - research and select one bounded text-in/text-out AI capability
-  - produce evidence, spec, tests, Replica results, Judge results, and report in work/<company-slug>
+  - collect broad public claims and filter them into replicate or skip with reasons
+  - research each selected claim deeply and run the existing single-capability Replica flow once per claim
+  - report replication feasibility and evidence for every selected or skipped claim
