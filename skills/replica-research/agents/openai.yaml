@@ -1,0 +1,4 @@
+interface:
+  display_name: "Replica Research"
+  short_description: "Run two-pass company research for Replica"
+  default_prompt: "Use $replica-research to research this company and prepare replication-ready claims."

@@ -5,10 +5,11 @@ current_goal: >
 
 selected_direction:
   idea: 공개 근거를 테스트 가능한 기능으로 바꾸고, 실행 가능한 AI Replica를 제작·평가해 외부 관찰 범위의 구현 가능성을 보고하는 프로젝트
-  decision: DEC-INIT-0002
+  decision: DEC-INIT-0001
   source_pack: null
 
 next_actions:
   - accept one company name or public URL from the user in Codex
-  - research and select one bounded text-in/text-out AI capability
-  - produce evidence, spec, tests, Replica results, Judge results, and report in work/<company-slug>
+  - collect broad public claims and filter them into replicate or skip with reasons
+  - research each selected claim deeply and run the existing single-capability Replica flow once per claim
+  - report replication feasibility and evidence for every selected or skipped claim
