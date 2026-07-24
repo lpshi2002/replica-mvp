@@ -25,7 +25,7 @@
       "business": {"0": "부가 기능", "1": "고객 편의", "2": "구매·유지 핵심"},
       "separability": {"0": "영업·브랜드·계약", "1": "기술·사업 혼합", "2": "제한된 입력→출력 기술"}
     },
-    "selection_rule": "confirmed, replicable, total >= 4"
+    "selection_rule": "replicable, total >= 4"
   },
   "claims": [
     {

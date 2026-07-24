@@ -19,9 +19,14 @@ internal systems.
   explicitly requests a standalone automated runner.
 - Perform company research in two passes. Stop after pass 2 unless the user
   asks to build, run, or evaluate a Replica.
-- Keep one authoritative company artifact at
-  `work/<company-slug>/research.json`. Use
-  `../../templates/company-research.json` as its structure.
+- Create the authoritative `work/<company-slug>/research.json` from
+  `../../templates/company-research.json` when research starts.
+- Save normalized findings directly to that file throughout the work. Complete
+  its pass-1 claims first, mark `pass_1_complete`, then add `second_pass` to
+  each selected claim and finally mark `pass_2_complete`.
+- Store source URLs, supporting excerpts, and findings rather than full page
+  copies. Do not create separate pass files or raw-source archives unless a
+  source cannot be revisited and retaining it is necessary.
 
 ## Apply the source policy
 
@@ -54,8 +59,8 @@ evidence before relying on them.
 5. Record source URLs and supporting excerpts, extract claims broadly,
    normalize their wording, split claims that are too broad to test, and merge
    duplicates.
-6. Propose a testable restatement and routing for each candidate. Require a
-   person to mark it `confirmed`, `edited`, or `rejected` before scoring.
+6. Create a testable restatement and routing for each candidate. Score from
+   the recorded public evidence and state uncertainty instead of guessing.
 
 Do not collect implementation datasets, freeze final contracts, design final
 tests, or create per-capability projects during pass 1.
@@ -64,7 +69,7 @@ For every candidate, record the original claim, source evidence, testable
 restatement, routing, `replicable`, score evidence, total, selection state, and
 reason in `research.json`.
 
-## Score confirmed candidates
+## Score candidates
 
 Assign only these three scores:
 
@@ -77,9 +82,9 @@ Assign only these three scores:
 Set `total = moat + business + separability`, from 0 to 6. Do not collect or
 score `observability` or `judgeability`.
 
-Select every confirmed, replicable claim with `total >= 4` for pass 2. Do not
-select claims with `total <= 3`. Route a non-replicable claim to
-`evidence_request` even when its total is 4 or higher.
+Select every replicable claim with `total >= 4` for pass 2. Do not select
+claims with `total <= 3`. Route a non-replicable claim to `evidence_request`
+even when its total is 4 or higher.
 
 ## Run pass 2: prepare replication claim by claim
 
