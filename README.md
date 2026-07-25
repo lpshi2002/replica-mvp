@@ -480,7 +480,7 @@ replica-mvp evaluate work/acme/runs/claim-a \
 │   ├── cli.py                 # init/build/evaluate/report 명령
 │   └── project.py             # 파일 생성, 실행, 판정, 보고서 로직
 ├── tests/test_import.py       # 최소 end-to-end 검사
-├── .team-ai/                  # 프로젝트 결정과 로컬 컨텍스트
+├── .team-ai -> team-ai/...    # Git에서 제외된 프로젝트 상태 연결
 └── work/                      # 기업별 로컬 결과, Git 제외
 ```
 
@@ -521,11 +521,14 @@ team-ai guard
 
 ## team-ai 연결
 
-이 저장소는 `/Users/cho/team-ai`의 하네스에 연결되어 있지만 제품 방향과 기업별
-분석은 프로젝트 로컬로 유지합니다. Replica 조사 규칙의 권위 있는 원본은
+이 저장소에는 공유할 소스코드만 두고, 프로젝트 메모리·결정·회의 자료와 컴파일
+상태는 `../team-ai/projects/replica-mvp/.team-ai`에서 관리합니다.
+저장소의 `.team-ai`는 그 위치를 가리키는 Git 제외 로컬 링크이므로 브랜치를
+바꿔도 같은 프로젝트 상태를 사용합니다. Replica 조사 규칙의 권위 있는 원본은
 team-ai가 아니라 `skills/replica-research/SKILL.md`입니다.
 
 ```bash
+ln -s ../team-ai/projects/replica-mvp/.team-ai .team-ai
 team-ai context --mode implementation "MVP 구현"
 team-ai guard
 ```

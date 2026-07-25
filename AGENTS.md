@@ -38,6 +38,8 @@ Only use harness context when the user explicitly asks about team-ai harness,
 CLI behavior, guard, verify, memory schema, AGENTS.md mechanics, project.yaml
 scope rules, runtime, or compiled snapshots.
 
+- `.team-ai` is a Git-ignored local link to the project state managed by
+  `../team-ai/projects/replica-mvp`; never stage or commit it.
 - Active project is defined in `.team-ai/project.yaml`.
 - Raw materials and meeting notes live under `.team-ai/sources/`.
 - Approved durable memories live under `.team-ai/memory/`.

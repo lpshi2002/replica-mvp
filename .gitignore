@@ -7,11 +7,7 @@ __pycache__/
 *.sqlite
 *.sqlite3
 *.db
-.team-ai/local/
-.team-ai/compiled/
-.team-ai/cache/
-.team-ai/tmp/
-.team-ai/logs/
+.team-ai
 output/
 outputs/
 work/
