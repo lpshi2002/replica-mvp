@@ -4,7 +4,13 @@ import argparse
 import sys
 from pathlib import Path
 
-from .project import build_project, evaluate_project, init_project, write_report
+from .project import (
+    build_project,
+    evaluate_project,
+    finalize_first_pass,
+    init_project,
+    write_report,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -37,6 +43,12 @@ def _parser() -> argparse.ArgumentParser:
 
     report = sub.add_parser("report", help="Regenerate report.md from results.jsonl.")
     report.add_argument("path", type=Path)
+
+    finalize = sub.add_parser(
+        "finalize-pass-1",
+        help="Validate pass-1 checkpoints and scored claims.",
+    )
+    finalize.add_argument("path", type=Path, help="Company root, e.g. work/acme")
     return parser
 
 
@@ -61,8 +73,10 @@ def main(argv: list[str] | None = None) -> int:
                 judge_command=args.judge_command,
                 timeout=args.timeout,
             )
-        else:
+        elif args.command == "report":
             write_report(args.path)
+        else:
+            finalize_first_pass(args.path)
     except (OSError, RuntimeError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

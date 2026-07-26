@@ -6,10 +6,16 @@
     "accessed_at": "CHANGE_ME"
   },
   "workflow": {
-    "status": "CHANGE_ME: pass_1_complete | pass_2_complete",
+    "status": "pass_1_running",
     "pass_1": {
-      "completed_at": "CHANGE_ME",
-      "coverage": {}
+      "completed_at": null,
+      "coverage": {
+        "official_surfaces": {"status": "pending", "checkpoint": "first_pass/official-surfaces.json"},
+        "engineering_blog": {"status": "pending", "checkpoint": "first_pass/engineering-blog.json"},
+        "discovered_names": {"status": "pending", "checkpoint": "first_pass/discovered-names.json"},
+        "people_and_organizations": {"status": "pending", "checkpoint": "first_pass/people-and-organizations.json"},
+        "supplementary_sources": {"status": "pending", "checkpoint": "first_pass/supplementary-sources.json"}
+      }
     },
     "pass_2": {
       "completed_at": null,
@@ -25,36 +31,15 @@
       "business": {"0": "부가 기능", "1": "고객 편의", "2": "구매·유지 핵심"},
       "separability": {"0": "영업·브랜드·계약", "1": "기술·사업 혼합", "2": "제한된 입력→출력 기술"}
     },
-    "selection_rule": "replicable, total >= 4"
+    "selection_rule": "total >= 4; judge replicable in pass 2"
   },
-  "claims": [
-    {
-      "id": "CHANGE_ME",
-      "slug": "CHANGE_ME",
-      "first_pass": {
-        "claim": "CHANGE_ME",
-        "sources": [],
-        "testable_claim": "CHANGE_ME",
-        "routing": "CHANGE_ME",
-        "replicable": true,
-        "scores": {
-          "moat": {"value": 0, "reason": "CHANGE_ME"},
-          "business": {"value": 0, "reason": "CHANGE_ME"},
-          "separability": {"value": 0, "reason": "CHANGE_ME"}
-        },
-        "total": 0,
-        "selected": false,
-        "disposition": "CHANGE_ME"
-      },
-      "second_pass": null
-    }
-  ],
+  "claims": [],
   "summary": {
     "candidate_count": 0,
     "selected_count": 0,
     "ready_count": 0,
     "partial_count": 0,
     "blocked_count": 0,
-    "next_step": "CHANGE_ME"
+    "next_step": "run_pass_1"
   }
 }

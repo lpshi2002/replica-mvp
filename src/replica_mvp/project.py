@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shlex
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,15 @@ EVIDENCE_LEVELS = {
     "public": ("공개 기준선", "공개된 기능 구현 가능"),
     "claim_only": ("주장 기준선", "공개 주장 기반 구현 가능"),
 }
+
+FIRST_PASS_SCOPES = {
+    "official_surfaces": "first_pass/official-surfaces.json",
+    "engineering_blog": "first_pass/engineering-blog.json",
+    "discovered_names": "first_pass/discovered-names.json",
+    "people_and_organizations": "first_pass/people-and-organizations.json",
+    "supplementary_sources": "first_pass/supplementary-sources.json",
+}
+_SCORE_AXES = ("moat", "business", "separability")
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -373,3 +383,161 @@ def write_report(root: Path) -> Path:
     path = root / "report.md"
     path.write_text(report, encoding="utf-8")
     return path
+
+
+def _filled_text(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and "CHANGE_ME" not in value
+
+
+def _validate_checkpoint(path: Path, scope: str) -> tuple[dict[str, Any], str | None]:
+    checkpoint = _read_json(path, dict)
+    if checkpoint.get("scope") != scope:
+        return checkpoint, f"{path}: scope must be {scope!r}"
+    if checkpoint.get("status") != "complete":
+        return checkpoint, f"{path}: status must be complete"
+
+    assignment = checkpoint.get("assignment")
+    if not isinstance(assignment, dict) or not isinstance(assignment.get("assigned"), list):
+        return checkpoint, f"{path}: assignment.assigned must be a list"
+    progress = checkpoint.get("progress")
+    if not isinstance(progress, dict):
+        return checkpoint, f"{path}: progress must be an object"
+    if not isinstance(progress.get("completed"), list):
+        return checkpoint, f"{path}: progress.completed must be a list"
+    if progress.get("remaining") != []:
+        return checkpoint, f"{path}: progress.remaining must be empty"
+    if not isinstance(progress.get("discovered_names"), list):
+        return checkpoint, f"{path}: progress.discovered_names must be a list"
+    if not _filled_text(checkpoint.get("updated_at")):
+        return checkpoint, f"{path}: updated_at must be set"
+
+    claims = checkpoint.get("claims")
+    if not isinstance(claims, list):
+        return checkpoint, f"{path}: claims must be a list"
+    for index, candidate in enumerate(claims, start=1):
+        if not isinstance(candidate, dict) or not _filled_text(candidate.get("claim")):
+            return checkpoint, f"{path}: claim {index} needs text"
+        sources = candidate.get("sources")
+        if not isinstance(sources, list) or not sources:
+            return checkpoint, f"{path}: claim {index} needs sources"
+        for source in sources:
+            if not isinstance(source, dict) or not _filled_text(source.get("url")) or not _filled_text(source.get("excerpt")):
+                return checkpoint, f"{path}: claim {index} has an invalid source"
+    return checkpoint, None
+
+
+def _validate_first_pass_claim(claim: Any, index: int) -> str | None:
+    label = f"claim {index}"
+    if not isinstance(claim, dict):
+        return f"{label} must be an object"
+    if not _filled_text(claim.get("id")) or not _filled_text(claim.get("slug")):
+        return f"{label} needs id and slug"
+    first = claim.get("first_pass")
+    if not isinstance(first, dict):
+        return f"{label}.first_pass must be an object"
+    for field in ("claim", "testable_claim", "routing"):
+        if not _filled_text(first.get(field)):
+            return f"{label}.first_pass.{field} must be filled"
+
+    sources = first.get("sources")
+    if not isinstance(sources, list) or not sources:
+        return f"{label}.first_pass.sources must not be empty"
+    for source in sources:
+        if not isinstance(source, dict) or not _filled_text(source.get("url")) or not _filled_text(source.get("excerpt")):
+            return f"{label}.first_pass has an invalid source"
+
+    selected = first.get("selected")
+    if "replicable" in first:
+        return f"{label}.first_pass.replicable belongs to second_pass"
+    if not isinstance(selected, bool):
+        return f"{label}.first_pass.selected must be a boolean"
+
+    scores = first.get("scores")
+    if not isinstance(scores, dict):
+        return f"{label}.first_pass.scores must be an object"
+    total = 0
+    for axis in _SCORE_AXES:
+        score = scores.get(axis)
+        if not isinstance(score, dict):
+            return f"{label}.first_pass.scores.{axis} must be an object"
+        value = score.get("value")
+        if isinstance(value, bool) or not isinstance(value, int) or value not in range(3):
+            return f"{label}.first_pass.scores.{axis}.value must be 0, 1, or 2"
+        if not _filled_text(score.get("reason")):
+            return f"{label}.first_pass.scores.{axis}.reason must be filled"
+        total += value
+    if first.get("total") != total:
+        return f"{label}.first_pass.total must equal {total}"
+
+    if total >= 4:
+        expected = (True, "second_pass")
+    else:
+        expected = (False, "ranked_not_selected")
+    if (selected, first.get("disposition")) != expected:
+        return (
+            f"{label}.first_pass selection must be "
+            f"selected={expected[0]} and disposition={expected[1]!r}"
+        )
+    return None
+
+
+def finalize_first_pass(company_root: Path) -> dict[str, Any]:
+    research_path = company_root / "research.json"
+    research = _read_json(research_path, dict)
+    checkpoints: dict[str, dict[str, Any]] = {}
+    for scope, relative_path in FIRST_PASS_SCOPES.items():
+        checkpoint, error = _validate_checkpoint(company_root / relative_path, scope)
+        if error:
+            raise ValueError(error)
+        checkpoints[scope] = checkpoint
+
+    claims = research.get("claims")
+    if not isinstance(claims, list):
+        raise ValueError("research.json claims must be a list")
+    ids: set[str] = set()
+    slugs: set[str] = set()
+    for index, claim in enumerate(claims, start=1):
+        error = _validate_first_pass_claim(claim, index)
+        if error:
+            raise ValueError(error)
+        claim_id = claim["id"]
+        slug = claim["slug"]
+        if claim_id in ids or slug in slugs:
+            raise ValueError(f"claim {index} duplicates an id or slug")
+        ids.add(claim_id)
+        slugs.add(slug)
+
+    workflow = research.get("workflow")
+    if not isinstance(workflow, dict):
+        raise ValueError("research.json workflow must be an object")
+    pass_1 = workflow.get("pass_1")
+    if not isinstance(pass_1, dict):
+        raise ValueError("research.json workflow.pass_1 must be an object")
+    pass_1["coverage"] = {
+        scope: {
+            "status": "complete",
+            "checkpoint": path,
+            "claim_count": len(checkpoints[scope]["claims"]),
+            "updated_at": checkpoints[scope]["updated_at"],
+        }
+        for scope, path in FIRST_PASS_SCOPES.items()
+    }
+    pass_1["completed_at"] = datetime.now(timezone.utc).isoformat()
+    workflow["status"] = "pass_1_complete"
+
+    selected_count = sum(claim["first_pass"]["selected"] for claim in claims)
+    pass_2 = workflow.get("pass_2")
+    if isinstance(pass_2, dict):
+        pass_2["selected_count"] = selected_count
+    summary = research.get("summary")
+    if not isinstance(summary, dict):
+        raise ValueError("research.json summary must be an object")
+    summary.update(
+        {
+            "candidate_count": len(claims),
+            "selected_count": selected_count,
+            "next_step": "run_pass_2" if selected_count else "no_selected_claims",
+        }
+    )
+    _write_json(research_path, research)
+    return research

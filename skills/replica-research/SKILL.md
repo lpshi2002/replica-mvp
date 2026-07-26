@@ -1,6 +1,6 @@
 ---
 name: replica-research
-description: Research a company from public sources in two passes, score and select replicable claims, prepare replication-ready contracts, and optionally run Replica evaluations. Use when the user provides a company name, URL, or description; asks about Replica source policy, claim scoring, selection, research.json, replication readiness, or claim execution; or wants an existing company research artifact reviewed or updated.
+description: Research a company from public sources in two passes, score claims, judge replication feasibility claim by claim, prepare replication-ready contracts, and optionally run Replica evaluations. Use when the user provides a company name, URL, or description; asks about Replica source policy, claim scoring, selection, research.json, replication readiness, or claim execution; or wants an existing company research artifact reviewed or updated.
 ---
 
 # Replica Research
@@ -21,12 +21,16 @@ internal systems.
   asks to build, run, or evaluate a Replica.
 - Create the authoritative `work/<company-slug>/research.json` from
   `../../templates/company-research.json` when research starts.
-- Save normalized findings directly to that file throughout the work. Complete
-  its pass-1 claims first, mark `pass_1_complete`, then add `second_pass` to
-  each selected claim and finally mark `pass_2_complete`.
+- During pass 1, workers continuously checkpoint their assigned scope under
+  `work/<company-slug>/first_pass/`; the orchestrator is the only writer of
+  normalized claims in `research.json`. Complete its pass-1 claims, mark
+  `pass_1_complete`, then add `second_pass` to each selected claim and finally
+  mark `pass_2_complete`.
 - Store source URLs, supporting excerpts, and findings rather than full page
-  copies. Do not create separate pass files or raw-source archives unless a
-  source cannot be revisited and retaining it is necessary.
+  copies. `research.json` is authoritative. First-pass checkpoint files are
+  resumable worker state, not separate research reports. Do not create
+  raw-source archives unless a source cannot be revisited and retaining it is
+  necessary.
 
 ## Apply the source policy
 
@@ -48,26 +52,59 @@ Treat patents as implementation clues, not proof of a deployed product.
 Verify discovery leads against official primary or reliable independent
 evidence before relying on them.
 
-## Run pass 1: discover claims broadly
+## Run pass 1: fan out five collection scopes
 
-1. Open the company's official product and technical pages.
-2. Review the complete technical or engineering blog index and open every
-   individual post. Do not infer relevance from titles alone.
-3. Search each discovered system, product, and feature name separately.
-4. Check relevant executive and engineer interviews, conference talks, and
-   technical job postings.
-5. Record source URLs and supporting excerpts, extract claims broadly,
-   normalize their wording, split claims that are too broad to test, and merge
-   duplicates.
-6. Create a testable restatement and routing for each candidate. Score from
-   the recorded public evidence and state uncertainty instead of guessing.
+Act as the pass-1 orchestrator. Use the worker contract in
+`agents/replica-first-pass.md` and assign these five scopes:
+
+1. `official_surfaces`: the official company site, product and feature pages,
+   technical and developer docs, API docs, help docs, public demos, white
+   papers, release notes, official GitHub repositories, and SDKs.
+2. `engineering_blog`: review the complete technical or engineering blog
+   index and open every individual post. Never infer relevance from titles.
+3. `discovered_names`: search every discovered product, system, feature, and
+   internal technical name as a separate query to find related official
+   material.
+4. `people_and_organizations`: executive and engineer interviews, conference
+   talks, technical job postings, and official customer or partner
+   announcements.
+5. `supplementary_sources`: filings, papers, patents, official databases, and
+   high-trust reporting. Treat investor materials, TechCrunch, LinkedIn, and
+   Crunchbase only as discovery leads and reconfirm them with official or
+   reliable evidence.
+
+Start `official_surfaces`, `engineering_blog`, `people_and_organizations`, and
+`supplementary_sources` first. Start `discovered_names` after collecting their
+discovered-name lists; rerun that scope if the other workers later add names.
+Run independent scopes in parallel up to the environment's concurrency limit.
+
+Each worker owns one checkpoint file under `work/<company>/first_pass/` and
+must create it before browsing. A worker must persist every claim with its
+source URL and supporting excerpt immediately when found, before opening the
+next source or running the next query. It must also persist assigned,
+completed, and remaining scope after each source. Never rely on a worker's
+final chat response for research data. If context compacts or the worker
+restarts, resume from the checkpoint's remaining scope without repeating
+completed work.
+
+After all five scopes are complete, read their checkpoints and:
+
+1. combine supporting sources for equivalent claims;
+2. normalize wording, split claims that are too broad to test, and remove
+   duplicates;
+3. create a testable restatement and routing for each candidate;
+4. score from recorded public evidence and state uncertainty instead of
+   guessing;
+5. write the deduplicated candidates to `research.json`; and
+6. run `replica-mvp finalize-pass-1 work/<company>` to validate the result and
+   mark pass 1 complete.
 
 Do not collect implementation datasets, freeze final contracts, design final
 tests, or create per-capability projects during pass 1.
 
 For every candidate, record the original claim, source evidence, testable
-restatement, routing, `replicable`, score evidence, total, selection state, and
-reason in `research.json`.
+restatement, routing, score evidence, total, selection state, and reason in
+`research.json`. Do not record or infer `replicable` during pass 1.
 
 ## Score candidates
 
@@ -82,9 +119,9 @@ Assign only these three scores:
 Set `total = moat + business + separability`, from 0 to 6. Do not collect or
 score `observability` or `judgeability`.
 
-Select every replicable claim with `total >= 4` for pass 2. Do not select
-claims with `total <= 3`. Route a non-replicable claim to `evidence_request`
-even when its total is 4 or higher.
+Select every claim with `total >= 4` for pass 2. Do not select claims with
+`total <= 3`. `separability` is only one score axis; it is not a replication
+feasibility verdict. Judge `replicable` only during pass 2.
 
 ## Run pass 2: prepare replication claim by claim
 
@@ -95,6 +132,7 @@ Do not recrawl unrelated company pages.
 
 Collect enough public evidence to decide and prepare replication:
 
+- whether the claim is replicable from public or synthetic inputs;
 - canonical claim, exact input, process, output, and boundaries;
 - supporting and contradictory evidence and explicit unknowns;
 - usable datasets, sample documents, schemas, formats, APIs, and SDKs;
@@ -107,7 +145,9 @@ Collect enough public evidence to decide and prepare replication:
 Attach the result to that claim's `second_pass` field in the same
 `research.json`. Use `confirmed`, `refined`, `merged`, or `rejected` for its
 status. Record each source's URL, source type, supported finding, and supported
-claim field.
+claim field. Record `second_pass.replicable` and its evidence-based reason here,
+never under `first_pass`. Route a non-replicable claim to `evidence_request` or
+`reject` as appropriate.
 
 ## Decide readiness
 
