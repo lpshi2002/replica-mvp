@@ -19,24 +19,30 @@
     },
     "pass_2": {
       "completed_at": null,
-      "selected_count": 0,
+      "handoff_count": 0,
       "ready_count": 0,
       "partial_count": 0,
       "blocked_count": 0
     }
   },
-  "rubric": {
-    "axes": {
-      "moat": {"0": "단순 기능", "1": "일부 차별점", "2": "반복 강조 핵심 해자"},
-      "business": {"0": "부가 기능", "1": "고객 편의", "2": "구매·유지 핵심"},
-      "separability": {"0": "영업·브랜드·계약", "1": "기술·사업 혼합", "2": "제한된 입력→출력 기술"}
+  "claim_filter": {
+    "a1": "주장이 시스템이 수행하는 작업(입력→출력·판단)을 명시한다",
+    "a2": "공개 출처가 그 작업을 AI 기계장치에 귀속한다 — 원문 인용 필수",
+    "ai_basis": "mechanism·signals·source_index·quote를 모든 후보에 기록한다",
+    "granularity": "주장 하나 = 워크플로 하나. 다른 주장에 소비되고 단독 제공되지 않는 출력은 그 워크플로의 workflow.steps로 접는다",
+    "workflow": "input·steps(step+source_index)·output을 기록한다. 문서화되지 않은 단계는 추론하지 않는다",
+    "replication_leads": "1차 조사 중 발견한 입력 샘플·출력 예시·스키마·API·구현·평가 단서를 kind·source_index·finding으로 기록하고 2차가 이어받는다",
+    "exclusion_reasons": {
+      "outcome_metric": "성과·효율 수치 재진술",
+      "non_technical": "투자·고객·파트너십·가격·채용·인증 등 비기술 주장",
+      "no_ai_attribution": "작업은 있으나 AI 귀속 인용 없음"
     },
-    "selection_rule": "total >= 4; judge replicable in pass 2"
+    "no_scoring": "1차는 채점·선별하지 않는다. 중복 정리 후 전부 2차로 넘긴다"
   },
   "claims": [],
   "summary": {
     "candidate_count": 0,
-    "selected_count": 0,
+    "excluded_count": 0,
     "ready_count": 0,
     "partial_count": 0,
     "blocked_count": 0,

@@ -21,7 +21,8 @@ FIRST_PASS_SCOPES = {
     "people_and_organizations": "first_pass/people-and-organizations.json",
     "supplementary_sources": "first_pass/supplementary-sources.json",
 }
-_SCORE_AXES = ("moat", "business", "separability")
+EXCLUSION_REASONS = ("outcome_metric", "non_technical", "no_ai_attribution")
+_RETIRED_FIRST_PASS_FIELDS = ("scores", "total", "selected", "disposition")
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -389,6 +390,107 @@ def _filled_text(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip()) and "CHANGE_ME" not in value
 
 
+def _normalized(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+def _validate_sources(sources: Any, label: str) -> str | None:
+    if not isinstance(sources, list) or not sources:
+        return f"{label}.sources must not be empty"
+    for source in sources:
+        if not isinstance(source, dict) or not _filled_text(source.get("url")) or not _filled_text(source.get("excerpt")):
+            return f"{label} has an invalid source"
+    return None
+
+
+def _validate_ai_basis(candidate: dict[str, Any], label: str) -> str | None:
+    """Require quoted, source-anchored evidence that the claim is about AI."""
+    basis = candidate.get("ai_basis")
+    if not isinstance(basis, dict):
+        return f"{label}.ai_basis must be an object"
+    for field in ("mechanism", "quote"):
+        if not _filled_text(basis.get(field)):
+            return f"{label}.ai_basis.{field} must be filled"
+
+    signals = basis.get("signals")
+    if not isinstance(signals, list) or not signals or not all(_filled_text(signal) for signal in signals):
+        return f"{label}.ai_basis.signals must be a non-empty list of terms"
+
+    sources = candidate["sources"]
+    index = basis.get("source_index")
+    error = _source_index(index, sources, f"{label}.ai_basis.source_index")
+    if error:
+        return error
+
+    quote = _normalized(basis["quote"])
+    for signal in signals:
+        if _normalized(signal) not in quote:
+            return f"{label}.ai_basis.quote must contain the signal {signal!r}"
+    if quote not in _normalized(sources[index - 1]["excerpt"]):
+        return f"{label}.ai_basis.quote must appear in the excerpt of source {index}"
+    return None
+
+
+def _source_index(value: Any, sources: list[Any], label: str) -> str | None:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= len(sources):
+        return f"{label} must be a 1-based index into sources"
+    return None
+
+
+def _validate_workflow(candidate: dict[str, Any], label: str) -> str | None:
+    """Require the claim to be recorded as a whole workflow, steps included."""
+    workflow = candidate.get("workflow")
+    if not isinstance(workflow, dict):
+        return f"{label}.workflow must be an object"
+    for field in ("input", "output"):
+        if not _filled_text(workflow.get(field)):
+            return f"{label}.workflow.{field} must be filled"
+
+    steps = workflow.get("steps")
+    if not isinstance(steps, list):
+        return f"{label}.workflow.steps must be a list"
+    sources = candidate["sources"]
+    for position, step in enumerate(steps, start=1):
+        if not isinstance(step, dict) or not _filled_text(step.get("step")):
+            return f"{label}.workflow.steps {position} needs step text"
+        error = _source_index(step.get("source_index"), sources, f"{label}.workflow.steps {position}.source_index")
+        if error:
+            return error
+    return None
+
+
+def _validate_replication_leads(candidate: dict[str, Any], label: str) -> str | None:
+    leads = candidate.get("replication_leads")
+    if not isinstance(leads, list):
+        return f"{label}.replication_leads must be a list"
+    sources = candidate["sources"]
+    for position, lead in enumerate(leads, start=1):
+        if not isinstance(lead, dict):
+            return f"{label}.replication_leads {position} must be an object"
+        for field in ("kind", "finding"):
+            if not _filled_text(lead.get(field)):
+                return f"{label}.replication_leads {position}.{field} must be filled"
+        error = _source_index(
+            lead.get("source_index"),
+            sources,
+            f"{label}.replication_leads {position}.source_index",
+        )
+        if error:
+            return error
+    return None
+
+
+def _validate_exclusions(excluded: Any, label: str) -> str | None:
+    if not isinstance(excluded, list):
+        return f"{label}.excluded must be a list"
+    for index, entry in enumerate(excluded, start=1):
+        if not isinstance(entry, dict) or not _filled_text(entry.get("claim")):
+            return f"{label}.excluded {index} needs claim text"
+        if entry.get("reason") not in EXCLUSION_REASONS:
+            return f"{label}.excluded {index}.reason must be one of {', '.join(EXCLUSION_REASONS)}"
+    return None
+
+
 def _validate_checkpoint(path: Path, scope: str) -> tuple[dict[str, Any], str | None]:
     checkpoint = _read_json(path, dict)
     if checkpoint.get("scope") != scope:
@@ -415,14 +517,24 @@ def _validate_checkpoint(path: Path, scope: str) -> tuple[dict[str, Any], str | 
     if not isinstance(claims, list):
         return checkpoint, f"{path}: claims must be a list"
     for index, candidate in enumerate(claims, start=1):
+        label = f"claim {index}"
         if not isinstance(candidate, dict) or not _filled_text(candidate.get("claim")):
-            return checkpoint, f"{path}: claim {index} needs text"
-        sources = candidate.get("sources")
-        if not isinstance(sources, list) or not sources:
-            return checkpoint, f"{path}: claim {index} needs sources"
-        for source in sources:
-            if not isinstance(source, dict) or not _filled_text(source.get("url")) or not _filled_text(source.get("excerpt")):
-                return checkpoint, f"{path}: claim {index} has an invalid source"
+            return checkpoint, f"{path}: {label} needs text"
+        for field in _RETIRED_FIRST_PASS_FIELDS:
+            if field in candidate:
+                return checkpoint, f"{path}: {label}.{field} is retired; pass 1 no longer scores or selects"
+        error = (
+            _validate_sources(candidate.get("sources"), label)
+            or _validate_ai_basis(candidate, label)
+            or _validate_workflow(candidate, label)
+            or _validate_replication_leads(candidate, label)
+        )
+        if error:
+            return checkpoint, f"{path}: {error}"
+
+    error = _validate_exclusions(checkpoint.get("excluded", []), "checkpoint")
+    if error:
+        return checkpoint, f"{path}: {error}"
     return checkpoint, None
 
 
@@ -439,46 +551,26 @@ def _validate_first_pass_claim(claim: Any, index: int) -> str | None:
         if not _filled_text(first.get(field)):
             return f"{label}.first_pass.{field} must be filled"
 
-    sources = first.get("sources")
-    if not isinstance(sources, list) or not sources:
-        return f"{label}.first_pass.sources must not be empty"
-    for source in sources:
-        if not isinstance(source, dict) or not _filled_text(source.get("url")) or not _filled_text(source.get("excerpt")):
-            return f"{label}.first_pass has an invalid source"
+    error = _validate_sources(first.get("sources"), f"{label}.first_pass")
+    if error:
+        return error
 
-    selected = first.get("selected")
     if "replicable" in first:
         return f"{label}.first_pass.replicable belongs to second_pass"
-    if not isinstance(selected, bool):
-        return f"{label}.first_pass.selected must be a boolean"
+    for field in _RETIRED_FIRST_PASS_FIELDS:
+        if field in first:
+            return f"{label}.first_pass.{field} is retired; pass 1 no longer scores or selects"
 
-    scores = first.get("scores")
-    if not isinstance(scores, dict):
-        return f"{label}.first_pass.scores must be an object"
-    total = 0
-    for axis in _SCORE_AXES:
-        score = scores.get(axis)
-        if not isinstance(score, dict):
-            return f"{label}.first_pass.scores.{axis} must be an object"
-        value = score.get("value")
-        if isinstance(value, bool) or not isinstance(value, int) or value not in range(3):
-            return f"{label}.first_pass.scores.{axis}.value must be 0, 1, or 2"
-        if not _filled_text(score.get("reason")):
-            return f"{label}.first_pass.scores.{axis}.reason must be filled"
-        total += value
-    if first.get("total") != total:
-        return f"{label}.first_pass.total must equal {total}"
+    merged_from = first.get("merged_from", [])
+    if not isinstance(merged_from, list) or not all(_filled_text(item) for item in merged_from):
+        return f"{label}.first_pass.merged_from must be a list of absorbed claims"
 
-    if total >= 4:
-        expected = (True, "second_pass")
-    else:
-        expected = (False, "ranked_not_selected")
-    if (selected, first.get("disposition")) != expected:
-        return (
-            f"{label}.first_pass selection must be "
-            f"selected={expected[0]} and disposition={expected[1]!r}"
-        )
-    return None
+    first_label = f"{label}.first_pass"
+    return (
+        _validate_ai_basis(first, first_label)
+        or _validate_workflow(first, first_label)
+        or _validate_replication_leads(first, first_label)
+    )
 
 
 def finalize_first_pass(company_root: Path) -> dict[str, Any]:
@@ -518,6 +610,7 @@ def finalize_first_pass(company_root: Path) -> dict[str, Any]:
             "status": "complete",
             "checkpoint": path,
             "claim_count": len(checkpoints[scope]["claims"]),
+            "excluded_count": len(checkpoints[scope].get("excluded", [])),
             "updated_at": checkpoints[scope]["updated_at"],
         }
         for scope, path in FIRST_PASS_SCOPES.items()
@@ -525,18 +618,20 @@ def finalize_first_pass(company_root: Path) -> dict[str, Any]:
     pass_1["completed_at"] = datetime.now(timezone.utc).isoformat()
     workflow["status"] = "pass_1_complete"
 
-    selected_count = sum(claim["first_pass"]["selected"] for claim in claims)
+    excluded_count = sum(len(checkpoint.get("excluded", [])) for checkpoint in checkpoints.values())
     pass_2 = workflow.get("pass_2")
     if isinstance(pass_2, dict):
-        pass_2["selected_count"] = selected_count
+        pass_2["handoff_count"] = len(claims)
+        pass_2.pop("selected_count", None)
     summary = research.get("summary")
     if not isinstance(summary, dict):
         raise ValueError("research.json summary must be an object")
+    summary.pop("selected_count", None)
     summary.update(
         {
             "candidate_count": len(claims),
-            "selected_count": selected_count,
-            "next_step": "run_pass_2" if selected_count else "no_selected_claims",
+            "excluded_count": excluded_count,
+            "next_step": "run_pass_2" if claims else "no_ai_claims",
         }
     )
     _write_json(research_path, research)
