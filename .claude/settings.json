@@ -6,7 +6,6 @@
       "Bash(python:*)",
       "Bash(python3:*)",
       "Bash(pytest:*)",
-      "Bash(team-ai:*)",
       "Read",
       "Edit",
       "Write",
