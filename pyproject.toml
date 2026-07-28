@@ -13,3 +13,7 @@ replica-mvp = "replica_mvp.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["replica_mvp*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
