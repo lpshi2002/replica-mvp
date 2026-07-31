@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import subprocess
 from datetime import datetime, timezone
@@ -21,7 +22,23 @@ FIRST_PASS_SCOPES = {
     "people_and_organizations": "first_pass/people-and-organizations.json",
     "supplementary_sources": "first_pass/supplementary-sources.json",
 }
-EXCLUSION_REASONS = ("outcome_metric", "non_technical", "no_ai_attribution")
+EXCLUSION_REASONS = (
+    "outcome_metric",
+    "non_technical",
+    "no_ai_attribution",
+    "internal_workflow",
+)
+DEFERRED_REASONS = (
+    "no_company_attribution",
+    "no_customer_delivery",
+    "not_workflow",
+)
+CUSTOMER_DELIVERIES = ("public_product", "customer_deployment")
+DEFERRED_DECISIONS = (
+    "promoted_to_claim",
+    "attached_to_claim",
+    "excluded",
+)
 _RETIRED_FIRST_PASS_FIELDS = ("scores", "total", "selected", "disposition")
 
 
@@ -403,6 +420,29 @@ def _validate_sources(sources: Any, label: str) -> str | None:
     return None
 
 
+def _validate_customer_basis(candidate: dict[str, Any], label: str) -> str | None:
+    """Require evidence that an external user receives the capability."""
+    basis = candidate.get("customer_basis")
+    if not isinstance(basis, dict):
+        return f"{label}.customer_basis must be an object"
+    if basis.get("delivery") not in CUSTOMER_DELIVERIES:
+        return f"{label}.customer_basis.delivery must be one of {', '.join(CUSTOMER_DELIVERIES)}"
+    for field in ("subject", "audience", "quote"):
+        if not _filled_text(basis.get(field)):
+            return f"{label}.customer_basis.{field} must be filled"
+
+    sources = candidate["sources"]
+    index = basis.get("source_index")
+    error = _source_index(index, sources, f"{label}.customer_basis.source_index")
+    if error:
+        return error
+    if _normalized(basis["subject"]) not in _normalized(basis["quote"]):
+        return f"{label}.customer_basis.quote must contain the attributed subject {basis['subject']!r}"
+    if _normalized(basis["quote"]) not in _normalized(sources[index - 1]["excerpt"]):
+        return f"{label}.customer_basis.quote must appear in the excerpt of source {index}"
+    return None
+
+
 def _validate_ai_basis(candidate: dict[str, Any], label: str) -> str | None:
     """Require quoted, source-anchored evidence that the claim is about AI."""
     basis = candidate.get("ai_basis")
@@ -412,9 +452,12 @@ def _validate_ai_basis(candidate: dict[str, Any], label: str) -> str | None:
         if not _filled_text(basis.get(field)):
             return f"{label}.ai_basis.{field} must be filled"
 
-    signals = basis.get("signals")
-    if not isinstance(signals, list) or not signals or not all(_filled_text(signal) for signal in signals):
-        return f"{label}.ai_basis.signals must be a non-empty list of terms"
+    term_groups = {}
+    for field in ("signals", "work_signals"):
+        terms = basis.get(field)
+        if not isinstance(terms, list) or not terms or not all(_filled_text(term) for term in terms):
+            return f"{label}.ai_basis.{field} must be a non-empty list of terms"
+        term_groups[field] = terms
 
     sources = candidate["sources"]
     index = basis.get("source_index")
@@ -423,11 +466,17 @@ def _validate_ai_basis(candidate: dict[str, Any], label: str) -> str | None:
         return error
 
     quote = _normalized(basis["quote"])
-    for signal in signals:
-        if _normalized(signal) not in quote:
-            return f"{label}.ai_basis.quote must contain the signal {signal!r}"
+    for field, terms in term_groups.items():
+        for term in terms:
+            if _normalized(term) not in quote:
+                return f"{label}.ai_basis.quote must contain the {field[:-1]} {term!r}"
     if quote not in _normalized(sources[index - 1]["excerpt"]):
         return f"{label}.ai_basis.quote must appear in the excerpt of source {index}"
+
+    required_terms = [_normalized(term) for terms in term_groups.values() for term in terms]
+    sentences = [_normalized(sentence) for sentence in re.split(r"(?<=[.!?])\s+", basis["quote"].strip())]
+    if not any(all(term in sentence for term in required_terms) for sentence in sentences):
+        return f"{label}.ai_basis.quote must directly connect the AI and claimed work in one sentence"
     return None
 
 
@@ -438,7 +487,7 @@ def _source_index(value: Any, sources: list[Any], label: str) -> str | None:
 
 
 def _validate_workflow(candidate: dict[str, Any], label: str) -> str | None:
-    """Require the claim to be recorded as a whole workflow, steps included."""
+    """Require one whole workflow with documented input, steps, and output."""
     workflow = candidate.get("workflow")
     if not isinstance(workflow, dict):
         return f"{label}.workflow must be an object"
@@ -491,12 +540,35 @@ def _validate_exclusions(excluded: Any, label: str) -> str | None:
     return None
 
 
+def _validate_deferred(deferred: Any, label: str) -> str | None:
+    if not isinstance(deferred, list):
+        return f"{label}.deferred must be a list"
+    ids: set[str] = set()
+    for index, entry in enumerate(deferred, start=1):
+        entry_label = f"{label}.deferred {index}"
+        if not isinstance(entry, dict):
+            return f"{entry_label} must be an object"
+        for field in ("id", "claim", "url", "excerpt"):
+            if not _filled_text(entry.get(field)):
+                return f"{entry_label}.{field} must be filled"
+        if entry["id"] in ids:
+            return f"{entry_label}.id must be unique"
+        ids.add(entry["id"])
+        if entry.get("reason") not in DEFERRED_REASONS:
+            return f"{entry_label}.reason must be one of {', '.join(DEFERRED_REASONS)}"
+    return None
+
+
 def _validate_checkpoint(path: Path, scope: str) -> tuple[dict[str, Any], str | None]:
     checkpoint = _read_json(path, dict)
+    if checkpoint.get("schema_version") != 2:
+        return checkpoint, f"{path}: schema_version must be 2"
     if checkpoint.get("scope") != scope:
         return checkpoint, f"{path}: scope must be {scope!r}"
     if checkpoint.get("status") != "complete":
         return checkpoint, f"{path}: status must be complete"
+    if "chain_hints" in checkpoint:
+        return checkpoint, f"{path}: chain_hints is retired; one claim must contain the whole workflow"
 
     assignment = checkpoint.get("assignment")
     if not isinstance(assignment, dict) or not isinstance(assignment.get("assigned"), list):
@@ -516,23 +588,32 @@ def _validate_checkpoint(path: Path, scope: str) -> tuple[dict[str, Any], str | 
     claims = checkpoint.get("claims")
     if not isinstance(claims, list):
         return checkpoint, f"{path}: claims must be a list"
+    claim_ids: set[str] = set()
     for index, candidate in enumerate(claims, start=1):
         label = f"claim {index}"
-        if not isinstance(candidate, dict) or not _filled_text(candidate.get("claim")):
-            return checkpoint, f"{path}: {label} needs text"
+        if not isinstance(candidate, dict) or not _filled_text(candidate.get("id")) or not _filled_text(candidate.get("claim")):
+            return checkpoint, f"{path}: {label} needs id and text"
+        if candidate["id"] in claim_ids:
+            return checkpoint, f"{path}: {label}.id must be unique"
         for field in _RETIRED_FIRST_PASS_FIELDS:
             if field in candidate:
                 return checkpoint, f"{path}: {label}.{field} is retired; pass 1 no longer scores or selects"
         error = (
             _validate_sources(candidate.get("sources"), label)
+            or _validate_customer_basis(candidate, label)
             or _validate_ai_basis(candidate, label)
             or _validate_workflow(candidate, label)
             or _validate_replication_leads(candidate, label)
         )
         if error:
             return checkpoint, f"{path}: {error}"
+        claim_ids.add(candidate["id"])
 
-    error = _validate_exclusions(checkpoint.get("excluded", []), "checkpoint")
+    error = _validate_deferred(checkpoint.get("deferred"), "checkpoint")
+    if error:
+        return checkpoint, f"{path}: {error}"
+
+    error = _validate_exclusions(checkpoint.get("excluded"), "checkpoint")
     if error:
         return checkpoint, f"{path}: {error}"
     return checkpoint, None
@@ -567,21 +648,71 @@ def _validate_first_pass_claim(claim: Any, index: int) -> str | None:
 
     first_label = f"{label}.first_pass"
     return (
-        _validate_ai_basis(first, first_label)
+        _validate_customer_basis(first, first_label)
+        or _validate_ai_basis(first, first_label)
         or _validate_workflow(first, first_label)
         or _validate_replication_leads(first, first_label)
     )
 
 
+def _validate_deferred_resolutions(
+    resolutions: Any,
+    deferred_ids: set[str],
+    claim_ids: set[str],
+) -> tuple[int, str | None]:
+    if not isinstance(resolutions, list):
+        return 0, "research.json deferred_resolutions must be a list"
+    resolved: set[str] = set()
+    excluded_count = 0
+    for position, resolution in enumerate(resolutions, start=1):
+        label = f"deferred_resolution {position}"
+        if not isinstance(resolution, dict):
+            return 0, f"{label} must be an object"
+        deferred_id = resolution.get("deferred_id")
+        if deferred_id not in deferred_ids:
+            return 0, f"{label}.deferred_id must reference a checkpoint deferred item"
+        if deferred_id in resolved:
+            return 0, f"{label}.deferred_id must be unique"
+        resolved.add(deferred_id)
+        decision = resolution.get("decision")
+        if decision not in DEFERRED_DECISIONS:
+            return 0, f"{label}.decision must be one of {', '.join(DEFERRED_DECISIONS)}"
+        if not _filled_text(resolution.get("rationale")):
+            return 0, f"{label}.rationale must be filled"
+
+        target_id = resolution.get("target_id")
+        if decision in ("promoted_to_claim", "attached_to_claim"):
+            if target_id not in claim_ids:
+                return 0, f"{label}.target_id must reference a final claim"
+        elif _filled_text(target_id):
+            return 0, f"{label}.target_id must be empty when excluded"
+        else:
+            excluded_count += 1
+
+    missing = deferred_ids - resolved
+    if missing:
+        return 0, f"deferred item {sorted(missing)[0]!r} is unresolved"
+    return excluded_count, None
+
+
 def finalize_first_pass(company_root: Path) -> dict[str, Any]:
     research_path = company_root / "research.json"
     research = _read_json(research_path, dict)
+    if research.get("schema_version") != 2:
+        raise ValueError("research.json schema_version must be 2")
+    if "chains" in research:
+        raise ValueError("research.json chains is retired; one claim must contain the whole workflow")
     checkpoints: dict[str, dict[str, Any]] = {}
+    deferred_ids: set[str] = set()
     for scope, relative_path in FIRST_PASS_SCOPES.items():
         checkpoint, error = _validate_checkpoint(company_root / relative_path, scope)
         if error:
             raise ValueError(error)
         checkpoints[scope] = checkpoint
+        for entry in checkpoint["deferred"]:
+            if entry["id"] in deferred_ids:
+                raise ValueError(f"deferred id {entry['id']!r} must be unique across checkpoints")
+            deferred_ids.add(entry["id"])
 
     claims = research.get("claims")
     if not isinstance(claims, list):
@@ -598,6 +729,13 @@ def finalize_first_pass(company_root: Path) -> dict[str, Any]:
             raise ValueError(f"claim {index} duplicates an id or slug")
         ids.add(claim_id)
         slugs.add(slug)
+    deferred_excluded_count, error = _validate_deferred_resolutions(
+        research.get("deferred_resolutions"),
+        deferred_ids,
+        ids,
+    )
+    if error:
+        raise ValueError(error)
 
     workflow = research.get("workflow")
     if not isinstance(workflow, dict):
@@ -610,6 +748,7 @@ def finalize_first_pass(company_root: Path) -> dict[str, Any]:
             "status": "complete",
             "checkpoint": path,
             "claim_count": len(checkpoints[scope]["claims"]),
+            "deferred_count": len(checkpoints[scope]["deferred"]),
             "excluded_count": len(checkpoints[scope].get("excluded", [])),
             "updated_at": checkpoints[scope]["updated_at"],
         }
@@ -618,19 +757,26 @@ def finalize_first_pass(company_root: Path) -> dict[str, Any]:
     pass_1["completed_at"] = datetime.now(timezone.utc).isoformat()
     workflow["status"] = "pass_1_complete"
 
-    excluded_count = sum(len(checkpoint.get("excluded", [])) for checkpoint in checkpoints.values())
+    excluded_count = (
+        sum(len(checkpoint.get("excluded", [])) for checkpoint in checkpoints.values())
+        + deferred_excluded_count
+    )
     pass_2 = workflow.get("pass_2")
     if isinstance(pass_2, dict):
         pass_2["handoff_count"] = len(claims)
+        pass_2.pop("claim_count", None)
         pass_2.pop("selected_count", None)
     summary = research.get("summary")
     if not isinstance(summary, dict):
         raise ValueError("research.json summary must be an object")
     summary.pop("selected_count", None)
+    summary.pop("chain_count", None)
     summary.update(
         {
             "candidate_count": len(claims),
             "excluded_count": excluded_count,
+            "deferred_count": len(deferred_ids),
+            "resolved_deferred_count": len(deferred_ids),
             "next_step": "run_pass_2" if claims else "no_ai_claims",
         }
     )
