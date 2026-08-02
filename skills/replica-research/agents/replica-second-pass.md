@@ -63,8 +63,9 @@ The orchestrator passes a brief built only from `research.json`:
   these**; carry them forward and correct them only when a source contradicts
   pass 1, in which case set `status` to `refined`. Do not invent them;
 - `ai_basis`, `customer_basis`, `sources`, `replication_leads`;
-- `routing` (mapped to a closed vocabulary), plus `routing_raw` and
-  `routing_source` for audit;
+- `routing`, classified by the orchestrator into a closed vocabulary, plus
+  `routing_raw` — what pass 1 wrote, recorded for audit and deliberately not
+  read into the classification;
 - `search_names` and `names_source`;
 - `bucket_depth`: `deep` or `shallow` per bucket. **Never `not_applicable`.**
 
@@ -253,7 +254,7 @@ Write `work/<company>/second_pass/<slug>.json` and nothing else.
   ],
   "brief": {
     "search_names": [], "names_source": "derived|derived+checkpoint",
-    "routing": [], "routing_raw": "…", "routing_source": "given|derived",
+    "routing": [], "routing_raw": "…",
     "bucket_depth": {}
   },
   "run": { "completed_at": "<ISO-8601>", "fragment": "second_pass/<slug>.json" }

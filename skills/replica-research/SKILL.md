@@ -307,19 +307,20 @@ company-wide `progress.discovered_names` as a candidate pool and adopt a name
 **only when it literally appears in this claim's own text**; drop the rest.
 Record `names_source` as `derived` or `derived+checkpoint`.
 
-**`routing`.** `first_pass.routing` is a free string that the code does not
-validate, so close it here, at the point of consumption. Map it onto
-`commodity_task`, `domain_specialized`, `workflow_orchestration`,
-`novel_technique`, or `proprietary_data_bound` — the axis is always "where is
-replication hard". Use the value directly when it matches (`routing_source:
-given`); translate it when it describes a type in other words; and when it is a
-**quality or value judgement** such as "high accuracy", "unique", or "strong
-moat", **do not read it at all** — preserve it in `routing_raw`, keep it out of
-depth allocation, and classify from `ai_basis.mechanism`, `workflow.steps`, and
-`replication_leads[].kind` instead. Pass 1 retired scoring; a judgement word in
-this field would restore it through the back door. A mapping may yield up to
-three values when one term spans axes. Always record `routing_raw` and
-`routing_source`.
+**`routing`.** Derive it. **Do not read `first_pass.routing`** — record it in
+`routing_raw` for audit and classify from scratch. That field is a free string
+the code never validates, so its values are whatever one producer happened to
+write; observed values carried almost no discriminating power (17 of 19 claims
+identical), and translating such a value into our axes manufactures detail the
+input never contained. Not reading it also closes the back door by which a
+quality judgement — "high accuracy", "unique", "strong moat" — would restore the
+scoring pass 1 retired.
+
+Classify into `commodity_task`, `domain_specialized`,
+`workflow_orchestration`, `novel_technique`, or `proprietary_data_bound`, on the
+axis "where is replication hard", from three fields and no others:
+`ai_basis.mechanism`, the number of `workflow.steps`, and
+`replication_leads[].kind`. Assign one to three values.
 
 **`bucket_depth`.** Look it up from `routing`; do not decide it. Take the
 per-bucket maximum when routing has several values (`shallow` < `deep`).
