@@ -25,13 +25,16 @@ code, training data, customer data, or internal systems.
   `work/<company-slug>/first_pass/`; the orchestrator is the only writer of
   normalized claims in `research.json`. Worker claims are provisional,
   source-backed observations. Complete the normalized pass-1 claims, resolve
-  every deferred observation, mark `pass_1_complete`, then add the pass-2
-  decision to every claim before marking `pass_2_complete`.
+  every deferred observation, and mark `pass_1_complete`.
+- During pass 2, act as the orchestrator: spawn one `replica-second-pass` worker
+  per claim, and after all finish, attach their fragments to the claims and mark
+  `pass_2_complete`.
 - Store source URLs, supporting excerpts, and findings rather than full page
   copies. `research.json` is authoritative. First-pass checkpoint files are
-  resumable worker state, not separate research reports. Do not create
-  raw-source archives unless a source cannot be revisited and retaining it is
-  necessary.
+  resumable worker state, and second-pass fragments under
+  `work/<company-slug>/second_pass/` are merge scaffolding kept for audit;
+  neither is a separate research report. Do not create raw-source archives
+  unless a source cannot be revisited and retaining it is necessary.
 
 ## Apply the source policy
 
@@ -280,34 +283,77 @@ restatement, routing, and duplicate or child-claim merge history in
 `research.json`. Every whole-workflow claim is handed to pass 2; pass 1 does
 not rank or select. Do not record or infer `replicable` during pass 1.
 
-## Run pass 2: prepare replication claim by claim
+## Run pass 2: fan out one worker per claim
 
-Work on one pass-1 whole-workflow claim at a time. Carry its `sources`,
-`customer_basis`, `ai_basis`, `workflow`, and
-`replication_leads` forward. Deepen those leads first, then reopen relevant
-pages and search exact feature, system, and product names with input, output,
-demo, customer, partner, technical, interview, and job terms. Do not recrawl
-unrelated company pages.
+Act as the pass-2 orchestrator. Do not research claims yourself in this pass.
+Use the worker contract in `agents/replica-second-pass.md`.
 
-Collect enough public evidence to decide and prepare replication of the whole
-claim. Its documented steps explain the E2E process while its input and final
-deliverable define the acceptance contract.
+Pass 2 does not produce a report. It produces the material a replication agent
+needs to build and test the capability, so every worker answers one question:
+can a replication agent build this with what has been collected, and if not,
+what is missing?
 
-- whether the claim is replicable from public or synthetic inputs;
-- canonical claim, exact input, process, output, and boundaries;
-- supporting and contradictory evidence and explicit unknowns;
-- usable datasets, sample documents, schemas, formats, APIs, and SDKs;
-- open-source implementations, papers, and patents as technical clues;
-- benchmarks, reference answers, rules, or other evaluation assets;
-- access method, coverage, license or usage limits, and a synthetic fallback
-  when required inputs are not public;
-- minimum implementation path, limitations, and open questions.
+### Build a brief for each claim
 
-Attach the findings, E2E decision, and replication contract to the claim's
-`second_pass` in the same `research.json`. Use `confirmed`, `refined`, `merged`,
-or `rejected` for claim status. Record each source's URL, source type,
-supported finding, and supported claim field. Record replicability and its
-evidence-based reason only in pass 2.
+Build it **only from `research.json`** — do not search at this stage. The brief
+carries `company`, `claim_id`, `slug`, `testable_claim`, `workflow`, `ai_basis`,
+`customer_basis`, `sources`, and `replication_leads`, plus three derived fields.
+
+**`search_names`.** Pass 1 records no per-claim name list, so derive one from
+`customer_basis.subject`, `ai_basis.work_signals`, the proper nouns in
+`testable_claim` and `workflow.steps`, and the path segments of
+`sources[].url`. When the first-pass checkpoints are still present, read their
+company-wide `progress.discovered_names` as a candidate pool and adopt a name
+**only when it literally appears in this claim's own text**; drop the rest.
+Record `names_source` as `derived` or `derived+checkpoint`.
+
+**`routing`.** `first_pass.routing` is a free string that the code does not
+validate, so close it here, at the point of consumption. Map it onto
+`commodity_task`, `domain_specialized`, `workflow_orchestration`,
+`novel_technique`, or `proprietary_data_bound` — the axis is always "where is
+replication hard". Use the value directly when it matches (`routing_source:
+given`); translate it when it describes a type in other words; and when it is a
+**quality or value judgement** such as "high accuracy", "unique", or "strong
+moat", **do not read it at all** — preserve it in `routing_raw`, keep it out of
+depth allocation, and classify from `ai_basis.mechanism`, `workflow.steps`, and
+`replication_leads[].kind` instead. Pass 1 retired scoring; a judgement word in
+this field would restore it through the back door. A mapping may yield up to
+three values when one term spans axes. Always record `routing_raw` and
+`routing_source`.
+
+**`bucket_depth`.** Look it up from `routing`; do not decide it. Take the
+per-bucket maximum when routing has several values (`shallow` < `deep`).
+
+| | evidence | datasets_apis | oss_papers_patents | eval_assets | access_license | impl_path |
+|---|---|---|---|---|---|---|
+| `commodity_task` | shallow | deep | deep | shallow | shallow | shallow |
+| `domain_specialized` | deep | deep | shallow | deep | shallow | shallow |
+| `workflow_orchestration` | deep | shallow | shallow | shallow | shallow | deep |
+| `novel_technique` | shallow | shallow | deep | deep | shallow | deep |
+| `proprietary_data_bound` | shallow | deep | shallow | shallow | deep | shallow |
+
+Depth allocates effort only. It never removes a bucket from investigation and is
+only ever `deep` or `shallow`; `not_applicable` is a bucket state a worker
+records after looking, never a depth assigned before.
+
+### Spawn and collect
+
+Spawn one `replica-second-pass` worker per claim, up to the environment's
+concurrency limit, and run the rest in later waves. Each worker researches only
+its own claim, must not modify `research.json`, writes
+`work/<company>/second_pass/<slug>.json`, and returns one status line.
+
+**Do not fold claims before research.** A pass-1 claim that is really a step of
+another workflow is detected by the worker that researched it, which returns
+`status: merged` and `handoff: merge`. An orchestrator that collapses claims up
+front decides without evidence, never investigates what it collapsed, and erases
+the difference between "researched and found to be a step" and "never looked".
+Collect the `merge` results and report them instead.
+
+When every worker has finished, attach each fragment to its claim's
+`second_pass`, recompute `workflow.pass_2` and `summary`
+(`ready_count`, `partial_count`, `blocked_count`), and set `workflow.status` to
+`pass_2_complete`.
 
 ## Decide readiness
 
@@ -315,37 +361,86 @@ Finish a claim only after every research question is answered or
 marked not publicly known. Require:
 
 - at least one supporting official primary source for the canonical claim;
-- supported or explicitly unknown input, process, output, and boundaries;
+- supported or explicitly unknown input, process, and output;
+- `workflow.boundaries` resolved to `stated` or `undisclosed`, never
+  `unchecked`;
 - independent corroboration when available;
 - recorded contradictions and limitations;
 - a usable public input source or explicit synthetic fallback;
 - an implementation path and evaluation assets.
 
 Set `readiness.status` to `ready`, `partial`, or `blocked`. Do not require an
-arbitrary source count and do not infer missing details.
+arbitrary source count and do not infer missing details. Record `replicable` and
+its evidence-based reason here; pass 1 never carries it.
 
-For a ready claim with handoff `build`, freeze its
-`second_pass.replication_contract` with the E2E input/output contract,
-acceptance criteria, output schema, exclusions, and at least three test cases:
-normal, boundary, and insufficient-information. Leave no placeholders.
+Pass 1 records no boundaries, so pass 2 establishes them by **reopening the
+claim's own official source URLs** — re-reading its own evidence, not recrawling
+unrelated pages. Record the outcome as a state, not a string: `stated` when the
+company published its conditions, `undisclosed` when those sources were reopened
+and state none, and `unchecked` when they could not be reached. Only
+`undisclosed` licenses setting conditions ourselves; `unchecked` blocks `ready`,
+because collapsing the two produces a contract built on invented conditions.
+
+### Freeze the contract as a scenario array
+
+For a `confirmed` or `refined`, `ready` claim with handoff `build`, freeze
+`second_pass.replication_contract` as an **array of scenarios**, each one
+implementation path with its own conditions. Otherwise leave it `null`.
+
+Scenarios exist because of what is not known; what is known needs none. **One
+scenario is normal** — published conditions plus one obvious route give an array
+of length one. Several scenarios mean unresolved unknowns, not diligence.
+**Maximum three.** Split on implementation paths and attach conditions to each
+path rather than multiplying conditions against paths. The count follows from
+the resolved buckets, not from a guess made before research.
+
+Order scenarios most self-sufficient first — `oss_only`, `commercial_api`,
+`proprietary_data`. Execution runs the first and stops once it reproduces, so
+the position where a claim first reproduces is itself the finding.
+
+Each scenario carries `id`, `self_sufficiency`, `boundaries` with
+`boundaries_origin` (`company` or `ours`), `input`, `output` including its
+structure and format, `acceptance_criteria`, `out_of_scope`, `evidence_level`,
+`sources`, and `tests` with at least `normal`, `boundary`, and
+`insufficient-information`. Leave no placeholders. These names match what
+`replica-mvp init`, `build`, and `evaluate` actually read: the exclusions field
+is `out_of_scope`, and there is no separate output-schema field because
+`spec.json` has only `output_description`.
+
+`evidence_level` measures how strong the evidence is; `self_sufficiency`
+measures how much the build leans on others. Judge each per scenario and do not
+map one onto the other.
 
 Pass 2 is complete when every pass-1 claim has a readiness decision and every
 ready claim contract is complete.
 
 ## Execute only on request
 
-When the user asks to start actual replication, expand one ready claim contract into
-`work/<company-slug>/runs/<capability-slug>/evidence.json`, `spec.json`, and
-`tests.json`, then build `replica.json`.
+When the user asks to start actual replication, expand **one scenario** of a
+ready claim contract into
+`work/<company-slug>/runs/<capability-slug>/<scenario-id>/evidence.json`,
+`spec.json`, and `tests.json`, then build `replica.json`. One scenario is one
+run directory.
+
+Run the scenarios in the order the contract froze them, most self-sufficient
+first. **Stop as soon as one reproduces** — when its `normal`, `boundary`, and
+`insufficient-information` cases all pass — and do not run the rest. Move to the
+next scenario when any case fails, keeping the failed run's `results.jsonl` and
+`report.md`.
 
 Run the frozen cases without changing their expectations after seeing output.
 Keep candidate generation and judging as separate passes. If the same session
 judges the output, label the Judge as same-session rather than independent.
 
 Write execution-only `replica_outputs.jsonl`, `results.jsonl`, and `report.md`
-under the claim's run directory. Do not duplicate company research into
+under the scenario's run directory. Do not duplicate company research into
 another report unless the user explicitly requests an export.
 
 Report executed and skipped capabilities, evidence levels, pass counts,
-readiness, limitations, and artifact links. Never describe public-scope
-implementation feasibility as original-product equivalence.
+readiness, limitations, and artifact links. Report **which scenario reproduced**,
+since the position where a claim first reproduces is the finding: an `oss_only`
+reproduction says the capability has little proprietary wall, a
+`proprietary_data` one says data access is the wall. Mark the scenario set as
+non-exhaustive — if every scenario fails, report that these paths did not
+reproduce it, never that the capability cannot be replicated. Never describe
+public-scope implementation feasibility as original-product equivalence.
