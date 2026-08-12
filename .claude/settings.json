@@ -1,11 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "mcp__claude_ai_Notion",
       "Bash(git:*)",
       "Bash(python:*)",
       "Bash(python3:*)",
       "Bash(pytest:*)",
+      "Bash(team-ai:*)",
       "Read",
       "Edit",
       "Write",

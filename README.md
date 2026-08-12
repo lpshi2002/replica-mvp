@@ -575,6 +575,7 @@ replica-mvp evaluate work/acme/runs/claim-a \
 │   ├── cli.py                 # init/build/evaluate/report 명령
 │   └── project.py             # 파일 생성, 실행, 판정, 보고서 로직
 ├── tests/test_import.py       # 최소 end-to-end 검사
+├── .team-ai -> team-ai/...    # Git에서 제외된 프로젝트 상태 연결
 └── work/                      # 기업별 로컬 결과, Git 제외
 ```
 
@@ -582,6 +583,7 @@ replica-mvp evaluate work/acme/runs/claim-a \
 
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests
+team-ai guard
 ```
 
 테스트는 프로젝트 생성부터 프롬프트 빌드, 가짜 Replica/Judge 실행, 상세 보고서
@@ -612,11 +614,16 @@ PYTHONPATH=src python -m unittest discover -s tests
 후보로 선정됐을 때만 원제품 기준선 확보, 대규모 평가셋, 독립 모델 Judge,
 실행 가능한 CLI 또는 웹 앱을 추가합니다.
 
-## 팀 협업
+## team-ai 연결
 
-프로젝트 메모리·결정·회의 자료는 Notion Agent Tasks DB에서 관리합니다. 사람이
-회의록을 올리고 Status를 Ready로 바꾸면 각자의 로컬 에이전트가 자기 몫을 읽어
-`agent/` 브랜치에서 구현하고 결과를 Notion에 남깁니다. 설치와 동작 방식은
-`AGENTS.md`의 협업 규칙 절과 거기 링크된 온보딩 문서를 따릅니다.
+이 저장소에는 공유할 소스코드만 두고, 프로젝트 메모리·결정·회의 자료와 컴파일
+상태는 `../team-ai/projects/replica-mvp/.team-ai`에서 관리합니다.
+저장소의 `.team-ai`는 그 위치를 가리키는 Git 제외 로컬 링크이므로 브랜치를
+바꿔도 같은 프로젝트 상태를 사용합니다. Replica 조사 규칙의 권위 있는 원본은
+team-ai가 아니라 `skills/replica-research/SKILL.md`입니다.
 
-Replica 조사 규칙의 권위 있는 원본은 `skills/replica-research/SKILL.md`입니다.
+```bash
+ln -s ../team-ai/projects/replica-mvp/.team-ai .team-ai
+team-ai context --mode implementation "MVP 구현"
+team-ai guard
+```
