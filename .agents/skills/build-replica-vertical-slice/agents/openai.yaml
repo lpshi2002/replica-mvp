@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Replica Vertical Slice"
+  short_description: "Build one file-aware Replica from a ready contract"
+  default_prompt: "Use $build-replica-vertical-slice to build and evaluate one ready Replica contract."

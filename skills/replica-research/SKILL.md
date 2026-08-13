@@ -429,6 +429,12 @@ first. **Stop as soon as one reproduces** — when its `normal`, `boundary`, and
 next scenario when any case fails, keeping the failed run's `results.jsonl` and
 `report.md`.
 
+When a ready `replica-second-pass-result/v1` artifact is already available,
+use `.agents/skills/build-replica-operator/SKILL.md` for implementation. That
+repo-discoverable Skill makes Codex write a new operator from the prepared
+contract, keeps frozen tests in a separate evaluator vault, and does not select
+a registered operator or call a model API from this repository.
+
 Run the frozen cases without changing their expectations after seeing output.
 Keep candidate generation and judging as separate passes. If the same session
 judges the output, label the Judge as same-session rather than independent.

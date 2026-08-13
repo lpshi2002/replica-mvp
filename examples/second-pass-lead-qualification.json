@@ -1,0 +1,118 @@
+{
+  "schema_version": "replica-second-pass-result/v1",
+  "replica_id": "growth-labs-lead-qualification",
+  "company": "Growth Labs",
+  "capability": "qualify supplied B2B leads with a deterministic score",
+  "canonical_claim": "Calculate a lead score from supplied annual budget and requested seats, classify the lead at the approved threshold, and identify missing inputs without invention.",
+  "evidence_level": "public",
+  "readiness": "ready",
+  "handoff": "build",
+  "input_contract": {
+    "type": "object",
+    "required": [
+      "annual_budget",
+      "requested_seats"
+    ]
+  },
+  "output_contract": {
+    "type": "object",
+    "format": "lead-qualification"
+  },
+  "acceptance_criteria": [
+    {
+      "id": "criterion-score",
+      "description": "The score equals annual_budget plus requested_seats multiplied by 1000."
+    },
+    {
+      "id": "criterion-threshold",
+      "description": "A score greater than or equal to 75000 is QUALIFIED; a lower score is NOT_QUALIFIED."
+    },
+    {
+      "id": "criterion-insufficient",
+      "description": "Missing required inputs return INSUFFICIENT_INFORMATION and the missing field names."
+    }
+  ],
+  "implementation": {
+    "strategy": "generated_component",
+    "instructions": "Generate a deterministic component that computes score = annual_budget + requested_seats * 1000. Return an object with status and score when both fields exist. Status is QUALIFIED when score >= 75000 and NOT_QUALIFIED otherwise. If either required field is absent, return status INSUFFICIENT_INFORMATION and a missing array in input-contract order."
+  },
+  "supported_scope": [
+    "deterministic lead qualification from caller-supplied annual budget and seat count"
+  ],
+  "unsupported_scope": [
+    "CRM access, enrichment, probabilistic scoring and private customer data"
+  ],
+  "limitations": [
+    "the generated Replica implements only the formula and threshold approved in this Second-pass Result"
+  ],
+  "tests": {
+    "schema_version": "replica-tests/v1",
+    "cases": [
+      {
+        "id": "normal",
+        "kind": "normal",
+        "input": {
+          "annual_budget": 50000,
+          "requested_seats": 30
+        },
+        "deterministic_assertions": [
+          {
+            "type": "equals",
+            "value": {
+              "status": "QUALIFIED",
+              "score": 80000
+            }
+          }
+        ],
+        "criterion_ids": [
+          "criterion-score",
+          "criterion-threshold"
+        ],
+        "semantic_criteria": []
+      },
+      {
+        "id": "boundary",
+        "kind": "boundary",
+        "input": {
+          "annual_budget": 60000,
+          "requested_seats": 15
+        },
+        "deterministic_assertions": [
+          {
+            "type": "equals",
+            "value": {
+              "status": "QUALIFIED",
+              "score": 75000
+            }
+          }
+        ],
+        "criterion_ids": [
+          "criterion-threshold"
+        ],
+        "semantic_criteria": []
+      },
+      {
+        "id": "insufficient",
+        "kind": "insufficient_information",
+        "input": {
+          "requested_seats": 10
+        },
+        "deterministic_assertions": [
+          {
+            "type": "equals",
+            "value": {
+              "status": "INSUFFICIENT_INFORMATION",
+              "missing": [
+                "annual_budget"
+              ]
+            }
+          }
+        ],
+        "criterion_ids": [
+          "criterion-insufficient"
+        ],
+        "semantic_criteria": []
+      }
+    ]
+  }
+}

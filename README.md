@@ -9,9 +9,10 @@
 보고서 생성을 맡습니다.
 
 > [!IMPORTANT]
-> 현재 Replica의 본체는 독립 애플리케이션이나 복제 모델이 아니라 공개 기능을
-> 재구성한 시스템 프롬프트입니다. 테스트 통과는 해당 기능을 프롬프트 수준에서
-> 구현할 수 있다는 의미이며 원제품을 복제했다는 의미가 아닙니다.
+> 새 Second-pass Builder 경로의 Replica는 검증된 operation과 실행 계획을 담은
+> `replica.json`이며 별도 프로세스에서 실제 출력을 생성합니다. 기존
+> `init/build/evaluate` 프롬프트 하네스도 호환을 위해 남아 있습니다. 어느 경로의
+> 테스트 통과도 원제품 전체를 복제했다는 의미는 아닙니다.
 
 ## 어떻게 작동하는가
 
@@ -418,7 +419,9 @@ endorsement 효과를 심어 정답을 만듭니다. 이 테스트는 공개 기
 - 통과 기준
 - 비공개 정보 접근 및 환각 금지 지시
 
-현재 Replica의 실체는 `replica.json` 안의 `system_prompt`입니다.
+새 Builder 경로의 Replica는 `replica.json`에 검증된 operation, configuration,
+입출력 계약과 실행 계획을 저장합니다. 기존 수동 `init/build` 경로에서는
+`system_prompt` 기반 Replica를 계속 지원합니다.
 
 ### 7. Replica 실행
 
@@ -503,7 +506,7 @@ work/acme/
 세 테스트는 빠른 feasibility check입니다. 제품 수준의 신뢰도를 주장하려면 실제
 도메인 데이터, 더 큰 고정 평가셋, 원제품 기준선, 블라인드 평가가 필요합니다.
 
-## 내부 CLI
+## Replica Builder CLI
 
 Python 3.12 이상이 필요하며 런타임 외부 의존성은 없습니다.
 
@@ -513,6 +516,117 @@ python -m pip install -e .
 
 현재 Codex 운영 흐름에서는 Codex가 내부 명령을 실행하므로 사용자가 직접 실행할
 필요는 없습니다.
+
+새 Builder의 정식 통합 진입점은 아래 세 명령입니다.
+
+| 명령 | 공개 계약 |
+|---|---|
+| `replica-mvp prepare-operator SOURCE --workspace WORKSPACE --evaluation-vault VAULT` | 원본과 고정 테스트는 비공개 vault에 보관하고 Codex용 task 생성 |
+| `replica-mvp finalize-operator TASK --workspace WORKSPACE --evaluation-vault VAULT [--report]` | Operator를 격리 실행·평가하고 성공한 Replica의 공개 사본 생성 |
+| `replica-mvp run-replica RUN_DIR` | stdin의 JSON 객체를 생성된 Replica로 실행하고 결과 JSON 반환 |
+
+세 명령은 성공 시 exit code `0`과 JSON을 stdout에 반환합니다. 입력, 계약 또는
+실행 오류는 exit code `2`와 `error:` 메시지를 stderr에 반환합니다.
+`python -m replica_mvp`도 같은 명령 계약을 제공합니다. Python 호출자는
+`replica_mvp.prepare_codex_operator()`,
+`replica_mvp.finalize_codex_operator()`와
+`replica_mvp.run_built_replica()`를 사용할 수 있습니다.
+
+구형 `replica-compiler/`, 등록 Operator 선택, OpenAI API generator,
+외부 generator command 및 `replicate` CLI는 제거되었습니다.
+
+### Second-pass 결과에서 전체 Replica 실행
+
+Codex는 저장소 자동 발견 위치인
+`.agents/skills/build-replica-operator/SKILL.md`를 통해 이 흐름을 실행합니다.
+`WORKSPACE`와 `EVALUATION_VAULT`는 서로 포함되지 않는 별도 경로여야 합니다.
+입력 Second-pass JSON도 공개 `WORKSPACE` 밖에 있어야 하며, 내부 경로를 주면
+준비 단계가 거부합니다. 최초 구현 1회와 수정 최대 2회, 총 3회까지 시도합니다.
+
+```bash
+replica-mvp prepare-operator examples/second-pass-static-site.json \
+  --workspace work/public \
+  --evaluation-vault ../replica-evaluator-vault
+
+# Codex가 반환된 operator-request.json을 읽고 operator.json을 새로 작성
+
+replica-mvp finalize-operator TASK_DIR \
+  --workspace work/public \
+  --evaluation-vault ../replica-evaluator-vault \
+  --report
+```
+
+Codex는 등록된 Operator를 고르지 않습니다. 공개 요청의 canonical claim,
+입출력 계약, acceptance criteria, 지원·비지원 범위와 한계만 사용해 매번 새
+generated component를 작성합니다. Second-pass의 `implementation`은 실행 대상이
+아니라 비구속 evidence hint로만 취급합니다.
+
+```json
+{
+  "schema_version": "replica-component-generation/v1",
+  "generator_identity": "codex-skill/build-replica-operator/v1",
+  "component": {
+    "schema_version": "replica-generated-component/v1",
+    "language": "replica-expression/v1",
+    "input_contract": {},
+    "output_contract": {},
+    "expression": {}
+  }
+}
+```
+
+검증된 명세는 `generated-component.json`으로 해시 고정되고 Replica subprocess의
+제한 interpreter에서 실행됩니다. 표현식 언어에는 shell, import, eval, 파일,
+network 또는 subprocess 기능이 없습니다.
+
+원본 Second-pass, `tests.json`, test lock, 사례별 출력과 `results.jsonl`은
+evaluator vault의 private run에만 남습니다. 공개 workspace에는 계약이 정리된
+요청, Codex Operator, 실행 가능한 Replica, pass count와 범위·한계만 게시됩니다.
+동일 OS 사용자로 실행할 때 이 구분은 암호학적 보안 경계가 아니라 우발적
+노출을 막는 구조적 경계입니다.
+
+현재 제한 interpreter는 기존 조건·논리·산술 연산 외에도 다음 범용 Operator를
+지원합니다.
+
+- 텍스트: `lower`, `upper`, `trim`, `replace`, `split`, `join`,
+  `starts_with`, `ends_with`
+- 배열·객체: `length`, `contains`, `get`, `keys`, `values`, `merge`,
+  `array_concat`
+- 집계·fallback: `coalesce`, `is_null`, `sum`, `minimum`, `maximum`,
+  `average`, `absolute`, `round`, `modulo`
+
+모든 Operator는 전달된 JSON 값만 처리하며 외부 상태나 비공개 정보를 조회하지
+않습니다. 잘못된 타입, 없는 key/index, 빈 최소·최대·평균 입력, 0으로 나누는
+연산은 추정하거나 보정하지 않고 실행을 실패시킵니다. 중간 실행값도 1MB를
+초과할 수 없어 중첩 문자열·배열 연산의 크기 증폭을 차단합니다.
+
+표현식 Operator만으로 계약을 완전히 구현할 수 없으면 Agent는
+`replica-python/v1`을 선택해 실제 `generated-component.py`를 작성할 수 있습니다.
+공개 entrypoint는 `replicate(runtime_input)` 하나이며, Second-pass의 계약,
+acceptance criteria, 지원 범위와 한계만 전달받습니다. 고정 테스트와 기대 출력은
+Agent에게 전달하지 않습니다.
+
+생성된 Python은 실행 전에 AST를 검사하여 import, 파일·네트워크·환경 접근,
+프로세스 생성, `eval`/`exec`, class와 runtime introspection을 차단합니다. 통과한
+소스만 `-I -S` 별도 Python 프로세스에서 허용 builtin/method, 5초 timeout,
+실행 step 제한, 128MB OS process memory hard limit, 입력·출력 1MB 제한으로
+실행됩니다. 소스와 Component record의 digest가 달라지면 재실행을 거부합니다.
+
+첫 후보가 문법 검증, 제한 실행 또는 숨겨진 고정 테스트를 통과하지 못하면 오류
+원문, 테스트 내용이나 정답을 공개하지 않고 실패 단계와 통과 개수만 전달합니다.
+최초 구현 1회와 수정 최대 2회로 총 3회 시도하며, 각 후보의 언어, digest와 통과 수는
+`generation-attempts.json`에 기록됩니다.
+
+생성된 `replica.json`은 JSON 객체를 표준 입력으로 받아 직접 실행할 수 있습니다.
+
+```bash
+echo '{"title":"Demo","headline":"Build safely","description":"Public facts only.","cta_text":"Start","cta_href":"/start"}' \
+  | replica-mvp run-replica work/demo/runs/demo-static-landing-page/<digest>
+```
+
+현재 `replica-second-pass-result/v1` 예제 계약은 실제 팀 Second-pass 파일을 받기
+전의 임시 입력 seam입니다. 실제 파일이 공유되면 intake 이후 정규화만 맞추고,
+Builder·안전 게이트·실행·평가 interface는 유지합니다.
 
 ### 프로젝트 골격 생성
 
@@ -565,17 +679,36 @@ replica-mvp evaluate work/acme/runs/claim-a \
 ```text
 .
 ├── AGENTS.md                  # 요청을 Replica Skill로 보내는 라우팅 규칙
+├── .agents/skills/build-replica-operator/
+│   ├── SKILL.md               # Codex 구현·수정·비공개 평가 흐름
+│   └── agents/openai.yaml     # 자동 발견 Skill UI 메타데이터
 ├── README.md                  # 프로젝트 설명
 ├── pyproject.toml             # Python 패키지와 CLI 엔트리포인트
 ├── skills/replica-research/
 │   ├── SKILL.md               # 조사·점수화·준비도·실행의 권위 있는 운영 로직
 │   └── agents/openai.yaml     # Skill UI 메타데이터
 ├── templates/                 # 회사 단위 통합 조사 계약
+├── examples/
+│   ├── second-pass-static-site.json
+│   ├── second-pass-policy-compare.json
+│   └── second-pass-lead-qualification.json
 ├── src/replica_mvp/
-│   ├── cli.py                 # init/build/evaluate/report 명령
-│   └── project.py             # 파일 생성, 실행, 판정, 보고서 로직
-├── tests/test_import.py       # 최소 end-to-end 검사
-├── .team-ai -> team-ai/...    # Git에서 제외된 프로젝트 상태 연결
+│   ├── builder.py             # Second-pass → 계획 → 구현 → 평가 orchestration
+│   ├── cli.py                 # 조사·빌드·평가·실행 CLI 진입점
+│   ├── evaluation.py          # 동결 테스트와 독립 평가
+│   ├── generated_component.py # 제한된 생성 명세 검증·실행
+│   ├── operation_selection.py # Codex generated component 계획 고정
+│   ├── python_component.py    # Agent 작성 Python 검증과 제한 runner adapter
+│   ├── _python_component_runner.py # 격리 Python 실행 진입점
+│   ├── intake.py              # 원본 보존과 digest 기반 수신
+│   ├── plan_safety.py         # 실행 전 fail-closed 안전 게이트
+│   ├── reporting.py           # 선택적 최종 보고서
+│   └── project.py             # 1차 수집 완료와 기존 five-stage 프로젝트 흐름
+├── tests/
+│   ├── test_codex_operator.py # 공개 workspace/private vault end-to-end 검사
+│   ├── test_first_pass.py     # 1차 수집 검증과 완료 처리 검사
+│   ├── test_python_component.py # Agent 작성 코드 안전·실행 검사
+│   └── test_cli.py            # 공개 CLI와 레거시 제거 계약
 └── work/                      # 기업별 로컬 결과, Git 제외
 ```
 
@@ -583,11 +716,11 @@ replica-mvp evaluate work/acme/runs/claim-a \
 
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests
-team-ai guard
 ```
 
-테스트는 프로젝트 생성부터 프롬프트 빌드, 가짜 Replica/Judge 실행, 상세 보고서
-생성까지 이어지는 최소 end-to-end 흐름을 확인합니다.
+테스트는 Second-pass 수신부터 Codex Operator 작성 seam, 비공개 동결 평가,
+선택적 공개 보고서와 공개 Replica 실행까지 확인합니다. 기존 five-stage
+프로젝트 흐름의 회귀 검사도 유지합니다.
 
 ## 안전과 데이터 경계
 
@@ -604,6 +737,10 @@ team-ai guard
 주요 한계는 다음과 같습니다.
 
 - 기본 테스트 수가 세 개로 작음
+- Agent 작성 코드는 단일 Python 기능 모듈만 지원하며 다중 파일 앱은 아직 지원하지 않음
+- Operator 생성에는 이 저장소의 API 호출이 아니라 활성 Codex 세션이 필요함
+- 실제 팀 Second-pass JSON과의 정규화 연결은 파일 공유 후 확정해야 함
+- 새 Builder의 semantic criteria는 독립 Judge seam을 추가하기 전까지 실행 전 차단함
 - 공개 주장과 합성 입력을 중심으로 평가함
 - 원제품 출력이 없는 경우가 많음
 - Judge가 같은 모델 계열일 수 있음
@@ -614,16 +751,11 @@ team-ai guard
 후보로 선정됐을 때만 원제품 기준선 확보, 대규모 평가셋, 독립 모델 Judge,
 실행 가능한 CLI 또는 웹 앱을 추가합니다.
 
-## team-ai 연결
+## 팀 협업
 
-이 저장소에는 공유할 소스코드만 두고, 프로젝트 메모리·결정·회의 자료와 컴파일
-상태는 `../team-ai/projects/replica-mvp/.team-ai`에서 관리합니다.
-저장소의 `.team-ai`는 그 위치를 가리키는 Git 제외 로컬 링크이므로 브랜치를
-바꿔도 같은 프로젝트 상태를 사용합니다. Replica 조사 규칙의 권위 있는 원본은
-team-ai가 아니라 `skills/replica-research/SKILL.md`입니다.
+프로젝트 메모리·결정·회의 자료는 Notion Agent Tasks DB에서 관리합니다. 사람이
+회의록을 올리고 Status를 Ready로 바꾸면 각자의 로컬 에이전트가 자기 몫을 읽어
+`agent/` 브랜치에서 구현하고 결과를 Notion에 남깁니다. 설치와 동작 방식은
+`AGENTS.md`의 협업 규칙 절과 거기 링크된 온보딩 문서를 따릅니다.
 
-```bash
-ln -s ../team-ai/projects/replica-mvp/.team-ai .team-ai
-team-ai context --mode implementation "MVP 구현"
-team-ai guard
-```
+Replica 조사 규칙의 권위 있는 원본은 `skills/replica-research/SKILL.md`입니다.

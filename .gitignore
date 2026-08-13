@@ -7,8 +7,13 @@ __pycache__/
 *.sqlite
 *.sqlite3
 *.db
-.team-ai
 output/
 outputs/
 work/
+replica-compiler/.venv/
+replica-compiler/__pycache__/
+replica-compiler/.pytest_cache/
+replica-compiler/**/*.pyc
+replica-compiler/demo_runs/
+replica-compiler/artifacts/
 listener.mjs

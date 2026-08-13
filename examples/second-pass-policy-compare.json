@@ -1,0 +1,148 @@
+{
+  "schema_version": "replica-second-pass-result/v1",
+  "replica_id": "policy-labs-structured-comparison",
+  "company": "Policy Labs",
+  "capability": "compare structured insurance policy facts",
+  "canonical_claim": "Compare supplied structured policy facts and report field-level differences without inventing missing values.",
+  "evidence_level": "public",
+  "readiness": "ready",
+  "handoff": "build",
+  "input_contract": {
+    "type": "object",
+    "required": [
+      "left",
+      "right"
+    ]
+  },
+  "output_contract": {
+    "type": "object",
+    "format": "structured-diff"
+  },
+  "acceptance_criteria": [
+    {
+      "id": "criterion-differences",
+      "description": "Configured fields with different values are returned in configuration order."
+    },
+    {
+      "id": "criterion-match",
+      "description": "Equal configured fields produce an explicit MATCH result."
+    },
+    {
+      "id": "criterion-insufficient",
+      "description": "Missing required records or fields are identified without invented values."
+    }
+  ],
+  "implementation": {
+    "operation": "compare_structured_records",
+    "configuration": {
+      "fields": [
+        "coverage_limit",
+        "deductible"
+      ]
+    }
+  },
+  "supported_scope": [
+    "field-level comparison of caller-supplied structured policy facts"
+  ],
+  "unsupported_scope": [
+    "document parsing, legal interpretation and private carrier data"
+  ],
+  "limitations": [
+    "the operation compares only fields declared in the Second-pass contract"
+  ],
+  "tests": {
+    "schema_version": "replica-tests/v1",
+    "cases": [
+      {
+        "id": "normal",
+        "kind": "normal",
+        "input": {
+          "left": {
+            "coverage_limit": 1000000,
+            "deductible": 10000
+          },
+          "right": {
+            "coverage_limit": 2000000,
+            "deductible": 25000
+          }
+        },
+        "deterministic_assertions": [
+          {
+            "type": "equals",
+            "value": {
+              "status": "DIFFERENT",
+              "differences": [
+                {
+                  "field": "coverage_limit",
+                  "left": 1000000,
+                  "right": 2000000
+                },
+                {
+                  "field": "deductible",
+                  "left": 10000,
+                  "right": 25000
+                }
+              ]
+            }
+          }
+        ],
+        "criterion_ids": [
+          "criterion-differences"
+        ],
+        "semantic_criteria": []
+      },
+      {
+        "id": "boundary",
+        "kind": "boundary",
+        "input": {
+          "left": {
+            "coverage_limit": 1000000,
+            "deductible": 10000
+          },
+          "right": {
+            "coverage_limit": 1000000,
+            "deductible": 10000
+          }
+        },
+        "deterministic_assertions": [
+          {
+            "type": "equals",
+            "value": {
+              "status": "MATCH",
+              "differences": []
+            }
+          }
+        ],
+        "criterion_ids": [
+          "criterion-match"
+        ],
+        "semantic_criteria": []
+      },
+      {
+        "id": "insufficient",
+        "kind": "insufficient_information",
+        "input": {
+          "left": {
+            "coverage_limit": 1000000,
+            "deductible": 10000
+          }
+        },
+        "deterministic_assertions": [
+          {
+            "type": "equals",
+            "value": {
+              "status": "INSUFFICIENT_INFORMATION",
+              "missing": [
+                "right"
+              ]
+            }
+          }
+        ],
+        "criterion_ids": [
+          "criterion-insufficient"
+        ],
+        "semantic_criteria": []
+      }
+    ]
+  }
+}

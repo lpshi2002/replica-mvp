@@ -1,0 +1,359 @@
+import json
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from replica_mvp import (
+    finalize_codex_operator,
+    prepare_codex_operator,
+    run_built_replica,
+)
+
+
+REPOSITORY_ROOT = Path(__file__).parents[1]
+STATIC_SITE_EXAMPLE = (
+    REPOSITORY_ROOT / "examples" / "second-pass-static-site.json"
+)
+
+
+def _static_site_operator(request):
+    source = (
+        "def escape(value):\n"
+        "    return str(value).replace('&', '&amp;').replace('<', '&lt;')"
+        ".replace('>', '&gt;').replace('\"', '&quot;')"
+        ".replace(\"'\", '&#x27;')\n"
+        "\n"
+        "def replicate(runtime_input):\n"
+        "    required = ['title', 'headline', 'description', 'cta_text', "
+        "'cta_href']\n"
+        "    missing = [key for key in required if key not in runtime_input]\n"
+        "    if missing:\n"
+        "        return 'INSUFFICIENT_INFORMATION: missing ' + "
+        "', '.join(missing)\n"
+        "    return '<!doctype html><html><head><title>' + "
+        "escape(runtime_input['title']) + '</title></head><body><h1>' + "
+        "escape(runtime_input['headline']) + '</h1><p>' + "
+        "escape(runtime_input['description']) + '</p><a href=\"' + "
+        "escape(runtime_input['cta_href']) + '\">' + "
+        "escape(runtime_input['cta_text']) + '</a></body></html>'\n"
+    )
+    return {
+        "schema_version": "replica-component-generation/v1",
+        "generator_identity": "codex-skill/build-replica-operator/v1",
+        "component": {
+            "schema_version": "replica-generated-component/v1",
+            "language": "replica-python/v1",
+            "input_contract": request["input_contract"],
+            "output_contract": request["output_contract"],
+            "source": source,
+        },
+    }
+
+
+def _write_json(path, value):
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+class CodexOperatorWorkflowTest(unittest.TestCase):
+    def test_codex_prepares_and_builds_an_operator_without_catalog_selection(self):
+        with TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "workspace"
+            evaluator_vault = Path(tmp) / "evaluator-vault"
+            prepared = prepare_codex_operator(
+                STATIC_SITE_EXAMPLE,
+                workspace,
+                evaluator_vault,
+            )
+
+            request_path = Path(prepared["request_path"])
+            operator_path = Path(prepared["operator_path"])
+            request = json.loads(request_path.read_text(encoding="utf-8"))
+
+            self.assertEqual("AWAITING_CODEX_OPERATOR", prepared["status"])
+            self.assertEqual(1, prepared["attempt"])
+            self.assertFalse(operator_path.exists())
+            self.assertNotIn("tests", request)
+            self.assertNotIn("expected", json.dumps(request))
+            self.assertFalse((workspace / "intakes").exists())
+            self.assertTrue(
+                any((evaluator_vault / "intakes").rglob("source.json"))
+            )
+            self.assertIn(
+                '"operation":"render_static_site"',
+                request["implementation_instructions"],
+            )
+
+            _write_json(operator_path, _static_site_operator(request))
+            result = finalize_codex_operator(
+                Path(prepared["task_dir"]),
+                workspace,
+                evaluator_vault,
+                include_report=True,
+            )
+
+            run_dir = Path(result["run_dir"])
+            selection = json.loads(
+                (run_dir / "operation-selection.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual("BUILT_AND_PASSED", result["status"])
+            self.assertEqual(3, result["evaluation"]["passed"])
+            self.assertTrue(Path(result["report_path"]).is_file())
+            self.assertTrue((run_dir / "report.json").is_file())
+            self.assertNotIn(
+                str(evaluator_vault.resolve()),
+                json.dumps(result),
+            )
+            self.assertEqual(
+                "codex-operator-builder/v1",
+                selection["selector_identity"],
+            )
+            self.assertEqual(
+                "generated_component",
+                selection["selected"]["strategy"],
+            )
+            self.assertEqual(
+                "replica-python/v1",
+                json.loads(
+                    (run_dir / "generated-component.json").read_text(
+                        encoding="utf-8"
+                    )
+                )["component"]["language"],
+            )
+            self.assertIn(
+                "&lt;Fast &amp; Safe&gt;",
+                run_built_replica(
+                    run_dir,
+                    {
+                        "title": "Demo",
+                        "headline": "<Fast & Safe>",
+                        "description": "Description",
+                        "cta_text": "Start",
+                        "cta_href": "/start",
+                    },
+                ),
+            )
+            hidden_names = {
+                "second-pass.json",
+                "tests.json",
+                "test-suite-lock.json",
+                "replica_outputs.jsonl",
+                "results.jsonl",
+            }
+            self.assertFalse(
+                hidden_names.intersection(
+                    path.name for path in workspace.rglob("*")
+                )
+            )
+            self.assertTrue(
+                hidden_names.issubset(
+                    path.name for path in evaluator_vault.rglob("*")
+                )
+            )
+
+    def test_codex_repairs_from_sanitized_status_without_frozen_tests(self):
+        with TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "workspace"
+            evaluator_vault = Path(tmp) / "evaluator-vault"
+            prepared = prepare_codex_operator(
+                STATIC_SITE_EXAMPLE,
+                workspace,
+                evaluator_vault,
+            )
+            task_dir = Path(prepared["task_dir"])
+            request_path = Path(prepared["request_path"])
+            operator_path = Path(prepared["operator_path"])
+            request = json.loads(request_path.read_text(encoding="utf-8"))
+            invalid = _static_site_operator(request)
+            invalid["component"]["source"] = "def replicate(\n"
+            _write_json(operator_path, invalid)
+
+            failed = finalize_codex_operator(
+                task_dir,
+                workspace,
+                evaluator_vault,
+            )
+
+            self.assertEqual("VALIDATION_FAILED", failed["status"])
+            self.assertTrue(failed["retryable"])
+            self.assertEqual(1, failed["attempt"])
+            self.assertNotIn("error", failed)
+            repaired_request = json.loads(
+                request_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(2, repaired_request["attempt_context"]["attempt"])
+            self.assertEqual(
+                "VALIDATION_FAILED",
+                repaired_request["attempt_context"]["previous_attempt"][
+                    "status"
+                ],
+            )
+            self.assertNotIn("tests", repaired_request)
+            self.assertNotIn("expected", json.dumps(repaired_request))
+
+            _write_json(
+                operator_path,
+                _static_site_operator(repaired_request),
+            )
+            passed = finalize_codex_operator(
+                task_dir,
+                workspace,
+                evaluator_vault,
+            )
+
+            self.assertEqual("BUILT_AND_PASSED", passed["status"])
+            self.assertEqual(2, passed["attempt"])
+            attempts = json.loads(
+                (
+                    Path(passed["run_dir"]) / "generation-attempts.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                ["VALIDATION_FAILED", "PASSED"],
+                [attempt["status"] for attempt in attempts["attempts"]],
+            )
+
+    def test_codex_receives_only_counts_after_fixed_evaluation_failure(self):
+        with TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "workspace"
+            evaluator_vault = Path(tmp) / "evaluator-vault"
+            prepared = prepare_codex_operator(
+                STATIC_SITE_EXAMPLE,
+                workspace,
+                evaluator_vault,
+            )
+            task_dir = Path(prepared["task_dir"])
+            request_path = Path(prepared["request_path"])
+            operator_path = Path(prepared["operator_path"])
+            request = json.loads(request_path.read_text(encoding="utf-8"))
+            wrong = _static_site_operator(request)
+            wrong["component"]["source"] = (
+                "def replicate(runtime_input):\n"
+                "    return 'contract-valid but behaviorally wrong'\n"
+            )
+            _write_json(operator_path, wrong)
+
+            failed = finalize_codex_operator(
+                task_dir,
+                workspace,
+                evaluator_vault,
+            )
+
+            self.assertEqual("EVALUATION_FAILED", failed["status"])
+            self.assertTrue(failed["retryable"])
+            self.assertEqual(
+                {"status": "FAILED", "passed": 0, "total": 3},
+                failed["evaluation"],
+            )
+            self.assertNotIn("run_dir", failed)
+            self.assertNotIn("expected", json.dumps(failed))
+            self.assertFalse(
+                any((workspace / "runs").rglob("replica.json"))
+            )
+            repaired_request = json.loads(
+                request_path.read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                {
+                    "language": "replica-python/v1",
+                    "status": "EVALUATION_FAILED",
+                    "passed": 0,
+                    "total": 3,
+                },
+                repaired_request["attempt_context"]["previous_attempt"],
+            )
+
+    def test_evaluator_vault_must_be_physically_separate(self):
+        with TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "workspace"
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "physically separate",
+            ):
+                prepare_codex_operator(
+                    STATIC_SITE_EXAMPLE,
+                    workspace,
+                    workspace / "private-tests",
+                )
+
+    def test_source_must_be_outside_the_public_workspace(self):
+        with TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "workspace"
+            workspace.mkdir()
+            source = workspace / "arrived-second-pass.json"
+            source.write_bytes(STATIC_SITE_EXAMPLE.read_bytes())
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "source must be outside",
+            ):
+                prepare_codex_operator(
+                    source,
+                    workspace,
+                    Path(tmp) / "evaluator-vault",
+                )
+
+    def test_failed_operator_has_three_total_attempts(self):
+        with TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "workspace"
+            evaluator_vault = Path(tmp) / "evaluator-vault"
+            prepared = prepare_codex_operator(
+                STATIC_SITE_EXAMPLE,
+                workspace,
+                evaluator_vault,
+            )
+            results = []
+            for _ in range(3):
+                request = json.loads(
+                    Path(prepared["request_path"]).read_text(encoding="utf-8")
+                )
+                wrong = _static_site_operator(request)
+                wrong["component"]["source"] = (
+                    "def replicate(runtime_input):\n"
+                    "    return 'wrong'\n"
+                )
+                _write_json(Path(prepared["operator_path"]), wrong)
+                results.append(
+                    finalize_codex_operator(
+                        Path(prepared["task_dir"]),
+                        workspace,
+                        evaluator_vault,
+                    )
+                )
+
+            self.assertEqual([1, 2, 3], [result["attempt"] for result in results])
+            self.assertEqual([True, True, False], [
+                result["retryable"] for result in results
+            ])
+            with self.assertRaisesRegex(ValueError, "already failed"):
+                finalize_codex_operator(
+                    Path(prepared["task_dir"]),
+                    workspace,
+                    evaluator_vault,
+                )
+
+    def test_workspace_source_symlink_is_also_rejected(self):
+        with TemporaryDirectory() as tmp:
+            workspace = Path(tmp) / "workspace"
+            workspace.mkdir()
+            source = workspace / "arrived-second-pass.json"
+            try:
+                source.symlink_to(STATIC_SITE_EXAMPLE)
+            except OSError as error:
+                self.skipTest(f"file symlinks unavailable: {error}")
+
+            with self.assertRaisesRegex(ValueError, "source must be outside"):
+                prepare_codex_operator(
+                    source,
+                    workspace,
+                    Path(tmp) / "evaluator-vault",
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()
