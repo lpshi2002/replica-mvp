@@ -53,6 +53,8 @@ class ReplicaProjectTest(unittest.TestCase):
 
             self.assertEqual(3, len(results))
             self.assertTrue(all(result["pass"] for result in results))
+            outputs = (root / "replica_outputs.jsonl").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(3, len(outputs))
             report = (root / "report.md").read_text(encoding="utf-8")
             self.assertIn("3/3 통과", report)
             self.assertIn("## 검토한 공개 주장", report)

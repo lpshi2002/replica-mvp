@@ -228,6 +228,7 @@ def evaluate_project(
     criteria = _nonempty_strings(spec.get("acceptance_criteria"), "acceptance_criteria")
 
     results: list[dict[str, Any]] = []
+    outputs: list[dict[str, Any]] = []
     for index, case in enumerate(tests, start=1):
         if not isinstance(case, dict) or not isinstance(case.get("input"), str) or not case["input"].strip():
             raise ValueError(f"test case {index} needs a non-empty input")
@@ -235,6 +236,17 @@ def evaluate_project(
             replica_command,
             f"{replica.get('system_prompt', '')}\n\nUSER INPUT:\n{case['input']}",
             timeout,
+        )
+        outputs.append(
+            {
+                "case_id": case.get("id", f"case-{index}"),
+                "input": case["input"],
+                "replica_output": output,
+            }
+        )
+        (root / "replica_outputs.jsonl").write_text(
+            "".join(json.dumps(item, ensure_ascii=False) + "\n" for item in outputs),
+            encoding="utf-8",
         )
         judge_payload = {
             "evaluation_rule": "Would the same user accept this output for the stated public capability?",
