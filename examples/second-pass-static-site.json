@@ -1,0 +1,127 @@
+{
+  "schema_version": "replica-second-pass-result/v1",
+  "replica_id": "demo-static-landing-page",
+  "company": "Demo Company",
+  "capability": "generate a static landing page from a company brief",
+  "canonical_claim": "Generate a responsive static landing page from supplied company content.",
+  "evidence_level": "public",
+  "readiness": "ready",
+  "handoff": "build",
+  "input_contract": {
+    "type": "object",
+    "required": [
+      "title",
+      "headline",
+      "description",
+      "cta_text",
+      "cta_href"
+    ]
+  },
+  "output_contract": {
+    "type": "string",
+    "format": "text/html"
+  },
+  "acceptance_criteria": [
+    {
+      "id": "criterion-content",
+      "description": "The supplied title, headline, description and call to action appear in the HTML."
+    },
+    {
+      "id": "criterion-escaping",
+      "description": "User-supplied text is HTML escaped."
+    },
+    {
+      "id": "criterion-insufficient",
+      "description": "Missing required content is reported without inventing it."
+    }
+  ],
+  "implementation": {
+    "operation": "render_static_site",
+    "configuration": {
+      "required_fields": [
+        "title",
+        "headline",
+        "description",
+        "cta_text",
+        "cta_href"
+      ],
+      "brand_color": "#2457d6"
+    }
+  },
+  "supported_scope": [
+    "single-page responsive HTML generated from supplied content"
+  ],
+  "unsupported_scope": [
+    "hosting, analytics, authentication and private company templates"
+  ],
+  "limitations": [
+    "the prototype supports one deterministic static-site operation"
+  ],
+  "tests": {
+    "schema_version": "replica-tests/v1",
+    "cases": [
+      {
+        "id": "normal",
+        "kind": "normal",
+        "input": {
+          "title": "Demo Company",
+          "headline": "Build useful products",
+          "description": "A concise public product description.",
+          "cta_text": "Start now",
+          "cta_href": "/start"
+        },
+        "deterministic_assertions": [
+          {
+            "type": "contains",
+            "value": "Build useful products"
+          }
+        ],
+        "criterion_ids": [
+          "criterion-content"
+        ],
+        "semantic_criteria": []
+      },
+      {
+        "id": "boundary",
+        "kind": "boundary",
+        "input": {
+          "title": "Demo Company",
+          "headline": "<Fast & Safe>",
+          "description": "Escape supplied HTML-like content.",
+          "cta_text": "Read more",
+          "cta_href": "#details"
+        },
+        "deterministic_assertions": [
+          {
+            "type": "contains",
+            "value": "&lt;Fast &amp; Safe&gt;"
+          }
+        ],
+        "criterion_ids": [
+          "criterion-escaping"
+        ],
+        "semantic_criteria": []
+      },
+      {
+        "id": "insufficient",
+        "kind": "insufficient_information",
+        "input": {
+          "title": "Demo Company",
+          "headline": "Missing a description",
+          "cta_text": "Start now",
+          "cta_href": "/start"
+        },
+        "deterministic_assertions": [
+          {
+            "type": "equals",
+            "value": "INSUFFICIENT_INFORMATION: missing description"
+          }
+        ],
+        "criterion_ids": [
+          "criterion-insufficient"
+        ],
+        "semantic_criteria": []
+      }
+    ]
+  }
+}

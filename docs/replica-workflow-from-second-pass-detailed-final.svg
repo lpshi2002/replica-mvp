@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2200" viewBox="0 0 1800 2200">
+  <defs>
+    <style>
+      .title{font:700 42px Pretendard,"Noto Sans KR","Malgun Gothic",sans-serif;fill:#373737}.phase{font:700 30px Pretendard,"Noto Sans KR","Malgun Gothic",sans-serif;fill:#514f4a}.h{font:700 31px Pretendard,"Noto Sans KR","Malgun Gothic",sans-serif}.b{font:500 25px Pretendard,"Noto Sans KR","Malgun Gothic",sans-serif}.s{font:500 21px Pretendard,"Noto Sans KR","Malgun Gothic",sans-serif}.a{fill:none;stroke:#8d8b85;stroke-width:4;marker-end:url(#m)}.va{fill:none;stroke:#b58a24;stroke-width:3;stroke-dasharray:10 9;marker-end:url(#mv)}
+    </style>
+    <marker id="m" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12" fill="none" stroke="#8d8b85" stroke-width="2"/></marker>
+    <marker id="mv" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12" fill="none" stroke="#b58a24" stroke-width="2"/></marker>
+  </defs>
+  <rect width="1800" height="2200" fill="#fff"/>
+  <text x="900" y="65" text-anchor="middle" class="title">Replica 구현·검증 단계</text>
+
+  <rect x="490" y="100" width="820" height="112" rx="20" fill="#f2f0e9" stroke="#6f6b63" stroke-width="1.5"/>
+  <text x="900" y="146" text-anchor="middle" class="h" fill="#44413d">2차 산출물 수신</text>
+  <text x="900" y="186" text-anchor="middle" class="b" fill="#625f5b">replica-second-pass-result/v1</text>
+  <path d="M900 212L900 255" class="a"/>
+
+  <rect x="390" y="267" width="1020" height="138" rx="20" fill="#efefff" stroke="#5e5de8" stroke-width="1.5"/>
+  <text x="900" y="314" text-anchor="middle" class="h" fill="#39398f">계약 준비 상태 검증·동결</text>
+  <text x="900" y="355" text-anchor="middle" class="b" fill="#4e4dbd">readiness: ready · handoff: build</text>
+  <text x="900" y="389" text-anchor="middle" class="s" fill="#6261a9">canonical claim · input/output contract · acceptance criteria · test cases</text>
+
+  <path d="M900 405L900 452" class="a"/>
+  <rect x="90" y="440" width="1620" height="340" rx="24" fill="none" stroke="#d4d2cc" stroke-width="2" stroke-dasharray="12 12"/>
+  <text x="130" y="485" class="phase">1. Builder 입력과 평가 정답 분리</text>
+
+  <path d="M900 452L900 520L500 520L500 550" class="a"/>
+  <path d="M900 452L900 520L1300 520L1300 550" class="a"/>
+  <rect x="165" y="562" width="670" height="165" rx="20" fill="#e3f1ff" stroke="#176dc2" stroke-width="1.5"/>
+  <text x="500" y="608" text-anchor="middle" class="h" fill="#0b4e8f">공개 Builder Request</text>
+  <text x="500" y="649" text-anchor="middle" class="b" fill="#1763ac">공개 근거 · 입출력 계약 · 완료 조건</text>
+  <text x="500" y="685" text-anchor="middle" class="s" fill="#3f72a4">정답·기대 출력·case ID는 전달하지 않음</text>
+  <text x="500" y="713" text-anchor="middle" class="s" fill="#3f72a4">구현자는 공개 계약만 사용</text>
+
+  <rect x="965" y="562" width="670" height="165" rx="20" fill="#fff8df" stroke="#b98a19" stroke-width="1.5"/>
+  <text x="1300" y="608" text-anchor="middle" class="h" fill="#77560b">비공개 Evaluator Vault</text>
+  <text x="1300" y="649" text-anchor="middle" class="b" fill="#8c6815">동결 tests · expected outputs · suite hash</text>
+  <text x="1300" y="685" text-anchor="middle" class="s" fill="#94711e">normal · boundary · insufficient_information · novel</text>
+  <text x="1300" y="713" text-anchor="middle" class="s" fill="#94711e">구현 중 Builder는 내용을 읽지 않음</text>
+
+  <path d="M500 727L500 842" class="a"/>
+  <rect x="90" y="805" width="1620" height="555" rx="24" fill="none" stroke="#d4d2cc" stroke-width="2" stroke-dasharray="12 12"/>
+  <text x="130" y="850" class="phase">2. Replica 구현 생성</text>
+
+  <rect x="160" y="900" width="650" height="145" rx="20" fill="#dcf3ed" stroke="#087660" stroke-width="1.5"/>
+  <text x="485" y="947" text-anchor="middle" class="h" fill="#075c4c">① 구현 방식 선택</text>
+  <text x="485" y="988" text-anchor="middle" class="b" fill="#08705c">replica-python/v1 · JSON 입출력</text>
+  <text x="485" y="1021" text-anchor="middle" class="s" fill="#397f72">공개 계약에서 실행 계획 생성</text>
+  <path d="M810 973L958 973" class="a"/>
+
+  <rect x="975" y="900" width="650" height="145" rx="20" fill="#e3f1ff" stroke="#176dc2" stroke-width="1.5"/>
+  <text x="1300" y="947" text-anchor="middle" class="h" fill="#0b4e8f">② Component 코드 생성</text>
+  <text x="1300" y="988" text-anchor="middle" class="b" fill="#1763ac">generated-component.py</text>
+  <text x="1300" y="1021" text-anchor="middle" class="s" fill="#3f72a4">replicate(runtime_input) 구현</text>
+  <path d="M1300 1045L1300 1090" class="a"/>
+
+  <rect x="975" y="1102" width="650" height="155" rx="20" fill="#fff0ea" stroke="#bf4c2e" stroke-width="1.5"/>
+  <text x="1300" y="1149" text-anchor="middle" class="h" fill="#85301c">③ 보안·실행 검증</text>
+  <text x="1300" y="1190" text-anchor="middle" class="b" fill="#a63c23">AST 검사 · 격리 프로세스 · 제한 시간</text>
+  <text x="1300" y="1225" text-anchor="middle" class="s" fill="#a65340">실패 원인만 반영해 최대 3회 시도</text>
+  <path d="M975 1180L828 1180" class="a"/>
+
+  <rect x="160" y="1102" width="650" height="155" rx="20" fill="#eaf5ff" stroke="#4a87c5" stroke-width="1.5"/>
+  <text x="485" y="1149" text-anchor="middle" class="h" fill="#184f84">④ 실행물 패키징</text>
+  <text x="485" y="1190" text-anchor="middle" class="b" fill="#376e9f">replica.json · implementation/replica.py</text>
+  <text x="485" y="1225" text-anchor="middle" class="s" fill="#4f789e">manifest.json에 canonical 실행 명령 기록</text>
+
+  <path d="M485 1257L485 1432" class="a"/>
+  <path d="M1300 727L1660 727L1660 1485L1554 1485" class="va"/>
+  <text x="1668" y="1090" transform="rotate(90 1668 1090)" text-anchor="middle" class="s" fill="#9a7418">평가 시점에만 사용</text>
+
+  <rect x="90" y="1395" width="1620" height="290" rx="24" fill="none" stroke="#d4d2cc" stroke-width="2" stroke-dasharray="12 12"/>
+  <text x="130" y="1440" class="phase">3. 동결 테스트 비공개 평가</text>
+  <rect x="235" y="1478" width="1320" height="145" rx="20" fill="#fff8df" stroke="#b98a19" stroke-width="1.5"/>
+  <text x="895" y="1524" text-anchor="middle" class="h" fill="#77560b">구현 digest 고정 → frozen cases 실행 → Judge 판정</text>
+  <text x="895" y="1566" text-anchor="middle" class="b" fill="#8c6815">replica_outputs.jsonl · results.jsonl · evaluation-summary.json</text>
+  <text x="895" y="1601" text-anchor="middle" class="s" fill="#94711e">공개 영역에는 pass count와 평가 요약만 게시</text>
+
+  <path d="M895 1623L895 1753" class="a"/>
+  <rect x="90" y="1715" width="1620" height="350" rx="24" fill="none" stroke="#d4d2cc" stroke-width="2" stroke-dasharray="12 12"/>
+  <text x="130" y="1760" class="phase">4. Completion Standard 판정·공개</text>
+  <rect x="165" y="1805" width="980" height="145" rx="20" fill="#eeeafd" stroke="#7864c6" stroke-width="1.5"/>
+  <text x="655" y="1852" text-anchor="middle" class="h" fill="#4d3f91">Completion gate 재검증</text>
+  <text x="655" y="1893" text-anchor="middle" class="b" fill="#6655aa">공개 근거 · 실제 입력/출력 · 의존성 · 구현/명령 digest</text>
+  <text x="655" y="1928" text-anchor="middle" class="s" fill="#7566ab">평가 무결성 · 최초 구현 scenario · completion report</text>
+  <path d="M1145 1877L1213 1877" class="a"/>
+  <rect x="1230" y="1799" width="400" height="158" rx="20" fill="#fafafa" stroke="#77736d" stroke-width="1.5"/>
+  <text x="1430" y="1841" text-anchor="middle" class="h" fill="#484642">최종 상태 기록</text>
+  <text x="1430" y="1882" text-anchor="middle" class="s" fill="#116845">reproduced</text>
+  <text x="1430" y="1914" text-anchor="middle" class="s" fill="#8a6309">partially_reproduced</text>
+  <text x="1430" y="1946" text-anchor="middle" class="s" fill="#77736d">failed 또는 blocked 상태 포함</text>
+
+  <path d="M895 2065L895 2095" class="a"/>
+  <rect x="280" y="2107" width="1230" height="76" rx="18" fill="#f2f0e9" stroke="#6f6b63" stroke-width="1.5"/>
+  <text x="895" y="2155" text-anchor="middle" class="h" fill="#44413d">최종 공개 산출물 · implementation/replica.py · replica-result.json · report.md</text>
+</svg>

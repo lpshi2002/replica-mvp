@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1050" viewBox="0 0 1800 1050">
+  <defs>
+    <style>.h{font:700 38px Pretendard,"Noto Sans KR","Malgun Gothic",sans-serif}.b{font:500 28px Pretendard,"Noto Sans KR","Malgun Gothic",sans-serif}.a{fill:none;stroke:#8d8b85;stroke-width:4;marker-end:url(#m)}</style>
+    <marker id="m" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0 0L12 6L0 12" fill="none" stroke="#8d8b85" stroke-width="2"/></marker>
+  </defs>
+  <rect width="1800" height="1050" fill="#fff"/>
+
+  <rect x="470" y="55" width="860" height="150" rx="22" fill="#f2f0e9" stroke="#6f6b63" stroke-width="1.5"/>
+  <text x="900" y="113" text-anchor="middle" class="h" fill="#44413d">2차 산출물 수신</text>
+  <text x="900" y="164" text-anchor="middle" class="b" fill="#625f5b">replica-second-pass-result/v1</text>
+  <path d="M900 205L900 267" class="a"/>
+
+  <rect x="470" y="279" width="860" height="150" rx="22" fill="#dcf3ed" stroke="#087660" stroke-width="1.5"/>
+  <text x="900" y="337" text-anchor="middle" class="h" fill="#075c4c">Operator</text>
+  <text x="900" y="388" text-anchor="middle" class="b" fill="#08705c">2차 계약을 읽고 operator.json 작성</text>
+  <path d="M900 429L900 491" class="a"/>
+
+  <rect x="370" y="503" width="1060" height="160" rx="22" fill="#e3f1ff" stroke="#176dc2" stroke-width="1.5"/>
+  <text x="900" y="565" text-anchor="middle" class="h" fill="#0b4e8f">Builder</text>
+  <text x="900" y="616" text-anchor="middle" class="b" fill="#1763ac">Replica 구현 생성 · 동결 테스트 평가</text>
+  <path d="M900 663L900 725" class="a"/>
+
+  <rect x="330" y="737" width="1140" height="190" rx="22" fill="#fff8df" stroke="#b98a19" stroke-width="1.5"/>
+  <text x="900" y="799" text-anchor="middle" class="h" fill="#77560b">산출물</text>
+  <text x="900" y="850" text-anchor="middle" class="b" fill="#8c6815">implementation/replica.py · manifest.json</text>
+  <text x="900" y="895" text-anchor="middle" class="b" fill="#8c6815">replica-result.json · report.md</text>
+</svg>

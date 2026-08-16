@@ -47,8 +47,8 @@ class ReplicaProjectTest(unittest.TestCase):
             build_project(root)
             results = evaluate_project(
                 root,
-                replica_command=f"{sys.executable} {replica_script}",
-                judge_command=f"{sys.executable} {judge_script}",
+                replica_command=[sys.executable, str(replica_script)],
+                judge_command=[sys.executable, str(judge_script)],
             )
 
             self.assertEqual(3, len(results))
