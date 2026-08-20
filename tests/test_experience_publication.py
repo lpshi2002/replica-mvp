@@ -196,7 +196,11 @@ def _write_json(path: Path, value: dict) -> None:
     )
 
 
-def _build_public_run(root: Path, second_pass: dict | None = None) -> Path:
+def _build_public_run(
+    root: Path,
+    second_pass: dict | None = None,
+    operator=_operator,
+) -> Path:
     source = root / "second-pass.json"
     workspace = root / "workspace"
     vault = root / "vault"
@@ -205,7 +209,7 @@ def _build_public_run(root: Path, second_pass: dict | None = None) -> Path:
     request = json.loads(
         Path(prepared["request_path"]).read_text(encoding="utf-8")
     )
-    _write_json(Path(prepared["operator_path"]), _operator(request))
+    _write_json(Path(prepared["operator_path"]), operator(request))
     result = finalize_codex_operator(
         Path(prepared["task_dir"]),
         workspace,
@@ -244,6 +248,86 @@ class ExperiencePublicationTest(unittest.TestCase):
         evaluator_environment = run_process.call_args.kwargs["env"]
         self.assertNotIn("OPENAI_API_KEY", evaluator_environment)
 
+    def test_missing_required_grounded_runtime_field_is_rejected(self):
+        with TemporaryDirectory() as tmp:
+            run_dir = _build_public_run(Path(tmp))
+            runtime_input = {
+                **_experience_profile()["runtime_input"],
+                "user_question": "How should I start studying?",
+            }
+
+            for field in _second_pass()["input_contract"]["required"]:
+                with self.subTest(field=field):
+                    missing_field_input = dict(runtime_input)
+                    missing_field_input.pop(field)
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        rf"Replica input is missing required fields: {field}",
+                    ):
+                        run_built_replica(run_dir, missing_field_input)
+
+    def test_empty_corpus_returns_information_insufficient_without_model(self):
+        with TemporaryDirectory() as tmp:
+            run_dir = _build_public_run(Path(tmp))
+            runtime_input = dict(_experience_profile()["runtime_input"])
+            runtime_input["creator_corpus"] = []
+            runtime_input["user_question"] = "How should I start studying?"
+            with (
+                patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
+                patch("urllib.request.urlopen") as call_api,
+            ):
+                result = run_built_replica(run_dir, runtime_input)
+
+            self.assertEqual("insufficient_information", result["status"])
+            self.assertEqual(
+                runtime_input["fallback_text"],
+                result["answer"],
+            )
+            self.assertEqual([], result["citations"])
+            call_api.assert_not_called()
+
+    def test_empty_corpus_is_handled_before_generated_component_execution(self):
+        def corpus_indexing_operator(request):
+            value = _operator(request)
+            value["component"]["source"] = value["component"][
+                "source"
+            ].replace(
+                "def replicate(runtime_input):\n",
+                "def replicate(runtime_input):\n"
+                "    runtime_input['creator_corpus'][0]\n",
+            )
+            return value
+
+        with TemporaryDirectory() as tmp:
+            run_dir = _build_public_run(
+                Path(tmp),
+                operator=corpus_indexing_operator,
+            )
+            runtime_input = dict(_experience_profile()["runtime_input"])
+            runtime_input["creator_corpus"] = []
+            runtime_input["user_question"] = "How should I start studying?"
+
+            result = run_built_replica(run_dir, runtime_input)
+
+            self.assertEqual("insufficient_information", result["status"])
+            self.assertEqual(runtime_input["fallback_text"], result["answer"])
+
+    def test_model_adapter_is_disabled_by_default(self):
+        with TemporaryDirectory() as tmp:
+            run_dir = _build_public_run(Path(tmp))
+            runtime_input = dict(_experience_profile()["runtime_input"])
+            runtime_input["user_question"] = (
+                "What should I do first before schoolwork?"
+            )
+            with (
+                patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
+                patch("urllib.request.urlopen") as call_api,
+            ):
+                result = run_built_replica(run_dir, runtime_input)
+
+            self.assertEqual("insufficient_information", result["status"])
+            call_api.assert_not_called()
+
     def test_model_adapter_answers_only_with_an_exact_corpus_quote(self):
         model_candidate = {
             "decision": "answered",
@@ -279,7 +363,11 @@ class ExperiencePublicationTest(unittest.TestCase):
                     return_value=BytesIO(json.dumps(api_response).encode()),
                 ) as call_api,
             ):
-                result = run_built_replica(run_dir, runtime_input)
+                result = run_built_replica(
+                    run_dir,
+                    runtime_input,
+                    allow_model_adapter=True,
+                )
 
             self.assertEqual("answered", result["status"])
             self.assertEqual(
@@ -333,7 +421,11 @@ class ExperiencePublicationTest(unittest.TestCase):
                     return_value=BytesIO(json.dumps(api_response).encode()),
                 ),
             ):
-                result = run_built_replica(run_dir, runtime_input)
+                result = run_built_replica(
+                    run_dir,
+                    runtime_input,
+                    allow_model_adapter=True,
+                )
 
             self.assertEqual("insufficient_information", result["status"])
             self.assertEqual(
@@ -355,7 +447,11 @@ class ExperiencePublicationTest(unittest.TestCase):
                     side_effect=OSError("provider unavailable"),
                 ),
             ):
-                result = run_built_replica(run_dir, runtime_input)
+                result = run_built_replica(
+                    run_dir,
+                    runtime_input,
+                    allow_model_adapter=True,
+                )
 
             self.assertEqual("insufficient_information", result["status"])
             self.assertEqual(
@@ -377,7 +473,11 @@ class ExperiencePublicationTest(unittest.TestCase):
                     side_effect=http.client.IncompleteRead(b"partial"),
                 ),
             ):
-                result = run_built_replica(run_dir, runtime_input)
+                result = run_built_replica(
+                    run_dir,
+                    runtime_input,
+                    allow_model_adapter=True,
+                )
 
             self.assertEqual("insufficient_information", result["status"])
             self.assertEqual(
@@ -396,7 +496,11 @@ class ExperiencePublicationTest(unittest.TestCase):
                 patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
                 patch("urllib.request.urlopen") as call_api,
             ):
-                result = run_built_replica(run_dir, runtime_input)
+                result = run_built_replica(
+                    run_dir,
+                    runtime_input,
+                    allow_model_adapter=True,
+                )
 
             self.assertEqual("insufficient_information", result["status"])
             call_api.assert_not_called()
@@ -410,7 +514,11 @@ class ExperiencePublicationTest(unittest.TestCase):
                 patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}),
                 patch("urllib.request.urlopen") as call_api,
             ):
-                result = run_built_replica(run_dir, runtime_input)
+                result = run_built_replica(
+                    run_dir,
+                    runtime_input,
+                    allow_model_adapter=True,
+                )
 
             self.assertEqual("answered", result["status"])
             call_api.assert_not_called()
@@ -574,18 +682,18 @@ class ExperiencePublicationTest(unittest.TestCase):
 
             self.assertEqual("handoff", result["status"])
 
-    def test_answered_output_requires_a_non_empty_cited_corpus(self):
+    def test_generated_answer_is_overridden_when_corpus_is_empty(self):
         with TemporaryDirectory() as tmp:
             run_dir = _build_public_run(Path(tmp))
             runtime_input = dict(_experience_profile()["runtime_input"])
             runtime_input["creator_corpus"] = []
             runtime_input["user_question"] = "study"
 
-            with self.assertRaisesRegex(
-                ValueError,
-                "grounded corpus requires unique non-empty sources",
-            ):
-                run_built_replica(run_dir, runtime_input)
+            result = run_built_replica(run_dir, runtime_input)
+
+            self.assertEqual("insufficient_information", result["status"])
+            self.assertEqual(runtime_input["fallback_text"], result["answer"])
+            self.assertEqual([], result["citations"])
 
     def test_non_list_corpus_is_rejected_after_the_urgent_gate(self):
         with TemporaryDirectory() as tmp:

@@ -12,6 +12,24 @@ from .intake import receive_second_pass
 from .project import build_project, evaluate_project, init_project, write_report
 
 
+def _command_arguments(value: str) -> list[str]:
+    try:
+        command = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise argparse.ArgumentTypeError(
+            "command must be a JSON array of arguments"
+        ) from error
+    if (
+        not isinstance(command, list)
+        or not command
+        or not all(isinstance(item, str) and item for item in command)
+    ):
+        raise argparse.ArgumentTypeError(
+            "command must be a non-empty JSON array of non-empty strings"
+        )
+    return command
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="replica-mvp",
@@ -71,8 +89,18 @@ def _parser() -> argparse.ArgumentParser:
 
     evaluate = sub.add_parser("evaluate", help="Run test cases and write the report.")
     evaluate.add_argument("path", type=Path)
-    evaluate.add_argument("--replica-command", required=True)
-    evaluate.add_argument("--judge-command", required=True)
+    evaluate.add_argument(
+        "--replica-command",
+        required=True,
+        type=_command_arguments,
+        help="Replica command as a JSON argument array.",
+    )
+    evaluate.add_argument(
+        "--judge-command",
+        required=True,
+        type=_command_arguments,
+        help="Judge command as a JSON argument array.",
+    )
     evaluate.add_argument("--timeout", type=int, default=120)
 
     report = sub.add_parser("report", help="Regenerate report.md from results.jsonl.")
@@ -83,6 +111,11 @@ def _parser() -> argparse.ArgumentParser:
         help="Run a built Replica with a JSON object read from stdin.",
     )
     run_replica.add_argument("path", type=Path)
+    run_replica.add_argument(
+        "--use-model-adapter",
+        action="store_true",
+        help="Allow the optional external grounded-model adapter.",
+    )
 
     experience = sub.add_parser(
         "experience",
@@ -113,6 +146,11 @@ def _parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         help="Write an HTML Replica result to a new preview file.",
+    )
+    experience.add_argument(
+        "--use-model-adapter",
+        action="store_true",
+        help="Allow the optional external grounded-model adapter.",
     )
 
     return parser
@@ -159,7 +197,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "run-replica":
             replica_input = json.loads(sys.stdin.read())
-            output = run_built_replica(args.path, replica_input)
+            output = run_built_replica(
+                args.path,
+                replica_input,
+                allow_model_adapter=args.use_model_adapter,
+            )
             print(json.dumps(output, ensure_ascii=False, allow_nan=False))
         elif args.command == "experience":
             profile = args.profile or args.path / "experience.json"
@@ -177,6 +219,7 @@ def main(argv: list[str] | None = None) -> int:
                         args.path,
                         args.input_path,
                         args.output,
+                        use_model_adapter=args.use_model_adapter,
                     )
                 )
                 return 0
@@ -196,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
                         profile,
                         args.question,
                         args.original_observations,
+                        use_model_adapter=args.use_model_adapter,
                     )
                 )
             else:
@@ -208,7 +252,14 @@ def main(argv: list[str] | None = None) -> int:
                         break
                     if not question.strip():
                         continue
-                    print(experience_once(args.path, profile, question))
+                    print(
+                        experience_once(
+                            args.path,
+                            profile,
+                            question,
+                            use_model_adapter=args.use_model_adapter,
+                        )
+                    )
         else:
             write_report(args.path)
     except (OSError, RuntimeError, ValueError) as error:

@@ -1,0 +1,21 @@
+name: Security tests
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  symlink-boundary:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+      REPLICA_REQUIRE_SYMLINK_TEST: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Verify workspace symlink rejection
+        run: >-
+          python -m unittest
+          tests.test_codex_operator.CodexOperatorWorkflowTest.test_workspace_source_symlink_is_also_rejected

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -525,6 +526,8 @@ class CodexOperatorWorkflowTest(unittest.TestCase):
             try:
                 source.symlink_to(STATIC_SITE_EXAMPLE)
             except OSError as error:
+                if os.environ.get("REPLICA_REQUIRE_SYMLINK_TEST") == "1":
+                    self.fail(f"file symlink security test is required: {error}")
                 self.skipTest(f"file symlinks unavailable: {error}")
 
             with self.assertRaisesRegex(ValueError, "source must be outside"):

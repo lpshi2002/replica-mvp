@@ -15,6 +15,49 @@ LEAD_EXAMPLE = (
 
 
 class PublicCliContractTest(unittest.TestCase):
+    def test_evaluate_commands_are_json_argument_lists(self):
+        parser = __import__("replica_mvp.cli", fromlist=["_parser"])._parser()
+
+        args = parser.parse_args(
+            [
+                "evaluate",
+                "run",
+                "--replica-command",
+                '["C:\\\\Program Files\\\\Python\\\\python.exe", "-m", "replica"]',
+                "--judge-command",
+                '["C:\\\\Program Files\\\\Python\\\\python.exe", "judge.py"]',
+            ]
+        )
+
+        self.assertEqual(
+            [r"C:\Program Files\Python\python.exe", "-m", "replica"],
+            args.replica_command,
+        )
+        self.assertEqual(
+            [r"C:\Program Files\Python\python.exe", "judge.py"],
+            args.judge_command,
+        )
+
+    def test_run_replica_enables_the_model_adapter_only_by_flag(self):
+        with (
+            patch("sys.stdin", StringIO("{}")),
+            patch(
+                "replica_mvp.cli.run_built_replica",
+                return_value={"status": "insufficient_information"},
+            ) as execute,
+            redirect_stdout(StringIO()),
+        ):
+            exit_code = main(
+                ["run-replica", "run", "--use-model-adapter"]
+            )
+
+        self.assertEqual(0, exit_code)
+        execute.assert_called_once_with(
+            Path("run"),
+            {},
+            allow_model_adapter=True,
+        )
+
     def test_cli_exposes_the_codex_operator_prepare_and_finalize_seam(self):
         prepared_result = {
             "schema_version": "replica-codex-operator-result/v1",

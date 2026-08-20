@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shlex
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -143,8 +142,10 @@ Do not claim access to private data or the original implementation. If the input
     return replica
 
 
-def _run(command: str | Sequence[str], prompt: str, timeout: int) -> str:
-    argv = shlex.split(command) if isinstance(command, str) else list(command)
+def _run(command: Sequence[str], prompt: str, timeout: int) -> str:
+    if isinstance(command, (str, bytes)):
+        raise ValueError("model command must be an argument list")
+    argv = list(command)
     if not argv or not all(isinstance(item, str) and item for item in argv):
         raise ValueError("model command cannot be empty")
     try:
@@ -186,8 +187,8 @@ def _judge_result(raw: str) -> tuple[bool, str]:
 def evaluate_project(
     root: Path,
     *,
-    replica_command: str | Sequence[str],
-    judge_command: str | Sequence[str],
+    replica_command: Sequence[str],
+    judge_command: Sequence[str],
     timeout: int = 120,
 ) -> list[dict[str, Any]]:
     if timeout <= 0:

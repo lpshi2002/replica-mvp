@@ -66,6 +66,35 @@ def _original_observations() -> dict:
 
 
 class ExperienceCliTest(unittest.TestCase):
+    def test_question_experience_enables_the_model_adapter_only_by_flag(self):
+        with (
+            TemporaryDirectory() as tmp,
+            patch(
+                "replica_mvp.cli.experience_once",
+                return_value="rendered",
+            ) as experience,
+            redirect_stdout(StringIO()),
+        ):
+            run_dir = Path(tmp) / "run"
+            exit_code = main(
+                [
+                    "experience",
+                    str(run_dir),
+                    "--question",
+                    "What should I do?",
+                    "--use-model-adapter",
+                ]
+            )
+
+        self.assertEqual(0, exit_code)
+        experience.assert_called_once_with(
+            run_dir,
+            run_dir / "experience.json",
+            "What should I do?",
+            None,
+            use_model_adapter=True,
+        )
+
     def test_text_replica_can_be_read_from_a_json_input_file(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

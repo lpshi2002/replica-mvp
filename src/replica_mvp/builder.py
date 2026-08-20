@@ -27,7 +27,10 @@ from .generated_component import (
     prepare_generated_component,
     validate_generated_component_record,
 )
-from .grounded_conversation import strengthen_grounded_response
+from .grounded_conversation import (
+    preflight_grounded_response,
+    strengthen_grounded_response,
+)
 from .intake import receive_second_pass
 from .operation_selection import (
     GENERATED_COMPONENT_OPERATION,
@@ -463,14 +466,37 @@ def run_built_replica(
     run_dir: Path,
     runtime_input: dict[str, Any],
     *,
-    allow_model_adapter: bool = True,
+    allow_model_adapter: bool = False,
 ) -> Any:
     if not isinstance(runtime_input, dict):
         raise ValueError("Replica input must be a JSON object")
     _require_standard_json(runtime_input)
     replica = _validate_replica(_read_json(run_dir / "replica.json"))
+    replica_spec = replica["replica_spec"]
+    if (
+        replica_spec.get("output_contract", {}).get("format")
+        == "grounded-conversation-response"
+    ):
+        input_contract = replica_spec.get("input_contract")
+        required_fields = (
+            input_contract.get("required")
+            if isinstance(input_contract, dict)
+            else None
+        )
+        if not isinstance(required_fields, list) or not all(
+            _is_nonempty_text(field) for field in required_fields
+        ):
+            raise ValueError("invalid built Replica input contract")
+        missing_fields = [
+            field for field in required_fields if field not in runtime_input
+        ]
+        if missing_fields:
+            raise ValueError(
+                "Replica input is missing required fields: "
+                + ", ".join(missing_fields)
+            )
     plan = replica["execution_plan"]
-    registry = _operation_registry(run_dir, replica["replica_spec"])
+    registry = _operation_registry(run_dir, replica_spec)
     safety = assess_plan_safety(
         plan,
         available_operations=set(registry),
@@ -484,25 +510,31 @@ def run_built_replica(
     if len(steps) != 1:
         raise ValueError("prototype runtime requires exactly one execution step")
     step = steps[0]
-    operation = registry[step["operation"]]
-    started = time.monotonic()
-    output = operation(step["inputs"], runtime_input)
-    elapsed = time.monotonic() - started
-    if elapsed > step["limits"]["timeout_seconds"]:
-        raise RuntimeError("Replica operation exceeded its time limit")
     experience_path = run_dir / "experience.json"
+    experience: dict[str, Any] | None = None
+    output: Any = None
     if (
-        experience_path.is_file()
-        and replica["replica_spec"]["output_contract"].get("format")
+        replica_spec["output_contract"].get("format")
         == "grounded-conversation-response"
     ):
+        if not experience_path.is_file():
+            raise ValueError("grounded Replica is missing its experience profile")
         experience = validate_experience_profile(_read_json(experience_path))
-        output = strengthen_grounded_response(
-            runtime_input,
-            output,
-            experience,
-            allow_model_adapter=allow_model_adapter,
-        )
+        output = preflight_grounded_response(runtime_input, experience)
+    if output is None:
+        operation = registry[step["operation"]]
+        started = time.monotonic()
+        output = operation(step["inputs"], runtime_input)
+        elapsed = time.monotonic() - started
+        if elapsed > step["limits"]["timeout_seconds"]:
+            raise RuntimeError("Replica operation exceeded its time limit")
+        if experience is not None:
+            output = strengthen_grounded_response(
+                runtime_input,
+                output,
+                experience,
+                allow_model_adapter=allow_model_adapter,
+            )
     output_bytes = json.dumps(
         output,
         ensure_ascii=False,

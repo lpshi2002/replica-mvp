@@ -5,9 +5,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from replica_mvp import build_project, evaluate_project, init_project
+from replica_mvp.project import _run
 
 
 class ReplicaProjectTest(unittest.TestCase):
+    def test_model_command_must_be_an_argument_list(self):
+        with self.assertRaisesRegex(ValueError, "argument list"):
+            _run("python runner.py", "prompt", 1)
+
     def test_five_stage_project_runs_end_to_end(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp) / "demo"

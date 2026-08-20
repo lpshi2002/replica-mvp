@@ -18,9 +18,20 @@ PROFILE_FIELDS = {
 }
 
 
-def run_built_replica(run_dir: Path, runtime_input: dict[str, Any]) -> Any:
+def run_built_replica(
+    run_dir: Path,
+    runtime_input: dict[str, Any],
+    *,
+    allow_model_adapter: bool = False,
+) -> Any:
     from .builder import run_built_replica as execute
 
+    if allow_model_adapter:
+        return execute(
+            run_dir,
+            runtime_input,
+            allow_model_adapter=True,
+        )
     return execute(run_dir, runtime_input)
 
 
@@ -201,6 +212,8 @@ def experience_once(
     profile_path: Path,
     question: str,
     original_observations_path: Path | None = None,
+    *,
+    use_model_adapter: bool = False,
 ) -> str:
     profile = _read_profile(profile_path)
     if not question.strip():
@@ -232,7 +245,15 @@ def experience_once(
     _validate_run_evidence_level(run_dir, profile)
     runtime_input = deepcopy(profile["runtime_input"])
     runtime_input[profile["interaction"]["question_field"]] = question
-    result = run_built_replica(run_dir, runtime_input)
+    result = (
+        run_built_replica(
+            run_dir,
+            runtime_input,
+            allow_model_adapter=True,
+        )
+        if use_model_adapter
+        else run_built_replica(run_dir, runtime_input)
+    )
     if (
         not isinstance(result, dict)
         or not isinstance(result.get("status"), str)
@@ -313,6 +334,8 @@ def experience_input_once(
     run_dir: Path,
     input_path: Path,
     output_path: Path | None = None,
+    *,
+    use_model_adapter: bool = False,
 ) -> str:
     runtime_input = _read_json_object(input_path, "experience input")
     replica_spec = _read_json_object(
@@ -342,7 +365,15 @@ def experience_input_once(
             )
     elif output_path is not None:
         raise ValueError("--output is supported only for HTML experience")
-    result = run_built_replica(run_dir, runtime_input)
+    result = (
+        run_built_replica(
+            run_dir,
+            runtime_input,
+            allow_model_adapter=True,
+        )
+        if use_model_adapter
+        else run_built_replica(run_dir, runtime_input)
+    )
     lines = [
         "Replica 체험",
         f"출력 형식: {output_format}",

@@ -204,8 +204,6 @@ def _is_urgent(question: str) -> bool:
 
 
 def _validate_corpus(corpus: list[Any]) -> None:
-    if not corpus:
-        raise ValueError("grounded corpus requires unique non-empty sources")
     source_ids: list[str] = []
     for item in corpus:
         if (
@@ -279,27 +277,21 @@ def _model_grounded_answer(
     }
 
 
-def strengthen_grounded_response(
+def preflight_grounded_response(
     runtime_input: Mapping[str, Any],
-    output: Any,
     experience: Mapping[str, Any],
-    *,
-    allow_model_adapter: bool = True,
-) -> Any:
-    if not isinstance(output, dict):
-        return output
+) -> dict[str, Any] | None:
     interaction = experience.get("interaction")
     if not isinstance(interaction, dict):
-        return output
+        return None
     question_field = interaction.get("question_field")
     question = (
         runtime_input.get(question_field)
         if isinstance(question_field, str)
         else None
     )
-    corpus = runtime_input.get("creator_corpus")
     if not isinstance(question, str):
-        return output
+        return None
     urgent_rule = _urgent_rule(runtime_input)
     if urgent_rule is not None and _is_urgent(question):
         korean = bool(re.search(r"[가-힣]", question))
@@ -316,6 +308,42 @@ def strengthen_grounded_response(
             "citations": [],
             "applied_rules": [urgent_rule],
         }
+    if runtime_input.get("creator_corpus") == []:
+        fallback = runtime_input.get("fallback_text")
+        if isinstance(fallback, str):
+            return {
+                "status": "insufficient_information",
+                "answer": fallback,
+                "citations": [],
+                "applied_rules": _applied_grounding_rules(runtime_input),
+            }
+    return None
+
+
+def strengthen_grounded_response(
+    runtime_input: Mapping[str, Any],
+    output: Any,
+    experience: Mapping[str, Any],
+    *,
+    allow_model_adapter: bool = False,
+) -> Any:
+    preflight = preflight_grounded_response(runtime_input, experience)
+    if preflight is not None:
+        return preflight
+    if not isinstance(output, dict):
+        return output
+    interaction = experience.get("interaction")
+    if not isinstance(interaction, dict):
+        return output
+    question_field = interaction.get("question_field")
+    question = (
+        runtime_input.get(question_field)
+        if isinstance(question_field, str)
+        else None
+    )
+    corpus = runtime_input.get("creator_corpus")
+    if not isinstance(question, str):
+        return output
     if not isinstance(corpus, list):
         raise ValueError("grounded corpus requires unique non-empty sources")
     _validate_corpus(corpus)

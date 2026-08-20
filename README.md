@@ -657,8 +657,9 @@ replica-mvp experience RUN_DIR --input input.json --output preview.html
 일치할 때만 출처 문장을 그대로 답합니다. 자료에 없는 개인 사실은 기존
 fallback을 유지하며, 명시된 긴급 대응 규칙과 긴급 증상 표현이 함께 있을
 때는 `handoff`로 전환합니다. 이는 범용 의미 이해 모델이 아니므로 더 넓은
-표현은 선택적인 OpenAI 근거 제한 모델 Adapter가 처리합니다. 규칙 기반
-경로가 답하지 못했을 때만 API를 호출하며, 모델이 반환한 `source_id`와
+표현은 선택적인 OpenAI 근거 제한 모델 Adapter가 처리합니다. Adapter는
+`--use-model-adapter`를 명시한 경우에만 켜집니다. 규칙 기반 경로가 답하지
+못했을 때만 API를 호출하며, 모델이 반환한 `source_id`와
 `exact_quote`가 실제 corpus와 정확히 일치할 때만 답변을 채택합니다. 키가
 없거나 API 호출·JSON·근거 검증이 실패하면 기존 fallback을 그대로 유지합니다.
 MVP에서는 모델이 자유롭게 생성한 사실 문장을 사용하지 않고, 검증된
@@ -667,7 +668,7 @@ MVP에서는 모델이 자유롭게 생성한 사실 문장을 사용하지 않�
 ```powershell
 $env:OPENAI_API_KEY="YOUR_KEY"
 $env:REPLICA_MVP_OPENAI_MODEL="gpt-5.6-luna" # 선택 사항
-replica-mvp experience RUN_DIR
+replica-mvp experience RUN_DIR --use-model-adapter
 ```
 
 API를 사용하는 질문에는 해당 run의 공개 또는 합성 `creator_corpus`, 질문,
@@ -712,12 +713,13 @@ CI나 독립 재현에서 별도 stdin/stdout 모델 명령을 사용하려면 �
 
 ```bash
 replica-mvp evaluate work/acme/runs/claim-a \
-  --replica-command "YOUR_REPLICA_COMMAND" \
-  --judge-command "YOUR_JUDGE_COMMAND"
+  --replica-command '["python", "replica_runner.py"]' \
+  --judge-command '["python", "judge_runner.py"]'
 ```
 
-각 명령은 stdin으로 프롬프트를 받고 stdout으로 답해야 합니다. Judge는 다음
-형식의 JSON만 반환해야 합니다.
+각 명령은 Windows 경로의 공백과 역슬래시가 손상되지 않도록 JSON 인자 배열로
+전달합니다. 명령은 stdin으로 프롬프트를 받고 stdout으로 답해야 합니다.
+Judge는 다음 형식의 JSON만 반환해야 합니다.
 
 ```json
 {"pass": true, "reason": "한 문장의 구체적인 판정 이유"}
