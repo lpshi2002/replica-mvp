@@ -1,5 +1,14 @@
 """Build and evaluate evidence-bounded AI replicas."""
 
+from .agent_harness import (
+    finish_agent_harness,
+    prepare_agent_harness,
+    record_direct_agent_message,
+    record_released_agent,
+    record_agent_spawn,
+    record_agent_spawn_failure,
+    start_agent_claim,
+)
 from .builder import run_built_replica
 from .completion import assess_replica_completion
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
@@ -18,6 +27,13 @@ __all__ = [
     "finalize_codex_operator",
     "freeze_test_suite",
     "init_project",
+    "finish_agent_harness",
+    "prepare_agent_harness",
+    "record_direct_agent_message",
+    "record_released_agent",
+    "record_agent_spawn",
+    "record_agent_spawn_failure",
+    "start_agent_claim",
     "receive_second_pass",
     "parse_second_pass",
     "prepare_codex_operator",

@@ -5,6 +5,15 @@ import json
 import sys
 from pathlib import Path
 
+from .agent_harness import (
+    finish_agent_harness,
+    prepare_agent_harness_from_path,
+    record_agent_spawn,
+    record_agent_spawn_failure,
+    record_direct_agent_message,
+    record_released_agent,
+    start_agent_claim,
+)
 from .builder import run_built_replica
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .experience import experience_input_once, experience_once
@@ -71,6 +80,71 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also create report.json and report.md.",
     )
+
+    harness_init = sub.add_parser(
+        "agent-harness-init",
+        help="Prepare claim-pair state for a real Codex Agent harness.",
+    )
+    harness_init.add_argument("source", type=Path)
+    harness_init.add_argument("run_dir", type=Path)
+    harness_init.add_argument("--replica-agent-id", required=True)
+    harness_init.add_argument("--parent-agent-id", required=True)
+
+    harness_start = sub.add_parser(
+        "agent-harness-start",
+        help="Activate the next sequential claim pair.",
+    )
+    harness_start.add_argument("registry", type=Path)
+    harness_start.add_argument("claim_id")
+
+    harness_spawned = sub.add_parser(
+        "agent-harness-spawned",
+        help="Record one successful real Codex Agent spawn.",
+    )
+    harness_spawned.add_argument("registry", type=Path)
+    harness_spawned.add_argument("claim_id")
+    harness_spawned.add_argument("--role", choices=("operator", "builder"), required=True)
+    harness_spawned.add_argument("--agent-id", required=True)
+    harness_spawned.add_argument("--parent-agent-id", required=True)
+    harness_spawned.add_argument("--requested-model", required=True)
+
+    harness_failed = sub.add_parser(
+        "agent-harness-failed",
+        help="Record a required Agent spawn failure without fallback.",
+    )
+    harness_failed.add_argument("registry", type=Path)
+    harness_failed.add_argument("claim_id")
+    harness_failed.add_argument("--role", choices=("operator", "builder"), required=True)
+    harness_failed.add_argument("--reason", required=True)
+
+    harness_released = sub.add_parser(
+        "agent-harness-released",
+        help="Confirm an orphan sibling was interrupted and release its slot.",
+    )
+    harness_released.add_argument("registry", type=Path)
+    harness_released.add_argument("claim_id")
+    harness_released.add_argument("--agent-id", required=True)
+
+    harness_message = sub.add_parser(
+        "agent-harness-message",
+        help="Record one verified direct sibling message.",
+    )
+    harness_message.add_argument("registry", type=Path)
+    harness_message.add_argument("claim_id")
+    harness_message.add_argument(
+        "--direction",
+        choices=("operator_to_builder", "builder_to_operator"),
+        required=True,
+    )
+    harness_message.add_argument("--sender-agent-id", required=True)
+    harness_message.add_argument("--recipient-agent-id", required=True)
+    harness_message.add_argument("--nonce", required=True)
+
+    harness_finish = sub.add_parser(
+        "agent-harness-finish",
+        help="Finalize Replica Agent lifecycle state after all claims.",
+    )
+    harness_finish.add_argument("registry", type=Path)
 
     init = sub.add_parser("init", help="Create a five-stage Replica project.")
     init.add_argument("path", type=Path)
@@ -176,6 +250,55 @@ def main(argv: list[str] | None = None) -> int:
                 args.evaluation_vault,
                 include_report=args.report,
             )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-harness-init":
+            result = prepare_agent_harness_from_path(
+                args.source,
+                args.run_dir,
+                replica_agent_id=args.replica_agent_id,
+                parent_agent_id=args.parent_agent_id,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-harness-start":
+            result = start_agent_claim(args.registry, args.claim_id)
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-harness-spawned":
+            result = record_agent_spawn(
+                args.registry,
+                args.claim_id,
+                role=args.role,
+                agent_id=args.agent_id,
+                parent_agent_id=args.parent_agent_id,
+                requested_model=args.requested_model,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-harness-failed":
+            result = record_agent_spawn_failure(
+                args.registry,
+                args.claim_id,
+                role=args.role,
+                reason=args.reason,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-harness-released":
+            result = record_released_agent(
+                args.registry,
+                args.claim_id,
+                agent_id=args.agent_id,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-harness-message":
+            result = record_direct_agent_message(
+                args.registry,
+                args.claim_id,
+                direction=args.direction,
+                sender_agent_id=args.sender_agent_id,
+                recipient_agent_id=args.recipient_agent_id,
+                nonce=args.nonce,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-harness-finish":
+            result = finish_agent_harness(args.registry)
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "init":
             init_project(

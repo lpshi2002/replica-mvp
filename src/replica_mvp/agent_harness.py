@@ -1,0 +1,400 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, NoReturn
+
+from .second_pass import parse_second_pass
+
+
+HARNESS_SCHEMA = "replica-agent-harness/v1"
+SOL_MODEL = "gpt-5.6-sol"
+TERRA_MODEL = "gpt-5.6-terra"
+REGISTRY_NAME = "agent-harness.json"
+
+
+def _is_nonempty_text(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _reject_nonstandard_constant(value: str) -> NoReturn:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
+def _write_new_json(path: Path, value: dict[str, Any]) -> None:
+    with path.open("x", encoding="utf-8") as stream:
+        json.dump(
+            value,
+            stream,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        stream.write("\n")
+
+
+def _read_registry(path: Path) -> dict[str, Any]:
+    try:
+        registry = json.loads(
+            path.read_text(encoding="utf-8"),
+            parse_constant=_reject_nonstandard_constant,
+        )
+    except (OSError, ValueError) as error:
+        raise ValueError(f"invalid Agent harness registry: {error}") from None
+    if (
+        not isinstance(registry, dict)
+        or registry.get("schema_version") != HARNESS_SCHEMA
+        or not isinstance(registry.get("claims"), list)
+        or not isinstance(registry.get("scheduling"), dict)
+    ):
+        raise ValueError("invalid Agent harness registry")
+    return registry
+
+
+def _replace_registry(path: Path, registry: dict[str, Any]) -> None:
+    temporary_path = path.with_name(f".{path.name}.tmp")
+    _write_new_json(temporary_path, registry)
+    temporary_path.replace(path)
+
+
+def _claim_record(registry: dict[str, Any], claim_id: str) -> dict[str, Any]:
+    for claim in registry["claims"]:
+        if isinstance(claim, dict) and claim.get("claim_id") == claim_id:
+            return claim
+    raise ValueError(f"unknown claim identity: {claim_id}")
+
+
+def prepare_agent_harness(
+    second_pass: Any,
+    run_dir: Path,
+    *,
+    replica_agent_id: str,
+    parent_agent_id: str,
+) -> dict[str, Any]:
+    """Prepare deterministic state for real Codex Agent orchestration."""
+    if not _is_nonempty_text(replica_agent_id) or not _is_nonempty_text(
+        parent_agent_id
+    ):
+        raise ValueError("invalid Replica Agent identity")
+    canonical = parse_second_pass(second_pass)
+    run_dir.mkdir(parents=True, exist_ok=False)
+    claims_root = run_dir / "claims"
+    claims_root.mkdir()
+    claims = []
+    for canonical_claim in canonical["claims"]:
+        claim_id = canonical_claim["claim_id"]
+        claim_dir = claims_root / claim_id
+        operator_dir = claim_dir / "operator"
+        builder_dir = claim_dir / "builder"
+        operator_dir.mkdir(parents=True)
+        builder_dir.mkdir()
+        claim_namespace = f"claims/{claim_id}"
+        claim_payload_path = f"{claim_namespace}/claim.json"
+        _write_new_json(
+            run_dir / claim_payload_path,
+            canonical_claim["payload"],
+        )
+        claims.append(
+            {
+                "claim_id": claim_id,
+                "claim_payload_owner": "replica_agent",
+                "claim_payload_path": claim_payload_path,
+                "status": "PENDING",
+                "namespace": claim_namespace,
+                "operator": {
+                    "agent_id": None,
+                    "allowed_peer_agent_id": None,
+                    "artifact_namespace": f"{claim_namespace}/operator",
+                    "artifact_owner": "operator",
+                    "claim_id": claim_id,
+                    "parent_agent_id": replica_agent_id,
+                    "requested_model": SOL_MODEL,
+                    "role": "operator",
+                    "status": "PENDING",
+                },
+                "builder": {
+                    "agent_id": None,
+                    "allowed_peer_agent_id": None,
+                    "artifact_namespace": f"{claim_namespace}/builder",
+                    "artifact_owner": "builder",
+                    "claim_id": claim_id,
+                    "parent_agent_id": replica_agent_id,
+                    "requested_model": TERRA_MODEL,
+                    "role": "builder",
+                    "status": "PENDING",
+                },
+                "smoke": {
+                    "nonce": None,
+                    "operator_to_builder": False,
+                    "builder_to_operator": False,
+                },
+            }
+        )
+    registry = {
+        "schema_version": HARNESS_SCHEMA,
+        "status": "RUNNING",
+        "claim_collection_schema": canonical["schema_version"],
+        "claim_count": canonical["claim_count"],
+        "replica_agent": {
+            "agent_id": replica_agent_id,
+            "parent_agent_id": parent_agent_id,
+            "requested_model": SOL_MODEL,
+            "role": "replica_agent",
+            "status": "RUNNING",
+        },
+        "scheduling": {
+            "policy": "sequential_claim_pairs",
+            "active_claim_id": None,
+            "completed_claim_count": 0,
+            "failed_claim_count": 0,
+        },
+        "filesystem": {
+            "registry_owner": "replica_agent",
+            "shared_mutation": "forbidden",
+        },
+        "claims": claims,
+    }
+    _write_new_json(run_dir / REGISTRY_NAME, registry)
+    return registry
+
+
+def prepare_agent_harness_from_path(
+    source: Path,
+    run_dir: Path,
+    *,
+    replica_agent_id: str,
+    parent_agent_id: str,
+) -> dict[str, Any]:
+    """Read immutable Second JSON and prepare a real-Agent harness registry."""
+    try:
+        second_pass = json.loads(
+            source.read_bytes().decode("utf-8-sig"),
+            parse_constant=_reject_nonstandard_constant,
+        )
+    except (OSError, UnicodeDecodeError, ValueError) as error:
+        raise ValueError(f"invalid JSON in {source}: {error}") from None
+    return prepare_agent_harness(
+        second_pass,
+        run_dir,
+        replica_agent_id=replica_agent_id,
+        parent_agent_id=parent_agent_id,
+    )
+
+
+def start_agent_claim(registry_path: Path, claim_id: str) -> dict[str, Any]:
+    """Activate the next claim under sequential claim-pair scheduling."""
+    registry = _read_registry(registry_path)
+    scheduling = registry["scheduling"]
+    if scheduling.get("active_claim_id") is not None:
+        raise ValueError("claim already active")
+    claim = _claim_record(registry, claim_id)
+    next_pending = next(
+        (
+            candidate
+            for candidate in registry["claims"]
+            if candidate.get("status") == "PENDING"
+        ),
+        None,
+    )
+    if claim is not next_pending:
+        raise ValueError("claim must follow sequential schedule")
+    claim["status"] = "ACTIVE"
+    scheduling["active_claim_id"] = claim_id
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def record_agent_spawn(
+    registry_path: Path,
+    claim_id: str,
+    *,
+    role: str,
+    agent_id: str,
+    parent_agent_id: str,
+    requested_model: str,
+) -> dict[str, Any]:
+    """Record one successful real Agent spawn and link a complete pair."""
+    if role not in {"operator", "builder"}:
+        raise ValueError(f"invalid Agent role: {role}")
+    if not _is_nonempty_text(agent_id):
+        raise ValueError("invalid spawned Agent identity")
+    registry = _read_registry(registry_path)
+    if registry["scheduling"].get("active_claim_id") != claim_id:
+        raise ValueError("claim is not active")
+    claim = _claim_record(registry, claim_id)
+    agent = claim[role]
+    if agent.get("status") != "PENDING":
+        raise ValueError(f"{role} Agent spawn already recorded")
+    if requested_model != agent.get("requested_model"):
+        raise ValueError(f"{role} Agent model request does not match policy")
+    if (
+        parent_agent_id != registry["replica_agent"].get("agent_id")
+        or parent_agent_id != agent.get("parent_agent_id")
+    ):
+        raise ValueError(f"{role} Agent is not a Replica Agent child")
+    existing_agent_ids = set()
+    for candidate in registry["claims"]:
+        for candidate_role in ("operator", "builder"):
+            record = candidate.get(candidate_role)
+            if isinstance(record, dict) and record.get("agent_id") is not None:
+                existing_agent_ids.add(record["agent_id"])
+    if agent_id in existing_agent_ids:
+        raise ValueError(f"duplicate spawned Agent identity: {agent_id}")
+    agent["agent_id"] = agent_id
+    agent["status"] = "SPAWNED"
+    peer_role = "builder" if role == "operator" else "operator"
+    peer = claim[peer_role]
+    if peer.get("status") == "SPAWNED":
+        agent["allowed_peer_agent_id"] = peer["agent_id"]
+        peer["allowed_peer_agent_id"] = agent_id
+        agent["status"] = "PEER_LINKED"
+        peer["status"] = "PEER_LINKED"
+        claim["status"] = "PEER_LINKED"
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def record_agent_spawn_failure(
+    registry_path: Path,
+    claim_id: str,
+    *,
+    role: str,
+    reason: str,
+) -> dict[str, Any]:
+    """Fail one claim pair closed when a required Agent cannot be spawned."""
+    if role not in {"operator", "builder"}:
+        raise ValueError(f"invalid Agent role: {role}")
+    if not _is_nonempty_text(reason):
+        raise ValueError("Agent spawn failure requires a reason")
+    registry = _read_registry(registry_path)
+    scheduling = registry["scheduling"]
+    if scheduling.get("active_claim_id") != claim_id:
+        raise ValueError("claim is not active")
+    claim = _claim_record(registry, claim_id)
+    failed_agent = claim[role]
+    if failed_agent.get("status") != "PENDING":
+        raise ValueError(f"{role} Agent is not awaiting spawn")
+    failed_agent["status"] = "CREATION_FAILED"
+    peer_role = "builder" if role == "operator" else "operator"
+    peer = claim[peer_role]
+    if peer.get("status") == "SPAWNED":
+        peer["status"] = "RELEASE_REQUIRED"
+        claim["status"] = "RELEASING_AFTER_CREATION_FAILURE"
+    else:
+        claim["status"] = "CREATION_FAILED"
+        scheduling["active_claim_id"] = None
+        scheduling["failed_claim_count"] = (
+            scheduling.get("failed_claim_count", 0) + 1
+        )
+    claim["failure"] = {"reason": reason, "role": role}
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def record_released_agent(
+    registry_path: Path,
+    claim_id: str,
+    *,
+    agent_id: str,
+) -> dict[str, Any]:
+    """Confirm interruption of an orphan sibling before releasing its slot."""
+    registry = _read_registry(registry_path)
+    scheduling = registry["scheduling"]
+    if scheduling.get("active_claim_id") != claim_id:
+        raise ValueError("claim is not active")
+    claim = _claim_record(registry, claim_id)
+    if claim.get("status") != "RELEASING_AFTER_CREATION_FAILURE":
+        raise ValueError("claim is not awaiting Agent release")
+    releasable_agents = [
+        claim[role]
+        for role in ("operator", "builder")
+        if claim[role].get("status") == "RELEASE_REQUIRED"
+        and claim[role].get("agent_id") == agent_id
+    ]
+    if len(releasable_agents) != 1:
+        raise ValueError("released Agent identity does not match orphan sibling")
+    releasable_agents[0]["status"] = "RELEASED"
+    claim["status"] = "CREATION_FAILED"
+    scheduling["active_claim_id"] = None
+    scheduling["failed_claim_count"] = (
+        scheduling.get("failed_claim_count", 0) + 1
+    )
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def record_direct_agent_message(
+    registry_path: Path,
+    claim_id: str,
+    *,
+    direction: str,
+    sender_agent_id: str,
+    recipient_agent_id: str,
+    nonce: str,
+) -> dict[str, Any]:
+    """Record one verified direct message between an exact sibling pair."""
+    directions = {
+        "operator_to_builder": ("operator", "builder"),
+        "builder_to_operator": ("builder", "operator"),
+    }
+    if direction not in directions:
+        raise ValueError(f"invalid direct message direction: {direction}")
+    if not _is_nonempty_text(nonce):
+        raise ValueError("direct message nonce is required")
+    registry = _read_registry(registry_path)
+    scheduling = registry["scheduling"]
+    if scheduling.get("active_claim_id") != claim_id:
+        raise ValueError("claim is not active")
+    claim = _claim_record(registry, claim_id)
+    if claim.get("status") not in {"PEER_LINKED", "SMOKE_IN_PROGRESS"}:
+        raise ValueError("claim pair is not ready for direct messaging")
+    sender_role, recipient_role = directions[direction]
+    sender = claim[sender_role]
+    recipient = claim[recipient_role]
+    if (
+        sender_agent_id != sender.get("agent_id")
+        or recipient_agent_id != recipient.get("agent_id")
+        or sender.get("allowed_peer_agent_id") != recipient_agent_id
+        or recipient.get("allowed_peer_agent_id") != sender_agent_id
+    ):
+        raise ValueError("direct message does not match paired Agent identities")
+    smoke = claim["smoke"]
+    if smoke.get(direction) is not False:
+        raise ValueError(f"direct message already recorded: {direction}")
+    recorded_nonce = smoke.get("nonce")
+    if recorded_nonce is not None and recorded_nonce != nonce:
+        raise ValueError("direct message nonce does not match claim pair")
+    smoke["nonce"] = nonce
+    smoke[direction] = True
+    claim["status"] = "SMOKE_IN_PROGRESS"
+    if smoke["operator_to_builder"] and smoke["builder_to_operator"]:
+        claim["status"] = "READY_FOR_PROTOCOL"
+        claim["operator"]["status"] = "READY_FOR_PROTOCOL"
+        claim["builder"]["status"] = "READY_FOR_PROTOCOL"
+        scheduling["active_claim_id"] = None
+        scheduling["completed_claim_count"] = (
+            scheduling.get("completed_claim_count", 0) + 1
+        )
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
+    """Finalize Replica Agent state after every claim reaches a terminal state."""
+    registry = _read_registry(registry_path)
+    if registry["scheduling"].get("active_claim_id") is not None:
+        raise ValueError("cannot finish Agent harness with an active claim")
+    statuses = [claim.get("status") for claim in registry["claims"]]
+    terminal_statuses = {"READY_FOR_PROTOCOL", "CREATION_FAILED"}
+    if not statuses or any(status not in terminal_statuses for status in statuses):
+        raise ValueError("cannot finish incomplete Agent harness")
+    status = (
+        "READY_FOR_PROTOCOL"
+        if all(claim_status == "READY_FOR_PROTOCOL" for claim_status in statuses)
+        else "COMPLETED_WITH_CREATION_FAILURES"
+    )
+    registry["status"] = status
+    registry["replica_agent"]["status"] = status
+    _replace_registry(registry_path, registry)
+    return registry

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Orchestrate Replica Agents"
+  short_description: "Run real Sol/Terra sibling Agent pairs"
+  default_prompt: "Use $orchestrate-replica-agents to prepare and verify claim-scoped Sol Operator and Terra Builder sibling Agents."

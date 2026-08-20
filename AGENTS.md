@@ -6,6 +6,15 @@ selection, replication readiness, or Replica execution, read and follow
 as the authoritative workflow instead of loading the same rules through
 team-ai.
 
+When the user asks to create or run the multi-claim Replica Agent harness,
+spawn one dedicated Replica Agent with `model=gpt-5.6-sol` and
+`fork_turns=none`. Give it only the Second JSON path, run directory, canonical
+parent identity, and an instruction to follow
+`.agents/skills/orchestrate-replica-agents/SKILL.md`. The root may wait for and
+report lifecycle results but must not relay Operator/Builder semantic
+messages. The Replica Agent itself creates each claim's sibling children with
+explicit `gpt-5.6-sol` Operator and `gpt-5.6-terra` Builder model requests.
+
 When a ready `replica-second-pass-result/v1` JSON has arrived, or the user asks
 to implement, repair, test, or run the actual Replica, use the JSON-only
 implementation Skill:
