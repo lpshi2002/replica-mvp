@@ -14,6 +14,7 @@ from .agent_harness import (
     record_released_agent,
     start_agent_claim,
 )
+from .agent_protocol import validate_agent_protocol_message_from_path
 from .builder import run_built_replica
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .experience import experience_input_once, experience_once
@@ -145,6 +146,21 @@ def _parser() -> argparse.ArgumentParser:
         help="Finalize Replica Agent lifecycle state after all claims.",
     )
     harness_finish.add_argument("registry", type=Path)
+
+    protocol_validate = sub.add_parser(
+        "agent-protocol-validate",
+        help="Validate one claim-scoped direct Agent message artifact.",
+    )
+    protocol_validate.add_argument("message", type=Path)
+    protocol_validate.add_argument("--claim-id", required=True)
+    protocol_validate.add_argument("--operator-agent-id", required=True)
+    protocol_validate.add_argument("--builder-agent-id", required=True)
+    protocol_validate.add_argument("--pair-nonce", required=True)
+    protocol_validate.add_argument(
+        "--expected-correction-number",
+        type=int,
+        required=True,
+    )
 
     init = sub.add_parser("init", help="Create a five-stage Replica project.")
     init.add_argument("path", type=Path)
@@ -299,6 +315,16 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-harness-finish":
             result = finish_agent_harness(args.registry)
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-protocol-validate":
+            result = validate_agent_protocol_message_from_path(
+                args.message,
+                claim_id=args.claim_id,
+                operator_agent_id=args.operator_agent_id,
+                builder_agent_id=args.builder_agent_id,
+                pair_nonce=args.pair_nonce,
+                expected_correction_number=args.expected_correction_number,
+            )
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "init":
             init_project(

@@ -9,6 +9,10 @@ from .agent_harness import (
     record_agent_spawn_failure,
     start_agent_claim,
 )
+from .agent_protocol import (
+    validate_agent_protocol_message,
+    validate_agent_protocol_message_from_path,
+)
 from .builder import run_built_replica
 from .completion import assess_replica_completion
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
@@ -34,6 +38,8 @@ __all__ = [
     "record_agent_spawn",
     "record_agent_spawn_failure",
     "start_agent_claim",
+    "validate_agent_protocol_message",
+    "validate_agent_protocol_message_from_path",
     "receive_second_pass",
     "parse_second_pass",
     "prepare_codex_operator",
