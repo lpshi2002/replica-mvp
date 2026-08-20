@@ -536,8 +536,13 @@ def finish_agent_continuity(
         raise ValueError("Agent continuity terminal changed sibling identities")
     if claim.get("smoke", {}).get("nonce") != nonce:
         raise ValueError("Agent continuity nonce does not match claim pair")
-    if terminal_state != "ABORTED" and not continuity.get("completed_rounds"):
-        raise ValueError("Agent continuity terminal requires a completed round")
+    if (
+        terminal_state != "ABORTED"
+        and continuity.get("completed_rounds") != [0, 1, 2, 3]
+    ):
+        raise ValueError(
+            "Agent continuity terminal requires four completed rounds"
+        )
     continuity["phase"] = f"TERMINAL_{terminal_state}"
     continuity["terminal_state"] = terminal_state
     continuity["operator_status"] = "COMPLETED"

@@ -176,6 +176,39 @@ class AgentContinuityTest(unittest.TestCase):
                     builder_to_operator_direct=True,
                 )
 
+    def test_success_terminal_requires_initial_plus_three_corrections(self):
+        with TemporaryDirectory() as tmp:
+            registry_path = _prepare_ready_pair(Path(tmp) / "run")
+            start_agent_continuity(
+                registry_path,
+                CLAIM_ID,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                nonce=NONCE,
+            )
+
+            for round_number in range(3):
+                record_agent_continuity_round(
+                    registry_path,
+                    CLAIM_ID,
+                    round_number=round_number,
+                    operator_agent_id=OPERATOR_ID,
+                    builder_agent_id=BUILDER_ID,
+                    nonce=NONCE,
+                    operator_to_builder_direct=True,
+                    builder_to_operator_direct=True,
+                )
+                with self.assertRaisesRegex(ValueError, "four completed rounds"):
+                    finish_agent_continuity(
+                        registry_path,
+                        CLAIM_ID,
+                        terminal_state="SUCCESS",
+                        operator_agent_id=OPERATOR_ID,
+                        builder_agent_id=BUILDER_ID,
+                        nonce=NONCE,
+                        terminal_acknowledged_directly=True,
+                    )
+
     def test_premature_completion_aborts_without_replacing_the_pair(self):
         with TemporaryDirectory() as tmp:
             registry_path = _prepare_ready_pair(Path(tmp) / "run")
