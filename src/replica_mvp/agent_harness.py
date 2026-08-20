@@ -129,6 +129,18 @@ def prepare_agent_harness(
                     "operator_to_builder": False,
                     "builder_to_operator": False,
                 },
+                "continuity": {
+                    "phase": "CREATED",
+                    "operator_agent_id": None,
+                    "builder_agent_id": None,
+                    "operator_status": "NOT_STARTED",
+                    "builder_status": "NOT_STARTED",
+                    "completed_rounds": [],
+                    "next_round": 0,
+                    "correction_count": 0,
+                    "terminal_state": None,
+                    "failure": None,
+                },
             }
         )
     registry = {
@@ -372,10 +384,202 @@ def record_direct_agent_message(
         claim["status"] = "READY_FOR_PROTOCOL"
         claim["operator"]["status"] = "READY_FOR_PROTOCOL"
         claim["builder"]["status"] = "READY_FOR_PROTOCOL"
+        claim["continuity"]["phase"] = "READY"
         scheduling["active_claim_id"] = None
         scheduling["completed_claim_count"] = (
             scheduling.get("completed_claim_count", 0) + 1
         )
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def start_agent_continuity(
+    registry_path: Path,
+    claim_id: str,
+    *,
+    operator_agent_id: str,
+    builder_agent_id: str,
+    nonce: str,
+) -> dict[str, Any]:
+    """Bind one ready sibling pair to a single long-lived claim session."""
+    if not _is_nonempty_text(nonce):
+        raise ValueError("Agent continuity nonce is required")
+    registry = _read_registry(registry_path)
+    claim = _claim_record(registry, claim_id)
+    if claim.get("status") != "READY_FOR_PROTOCOL":
+        raise ValueError("claim pair is not ready for Agent continuity")
+    operator = claim["operator"]
+    builder = claim["builder"]
+    if (
+        operator.get("agent_id") != operator_agent_id
+        or builder.get("agent_id") != builder_agent_id
+        or operator.get("allowed_peer_agent_id") != builder_agent_id
+        or builder.get("allowed_peer_agent_id") != operator_agent_id
+    ):
+        raise ValueError("Agent continuity does not match sibling identities")
+    if claim.get("smoke", {}).get("nonce") != nonce:
+        raise ValueError("Agent continuity nonce does not match claim pair")
+    continuity = claim.get("continuity")
+    if continuity is None:
+        continuity = {
+            "phase": "READY",
+            "operator_agent_id": None,
+            "builder_agent_id": None,
+            "operator_status": "NOT_STARTED",
+            "builder_status": "NOT_STARTED",
+            "completed_rounds": [],
+            "next_round": 0,
+            "correction_count": 0,
+            "terminal_state": None,
+            "failure": None,
+        }
+        claim["continuity"] = continuity
+    if not isinstance(continuity, dict) or continuity.get("phase") != "READY":
+        raise ValueError("Agent continuity session already started")
+    continuity.update(
+        {
+            "phase": "PAIR_ACTIVE",
+            "operator_agent_id": operator_agent_id,
+            "builder_agent_id": builder_agent_id,
+            "operator_status": "ACTIVE_FOR_CLAIM",
+            "builder_status": "ACTIVE_FOR_CLAIM",
+        }
+    )
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def record_agent_continuity_round(
+    registry_path: Path,
+    claim_id: str,
+    *,
+    round_number: int,
+    operator_agent_id: str,
+    builder_agent_id: str,
+    nonce: str,
+    operator_to_builder_direct: bool,
+    builder_to_operator_direct: bool,
+) -> dict[str, Any]:
+    """Record one direct round trip without completing the bound pair."""
+    if (
+        not isinstance(round_number, int)
+        or isinstance(round_number, bool)
+        or round_number < 0
+    ):
+        raise ValueError("Agent continuity round must be a non-negative integer")
+    if (
+        operator_to_builder_direct is not True
+        or builder_to_operator_direct is not True
+    ):
+        raise ValueError("Agent continuity round must be directly bidirectional")
+    registry = _read_registry(registry_path)
+    claim = _claim_record(registry, claim_id)
+    continuity = claim.get("continuity")
+    if not isinstance(continuity, dict) or continuity.get("phase") not in {
+        "PAIR_ACTIVE",
+        "ROUND_TRIP_COMPLETE",
+    }:
+        raise ValueError("Agent continuity pair is not active")
+    if (
+        continuity.get("operator_agent_id") != operator_agent_id
+        or continuity.get("builder_agent_id") != builder_agent_id
+        or claim["operator"].get("agent_id") != operator_agent_id
+        or claim["builder"].get("agent_id") != builder_agent_id
+    ):
+        raise ValueError("Agent continuity round changed sibling identities")
+    if claim.get("smoke", {}).get("nonce") != nonce:
+        raise ValueError("Agent continuity nonce does not match claim pair")
+    if continuity.get("next_round") != round_number:
+        raise ValueError("Agent continuity round is out of sequence")
+    completed_rounds = continuity.get("completed_rounds")
+    if not isinstance(completed_rounds, list):
+        raise ValueError("invalid Agent continuity round history")
+    completed_rounds.append(round_number)
+    continuity["next_round"] = round_number + 1
+    continuity["correction_count"] = max(0, round_number)
+    continuity["phase"] = "ROUND_TRIP_COMPLETE"
+    continuity["operator_status"] = "WAITING_FOR_PEER"
+    continuity["builder_status"] = "WAITING_FOR_PEER"
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def finish_agent_continuity(
+    registry_path: Path,
+    claim_id: str,
+    *,
+    terminal_state: str,
+    operator_agent_id: str,
+    builder_agent_id: str,
+    nonce: str,
+    terminal_acknowledged_directly: bool,
+) -> dict[str, Any]:
+    """Complete a long-lived pair only after an explicit direct terminal."""
+    if terminal_state not in {"SUCCESS", "FAILED", "ABORTED"}:
+        raise ValueError("invalid Agent continuity terminal state")
+    if terminal_acknowledged_directly is not True:
+        raise ValueError("Agent continuity terminal requires a direct ack")
+    registry = _read_registry(registry_path)
+    claim = _claim_record(registry, claim_id)
+    continuity = claim.get("continuity")
+    if not isinstance(continuity, dict) or continuity.get("phase") not in {
+        "PAIR_ACTIVE",
+        "ROUND_TRIP_COMPLETE",
+    }:
+        raise ValueError("Agent continuity pair is not active")
+    if (
+        continuity.get("operator_agent_id") != operator_agent_id
+        or continuity.get("builder_agent_id") != builder_agent_id
+        or claim["operator"].get("agent_id") != operator_agent_id
+        or claim["builder"].get("agent_id") != builder_agent_id
+    ):
+        raise ValueError("Agent continuity terminal changed sibling identities")
+    if claim.get("smoke", {}).get("nonce") != nonce:
+        raise ValueError("Agent continuity nonce does not match claim pair")
+    if terminal_state != "ABORTED" and not continuity.get("completed_rounds"):
+        raise ValueError("Agent continuity terminal requires a completed round")
+    continuity["phase"] = f"TERMINAL_{terminal_state}"
+    continuity["terminal_state"] = terminal_state
+    continuity["operator_status"] = "COMPLETED"
+    continuity["builder_status"] = "COMPLETED"
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def record_agent_premature_completion(
+    registry_path: Path,
+    claim_id: str,
+    *,
+    completed_agent_id: str,
+    reason: str,
+) -> dict[str, Any]:
+    """Abort continuity when one bound Agent returns final before terminal."""
+    if not _is_nonempty_text(reason):
+        raise ValueError("premature Agent completion requires a reason")
+    registry = _read_registry(registry_path)
+    claim = _claim_record(registry, claim_id)
+    continuity = claim.get("continuity")
+    if not isinstance(continuity, dict) or continuity.get("phase") not in {
+        "PAIR_ACTIVE",
+        "ROUND_TRIP_COMPLETE",
+    }:
+        raise ValueError("Agent continuity pair is not active")
+    roles = {
+        continuity.get("operator_agent_id"): "operator",
+        continuity.get("builder_agent_id"): "builder",
+    }
+    completed_role = roles.get(completed_agent_id)
+    if completed_role is None:
+        raise ValueError("premature completion changed sibling identity")
+    peer_role = "builder" if completed_role == "operator" else "operator"
+    continuity["phase"] = "ABORTED"
+    continuity["terminal_state"] = "ABORTED"
+    continuity[f"{completed_role}_status"] = "PREMATURELY_COMPLETED"
+    continuity[f"{peer_role}_status"] = "CONTINUITY_FAILED"
+    continuity["failure"] = {
+        "agent_id": completed_agent_id,
+        "reason": reason,
+    }
     _replace_registry(registry_path, registry)
     return registry
 

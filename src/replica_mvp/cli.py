@@ -6,13 +6,17 @@ import sys
 from pathlib import Path
 
 from .agent_harness import (
+    finish_agent_continuity,
     finish_agent_harness,
     prepare_agent_harness_from_path,
+    record_agent_continuity_round,
+    record_agent_premature_completion,
     record_agent_spawn,
     record_agent_spawn_failure,
     record_direct_agent_message,
     record_released_agent,
     start_agent_claim,
+    start_agent_continuity,
 )
 from .agent_protocol import validate_agent_protocol_message_from_path
 from .builder import run_built_replica
@@ -161,6 +165,66 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         required=True,
     )
+
+    continuity_start = sub.add_parser(
+        "agent-continuity-start",
+        help="Start one long-lived claim session for an exact sibling pair.",
+    )
+    continuity_start.add_argument("registry", type=Path)
+    continuity_start.add_argument("claim_id")
+    continuity_start.add_argument("--operator-agent-id", required=True)
+    continuity_start.add_argument("--builder-agent-id", required=True)
+    continuity_start.add_argument("--nonce", required=True)
+
+    continuity_round = sub.add_parser(
+        "agent-continuity-round",
+        help="Record one direct round trip for a long-lived sibling pair.",
+    )
+    continuity_round.add_argument("registry", type=Path)
+    continuity_round.add_argument("claim_id")
+    continuity_round.add_argument("--round-number", type=int, required=True)
+    continuity_round.add_argument("--operator-agent-id", required=True)
+    continuity_round.add_argument("--builder-agent-id", required=True)
+    continuity_round.add_argument("--nonce", required=True)
+    continuity_round.add_argument(
+        "--operator-to-builder-direct",
+        action="store_true",
+        required=True,
+    )
+    continuity_round.add_argument(
+        "--builder-to-operator-direct",
+        action="store_true",
+        required=True,
+    )
+
+    continuity_terminal = sub.add_parser(
+        "agent-continuity-terminal",
+        help="Complete a sibling pair after an explicit direct terminal.",
+    )
+    continuity_terminal.add_argument("registry", type=Path)
+    continuity_terminal.add_argument("claim_id")
+    continuity_terminal.add_argument(
+        "--terminal-state",
+        choices=("SUCCESS", "FAILED", "ABORTED"),
+        required=True,
+    )
+    continuity_terminal.add_argument("--operator-agent-id", required=True)
+    continuity_terminal.add_argument("--builder-agent-id", required=True)
+    continuity_terminal.add_argument("--nonce", required=True)
+    continuity_terminal.add_argument(
+        "--terminal-acknowledged-directly",
+        action="store_true",
+        required=True,
+    )
+
+    continuity_premature = sub.add_parser(
+        "agent-continuity-premature",
+        help="Abort when a bound Agent returns final before claim terminal.",
+    )
+    continuity_premature.add_argument("registry", type=Path)
+    continuity_premature.add_argument("claim_id")
+    continuity_premature.add_argument("--completed-agent-id", required=True)
+    continuity_premature.add_argument("--reason", required=True)
 
     init = sub.add_parser("init", help="Create a five-stage Replica project.")
     init.add_argument("path", type=Path)
@@ -324,6 +388,48 @@ def main(argv: list[str] | None = None) -> int:
                 builder_agent_id=args.builder_agent_id,
                 pair_nonce=args.pair_nonce,
                 expected_correction_number=args.expected_correction_number,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-continuity-start":
+            result = start_agent_continuity(
+                args.registry,
+                args.claim_id,
+                operator_agent_id=args.operator_agent_id,
+                builder_agent_id=args.builder_agent_id,
+                nonce=args.nonce,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-continuity-round":
+            result = record_agent_continuity_round(
+                args.registry,
+                args.claim_id,
+                round_number=args.round_number,
+                operator_agent_id=args.operator_agent_id,
+                builder_agent_id=args.builder_agent_id,
+                nonce=args.nonce,
+                operator_to_builder_direct=args.operator_to_builder_direct,
+                builder_to_operator_direct=args.builder_to_operator_direct,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-continuity-terminal":
+            result = finish_agent_continuity(
+                args.registry,
+                args.claim_id,
+                terminal_state=args.terminal_state,
+                operator_agent_id=args.operator_agent_id,
+                builder_agent_id=args.builder_agent_id,
+                nonce=args.nonce,
+                terminal_acknowledged_directly=(
+                    args.terminal_acknowledged_directly
+                ),
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-continuity-premature":
+            result = record_agent_premature_completion(
+                args.registry,
+                args.claim_id,
+                completed_agent_id=args.completed_agent_id,
+                reason=args.reason,
             )
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "init":

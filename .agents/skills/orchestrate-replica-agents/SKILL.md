@@ -112,5 +112,6 @@ Stop after every claim is `READY_FOR_PROTOCOL` or `CREATION_FAILED`. Return the
 registry path and exact runtime spawn/message results. Before returning, run
 `replica-mvp agent-harness-finish REGISTRY`; it must reject any nonterminal
 claim.
-claim. Do not implement Replica strategy, Builder execution, judging,
+
+Do not implement Replica strategy, Builder execution, judging,
 correction, aggregation, or Final Replica JSON in this Skill.

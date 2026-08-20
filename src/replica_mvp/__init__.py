@@ -1,13 +1,17 @@
 """Build and evaluate evidence-bounded AI replicas."""
 
 from .agent_harness import (
+    finish_agent_continuity,
     finish_agent_harness,
     prepare_agent_harness,
+    record_agent_continuity_round,
+    record_agent_premature_completion,
     record_direct_agent_message,
     record_released_agent,
     record_agent_spawn,
     record_agent_spawn_failure,
     start_agent_claim,
+    start_agent_continuity,
 )
 from .agent_protocol import (
     validate_agent_protocol_message,
@@ -32,12 +36,16 @@ __all__ = [
     "freeze_test_suite",
     "init_project",
     "finish_agent_harness",
+    "finish_agent_continuity",
     "prepare_agent_harness",
+    "record_agent_continuity_round",
+    "record_agent_premature_completion",
     "record_direct_agent_message",
     "record_released_agent",
     "record_agent_spawn",
     "record_agent_spawn_failure",
     "start_agent_claim",
+    "start_agent_continuity",
     "validate_agent_protocol_message",
     "validate_agent_protocol_message_from_path",
     "receive_second_pass",

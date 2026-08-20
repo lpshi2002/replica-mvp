@@ -11,6 +11,22 @@ namespace. Do not inspect another claim or the Operator namespace. Do not spawn
 or replace another Agent. Execute the paired Operator's strategy; do not ignore
 it and independently redesign the Replica from first principles.
 
+## Select the lifecycle mode
+
+Choose exactly one mode from the current control before waiting for a peer. A
+launch task without `persistent_claim_session` runs the harness smoke mode. A
+`protocol_activation` with `persistent_claim_session: true` starts the
+long-lived claim mode; skip the smoke mode in that turn. Never repeat an old
+completion report in response to a different control type.
+
+The smoke turn may finish because it only verifies pair creation. A persistent
+claim turn must remain active across every instruction/feedback round and may
+return final only after `SUCCESS`, `FAILED`, or `ABORTED` terminal exchange.
+Use bounded native `wait_agent` calls to wait for the Operator; do not busy
+poll.
+
+## Harness smoke mode
+
 The launch task supplies the paired Operator's canonical Agent ID and nonce.
 Wait for a direct message from that exact Operator. Accept only this envelope:
 
@@ -43,11 +59,13 @@ available for a future follow-up turn with the same pair identity.
 
 ## Receive one protocol instruction
 
-On an identity-only `protocol_activation` follow-up from the Replica Agent,
-require the original claim ID, Operator ID, Builder ID, nonce, and a
-non-negative `correction_number`. Reject any changed pair identity. The
-Replica Agent may activate this Agent but may not supply, summarize, rewrite,
-or relay the Operator's semantic instruction.
+On one identity-only `protocol_activation` follow-up from the Replica Agent,
+require `persistent_claim_session: true`, the original claim ID, Operator ID,
+Builder ID, nonce, and a non-negative `correction_number`. Reject any changed
+pair identity. This control may reactivate the same canonical Agent ID once at
+claim-session start. The Replica Agent may activate this Agent but may not
+supply, summarize, rewrite, or relay the Operator's semantic instruction.
+After activation, do not depend on another follow-up for ordinary rounds.
 
 Wait for a direct message from the exact Operator. Save the exact received JSON
 as `instruction-NNN.json` inside the Builder namespace and validate it with:
@@ -112,11 +130,17 @@ execution must include at least one failed check, error, or diagnostic. A bare
 
 Validate the feedback file with `agent-protocol-validate`, then send the exact
 JSON directly to the bound Operator with the Agent-to-Agent messaging
-primitive. Return only control metadata to the Replica Agent: claim ID, pair
-identities, nonce, correction number, instruction received directly, feedback
-sent directly, and validation success. Never send or summarize the semantic
-instruction or feedback through the Replica Agent.
+primitive. During the active session, send the Replica Agent only control
+metadata with `send_message`: claim ID, pair identities, nonce, correction
+number, instruction received directly, feedback sent directly, and validation
+success. Never send or summarize the semantic instruction or feedback through
+the Replica Agent. Return a final control report only after the direct terminal
+ack.
 
-On a correction follow-up, keep the same pair, require the next correction
-number selected by the Operator, and repeat only the direct exchange. This
-Skill does not select a correction limit or acceptance threshold.
+After nonterminal feedback, remain in the same active turn and wait for the
+same Operator with bounded `wait_agent`. Accept the next correction directly;
+do not require a Replica follow-up and do not return final between rounds. On
+direct terminal control, send a direct ack and only then return final. If the
+peer disappears or this Agent cannot remain active before terminal, report
+continuity failure without spawning or accepting a replacement. This Skill
+does not select a correction limit or acceptance threshold.

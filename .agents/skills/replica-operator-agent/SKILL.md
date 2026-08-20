@@ -11,6 +11,21 @@ artifact namespace. Do not inspect another claim or the Builder namespace. Do
 not spawn or replace the Builder. The paired Builder is an executor, so the
 strategy and implementation method are this Agent's responsibility.
 
+## Select the lifecycle mode
+
+Choose exactly one mode from the current control message before doing any
+work. A `peer_binding` starts the harness smoke mode below. A
+`protocol_activation` with `persistent_claim_session: true` starts the
+long-lived claim mode; skip the smoke mode in that turn. Never repeat an old
+completion report in response to a different control type.
+
+The smoke turn may finish because it only verifies pair creation. A persistent
+claim turn must remain active across every instruction/feedback round and may
+return final only after `SUCCESS`, `FAILED`, or `ABORTED` terminal exchange.
+Use bounded native `wait_agent` calls to wait for the peer; do not busy poll.
+
+## Harness smoke mode
+
 Wait for an identity-only `peer_binding` control message from the parent
 Replica Agent. It must contain this claim ID, the paired Builder's canonical
 Agent ID, and a nonce. Reject any conflicting binding.
@@ -39,11 +54,13 @@ with the same pair identity.
 
 ## Design the implementation instruction
 
-On a later identity-only `protocol_activation` follow-up from the Replica
-Agent, require the original claim ID, Operator ID, Builder ID, nonce, and a
-non-negative `correction_number`. Reject any changed pair identity. This
-control message may activate work but must not contain a strategy, code,
-Builder feedback, or any other semantic payload from the Replica Agent.
+On one identity-only `protocol_activation` follow-up from the Replica Agent,
+require `persistent_claim_session: true`, the original claim ID, Operator ID,
+Builder ID, nonce, and a non-negative `correction_number`. Reject any changed
+pair identity. This control may reactivate the same canonical Agent ID once at
+claim-session start, but must not contain strategy, code, Builder feedback, or
+any other semantic payload from the Replica Agent. After activation, do not
+depend on another follow-up for ordinary rounds.
 
 Derive the strategy from the claim's frozen input/output contract, acceptance
 criteria, supported scope, unsupported scope, limitations, evidence policy,
@@ -98,6 +115,13 @@ Send the validated JSON itself directly to the exact Builder with the
 Agent-to-Agent messaging primitive. Do not send it to the Replica Agent for
 forwarding, summarization, or rewriting.
 
+After sending, remain in the same active turn and wait for the direct Builder
+feedback with bounded `wait_agent`. Do not return final after sending an
+instruction or receiving a nonterminal feedback message. For every validated
+round trip, send the Replica Agent only control metadata containing the bound
+IDs, nonce, round number, and direct send/receive booleans; never include the
+instruction or feedback body.
+
 ## Analyze direct Builder feedback
 
 Accept feedback only from the same Builder and only as
@@ -114,7 +138,14 @@ reuse this Operator and Builder, increment `correction_number`, and leave
 `claim.json` unchanged. This Skill defines correction content and continuity;
 it does not decide the correction limit or Medium/High acceptance policy.
 
-Return only control metadata to the Replica Agent: claim ID, pair identities,
-nonce, correction number, instruction sent directly, feedback received
-directly, and validation success. Never include or summarize either semantic
-message in that parent report.
+Continue waiting for the same Builder between rounds. On an explicit terminal
+decision, send a direct terminal control to that Builder, require its direct
+ack, then return final. If the peer disappears or this Agent cannot remain
+active before terminal, report continuity failure without spawning or
+accepting a replacement.
+
+During the active session, send the Replica Agent only control metadata with
+`send_message`: claim ID, pair identities, nonce, correction number,
+instruction sent directly, feedback received directly, and validation
+success. Never include or summarize either semantic message. Return a final
+control report only after the direct terminal ack.
