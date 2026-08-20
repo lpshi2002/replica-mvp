@@ -15,12 +15,25 @@ report lifecycle results but must not relay Operator/Builder semantic
 messages. The Replica Agent itself creates each claim's sibling children with
 explicit `gpt-5.6-sol` Operator and `gpt-5.6-terra` Builder model requests.
 
+When the user explicitly asks to run the direct Operator/Builder protocol on a
+ready harness, resume the same dedicated Replica Agent and existing child
+identities instead of spawning a new pair. Give it only the harness registry
+path and an instruction to follow
+`.agents/skills/run-replica-agent-protocol/SKILL.md`. The root and Replica
+Agent may send identity-only activation controls and receive control metadata,
+but neither may relay, summarize, rewrite, or persist the semantic instruction
+or feedback.
+
 When a ready `replica-second-pass-result/v1` JSON has arrived, or the user asks
 to implement, repair, test, or run the actual Replica, use the JSON-only
 implementation Skill:
 
 - Use `.agents/skills/build-replica-operator/SKILL.md` when JSON input alone can
   satisfy the full contract without file, network, or external-tool access.
+
+The explicit Sol/Terra direct protocol route above is the exception to this
+JSON-only implementation route. Do not select it unless the user asks for that
+Agent protocol or supplies its ready harness registry.
 
 Contracts that require PDF, XLSX, CSV, image, OCR, retrieval, network, or
 external API access are outside the current implementation scope.

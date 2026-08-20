@@ -112,33 +112,5 @@ Stop after every claim is `READY_FOR_PROTOCOL` or `CREATION_FAILED`. Return the
 registry path and exact runtime spawn/message results. Before returning, run
 `replica-mvp agent-harness-finish REGISTRY`; it must reject any nonterminal
 claim.
-
-## Activate one direct protocol exchange
-
-For each `READY_FOR_PROTOCOL` claim, reuse the recorded Operator and Builder;
-never spawn a protocol or correction replacement. Activate the Builder first
-with `followup_task` so it is waiting for the direct instruction, then activate
-the Operator. Give both only this identity control envelope:
-
-```json
-{
-  "type": "protocol_activation",
-  "claim_id": "<claim-id>",
-  "operator_agent_id": "<operator-id>",
-  "builder_agent_id": "<builder-id>",
-  "nonce": "<claim-nonce>",
-  "correction_number": 0
-}
-```
-
-Tell each sibling to follow its existing claim Skill. Do not include strategy,
-instructions, code, execution observations, or feedback in either activation.
-The Operator sends `replica-operator-instruction/v1` directly to the Builder;
-the Builder sends `replica-builder-feedback/v1` directly to the Operator.
-
-Wait only for each sibling's control-metadata report. Reject a report that
-contains or summarizes a semantic payload. Do not receive, forward,
-summarize, rewrite, or persist the instruction or feedback in the Replica
-Agent registry. Stop after one validated initial instruction/feedback exchange
-per ready claim. This Skill does not judge acceptance, choose correction
-limits, run a correction loop, aggregate claims, or create Final Replica JSON.
+claim. Do not implement Replica strategy, Builder execution, judging,
+correction, aggregation, or Final Replica JSON in this Skill.

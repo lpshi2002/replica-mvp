@@ -166,6 +166,12 @@ def _validate_builder_feedback(
         }:
             raise ValueError("invalid artifact_state status")
         _require_text(artifact.get("details"), "artifact_state.details")
+    if (
+        execution_status == "succeeded"
+        and test_status == "passed"
+        and (failed_checks or error is not None)
+    ):
+        raise ValueError("successful Builder feedback cannot contain failure state")
     if execution_status != "succeeded" or test_status != "passed":
         if not failed_checks and error is None and not diagnostics:
             raise ValueError("unsuccessful Builder feedback requires diagnostics")

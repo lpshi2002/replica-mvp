@@ -131,6 +131,20 @@ class AgentProtocolTest(unittest.TestCase):
                 pair_nonce=NONCE,
             )
 
+    def test_successful_feedback_cannot_contain_failure_state(self):
+        message = _builder_feedback()
+        message["execution_status"] = "succeeded"
+        message["test_status"] = "passed"
+
+        with self.assertRaisesRegex(ValueError, "successful Builder feedback"):
+            validate_agent_protocol_message(
+                message,
+                claim_id=CLAIM_ID,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                pair_nonce=NONCE,
+            )
+
     def test_claim_identity_mismatch_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "claim identity mismatch"):
             validate_agent_protocol_message(
