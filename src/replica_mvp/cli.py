@@ -5,6 +5,10 @@ import json
 import sys
 from pathlib import Path
 
+from .agent_execution import (
+    advance_agent_execution_from_paths,
+    create_agent_execution_state_file,
+)
 from .agent_harness import (
     finish_agent_continuity,
     finish_agent_harness,
@@ -166,6 +170,24 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
 
+    execution_start = sub.add_parser(
+        "agent-execution-start",
+        help="Create one Operator-owned Replica execution loop.",
+    )
+    execution_start.add_argument("state", type=Path)
+    execution_start.add_argument("--claim-id", required=True)
+    execution_start.add_argument("--operator-agent-id", required=True)
+    execution_start.add_argument("--builder-agent-id", required=True)
+    execution_start.add_argument("--pair-nonce", required=True)
+
+    execution_advance = sub.add_parser(
+        "agent-execution-advance",
+        help="Advance a Replica execution loop from one direct exchange.",
+    )
+    execution_advance.add_argument("state", type=Path)
+    execution_advance.add_argument("instruction", type=Path)
+    execution_advance.add_argument("feedback", type=Path)
+
     continuity_start = sub.add_parser(
         "agent-continuity-start",
         help="Start one long-lived claim session for an exact sibling pair.",
@@ -211,6 +233,7 @@ def _parser() -> argparse.ArgumentParser:
     continuity_terminal.add_argument("--operator-agent-id", required=True)
     continuity_terminal.add_argument("--builder-agent-id", required=True)
     continuity_terminal.add_argument("--nonce", required=True)
+    continuity_terminal.add_argument("--correction-count", type=int)
     continuity_terminal.add_argument(
         "--terminal-acknowledged-directly",
         action="store_true",
@@ -390,6 +413,22 @@ def main(argv: list[str] | None = None) -> int:
                 expected_correction_number=args.expected_correction_number,
             )
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-execution-start":
+            result = create_agent_execution_state_file(
+                args.state,
+                claim_id=args.claim_id,
+                operator_agent_id=args.operator_agent_id,
+                builder_agent_id=args.builder_agent_id,
+                pair_nonce=args.pair_nonce,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-execution-advance":
+            result = advance_agent_execution_from_paths(
+                args.state,
+                args.instruction,
+                args.feedback,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-continuity-start":
             result = start_agent_continuity(
                 args.registry,
@@ -419,6 +458,7 @@ def main(argv: list[str] | None = None) -> int:
                 operator_agent_id=args.operator_agent_id,
                 builder_agent_id=args.builder_agent_id,
                 nonce=args.nonce,
+                correction_count=args.correction_count,
                 terminal_acknowledged_directly=(
                     args.terminal_acknowledged_directly
                 ),

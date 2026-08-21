@@ -1,6 +1,6 @@
 ---
 name: replica-builder-agent
-description: Act as one claim's GPT-5.6 Terra Replica Builder, execute the paired Sol Operator's validated instruction, create claim-scoped artifacts, and return detailed feedback directly. Use only when launched by the Replica Agent harness.
+description: Act as one claim's GPT-5.6 Terra Replica Builder, execute and test the paired Sol Operator's initial plan and corrections, and return detailed evidence directly. Use only when launched by the Replica Agent harness.
 ---
 
 # Replica Builder Agent
@@ -18,6 +18,9 @@ launch task without `persistent_claim_session` runs the harness smoke mode. A
 `protocol_activation` with `persistent_claim_session: true` starts the
 long-lived claim mode; skip the smoke mode in that turn. Never repeat an old
 completion report in response to a different control type.
+
+When the activation also has `replica_execution_loop: true`, accept the STEP 4
+execution contracts below and enforce correction numbers 0 through 3.
 
 The smoke turn may finish because it only verifies pair creation. A persistent
 claim turn must remain active across every instruction/feedback round and may
@@ -70,6 +73,11 @@ After activation, do not depend on another follow-up for ordinary rounds.
 Wait for a direct message from the exact Operator. Save the exact received JSON
 as `instruction-NNN.json` inside the Builder namespace and validate it with:
 
+Resolve the CLI from the identity control. In the repository checkout on
+Windows, set `PYTHONPATH` to `<repo-root>/src` and invoke
+`py -3 -m replica_mvp`; Python 3.12 or newer is valid. Do not require an
+installed console script or exact Python 3.12 executable.
+
 ```text
 replica-mvp agent-protocol-validate BUILDER_MESSAGE \
   --claim-id CLAIM_ID \
@@ -79,7 +87,7 @@ replica-mvp agent-protocol-validate BUILDER_MESSAGE \
   --expected-correction-number CORRECTION_NUMBER
 ```
 
-Accept only `replica-operator-instruction/v1`. Its sender must be the bound
+Accept only `replica-operator-execution-instruction/v1`. Its sender must be the bound
 Operator and its recipient this Builder. Reject malformed messages, another
 claim, another pair, another nonce, or another correction number.
 
@@ -91,6 +99,16 @@ claim-scoped commands and tests when they are available and permitted. Record
 actual stdout, stderr, exit state, failed checks, artifact paths, and observed
 behavior needed to explain the result.
 
+Run the supplied frozen suite and relevant claim-scoped repository checks.
+Evaluate every received success criterion separately. The executed checks must
+cover normal behavior, a boundary, negative/failure behavior, structural
+validity, artifact loading/execution, claim-criterion correspondence, and
+relevant edge cases. File existence or a zero exit code alone cannot pass.
+Preserve the frozen suite hash. Use the repository evaluator's deterministic
+checks and, when semantic criteria exist, record the actual Judge identity and
+whether it was `independent` or `same_session`; use `not_required` only when no
+semantic criterion exists.
+
 Do not silently replace the Operator's replication strategy. If an instruction
 is impossible, unsafe, outside the claim contract, or inconsistent with the
 immutable claim, stop that action and return detailed `blocked` feedback. Do
@@ -101,7 +119,7 @@ Write `feedback-NNN.json` in the Builder namespace using this exact contract:
 
 ```json
 {
-  "message_type": "replica-builder-feedback/v1",
+  "message_type": "replica-builder-execution-feedback/v1",
   "claim_id": "<claim-id>",
   "sender_agent_id": "<builder-id>",
   "recipient_agent_id": "<operator-id>",
@@ -119,6 +137,22 @@ Write `feedback-NNN.json` in the Builder namespace using this exact contract:
     }
   ],
   "relevant_diagnostics": ["<diagnostic fact>"],
+  "validation_results": [
+    {
+      "criterion_id": "<received criterion id>",
+      "passed": true,
+      "evidence": "<specific observed result>"
+    }
+  ],
+  "test_summary": {
+    "passed": 0,
+    "failed": 0,
+    "total": 0,
+    "kinds": ["normal", "boundary", "negative", "structural"],
+    "test_suite_sha256": "<64 lowercase hex characters>",
+    "judge_identity": "<actual evaluator or Judge identity>",
+    "judge_mode": "independent|same_session|not_required"
+  },
   "correction_number": 0
 }
 ```
@@ -143,4 +177,5 @@ do not require a Replica follow-up and do not return final between rounds. On
 direct terminal control, send a direct ack and only then return final. If the
 peer disappears or this Agent cannot remain active before terminal, report
 continuity failure without spawning or accepting a replacement. This Skill
-does not select a correction limit or acceptance threshold.
+rejects a correction number greater than 3 and does not silently rerun with a
+new Builder.

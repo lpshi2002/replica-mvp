@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 
 from replica_mvp import (
     finish_agent_continuity,
+    finish_agent_harness,
     prepare_agent_harness,
     record_agent_continuity_round,
     record_agent_premature_completion,
@@ -69,6 +70,75 @@ def _prepare_ready_pair(run_dir: Path) -> Path:
         nonce=NONCE,
     )
     return registry_path
+
+
+def _prepare_two_active_continuity_pairs(run_dir: Path) -> tuple[Path, list[dict]]:
+    first = json.loads(LEGACY_EXAMPLE.read_text(encoding="utf-8"))
+    second = dict(first)
+    second["replica_id"] = "growth-labs-seat-guidance"
+    registry_path = run_dir / "agent-harness.json"
+    prepare_agent_harness(
+        {
+            "schema_version": "replica-second-pass-claim-collection/v1",
+            "claims": [first, second],
+        },
+        run_dir,
+        replica_agent_id="/root/replica_agent",
+        parent_agent_id="/root",
+    )
+    bindings = []
+    for index, claim_id in enumerate(
+        (CLAIM_ID, "growth-labs-seat-guidance"),
+        start=1,
+    ):
+        operator_id = f"/root/replica_agent/operator_{index:03d}"
+        builder_id = f"/root/replica_agent/builder_{index:03d}"
+        nonce = f"continuity-nonce-{index}"
+        start_agent_claim(registry_path, claim_id)
+        record_agent_spawn(
+            registry_path,
+            claim_id,
+            role="operator",
+            agent_id=operator_id,
+            parent_agent_id="/root/replica_agent",
+            requested_model="gpt-5.6-sol",
+        )
+        record_agent_spawn(
+            registry_path,
+            claim_id,
+            role="builder",
+            agent_id=builder_id,
+            parent_agent_id="/root/replica_agent",
+            requested_model="gpt-5.6-terra",
+        )
+        for direction, sender, recipient in (
+            ("operator_to_builder", operator_id, builder_id),
+            ("builder_to_operator", builder_id, operator_id),
+        ):
+            record_direct_agent_message(
+                registry_path,
+                claim_id,
+                direction=direction,
+                sender_agent_id=sender,
+                recipient_agent_id=recipient,
+                nonce=nonce,
+            )
+        start_agent_continuity(
+            registry_path,
+            claim_id,
+            operator_agent_id=operator_id,
+            builder_agent_id=builder_id,
+            nonce=nonce,
+        )
+        bindings.append(
+            {
+                "claim_id": claim_id,
+                "operator_agent_id": operator_id,
+                "builder_agent_id": builder_id,
+                "nonce": nonce,
+            }
+        )
+    return registry_path, bindings
 
 
 class AgentContinuityTest(unittest.TestCase):
@@ -208,6 +278,133 @@ class AgentContinuityTest(unittest.TestCase):
                         nonce=NONCE,
                         terminal_acknowledged_directly=True,
                     )
+
+    def test_execution_terminal_accepts_initial_pass_with_zero_corrections(self):
+        with TemporaryDirectory() as tmp:
+            registry_path = _prepare_ready_pair(Path(tmp) / "run")
+            start_agent_continuity(
+                registry_path,
+                CLAIM_ID,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                nonce=NONCE,
+            )
+            record_agent_continuity_round(
+                registry_path,
+                CLAIM_ID,
+                round_number=0,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                nonce=NONCE,
+                operator_to_builder_direct=True,
+                builder_to_operator_direct=True,
+            )
+
+            finished = finish_agent_continuity(
+                registry_path,
+                CLAIM_ID,
+                terminal_state="SUCCESS",
+                correction_count=0,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                nonce=NONCE,
+                terminal_acknowledged_directly=True,
+            )
+
+            continuity = finished["claims"][0]["continuity"]
+            self.assertEqual("TERMINAL_SUCCESS", continuity["phase"])
+            self.assertEqual(0, continuity["correction_count"])
+            self.assertEqual("EXECUTION_SUCCESS", finished["claims"][0]["status"])
+            self.assertEqual(
+                {
+                    "status": "SUCCESS",
+                    "correction_count": 0,
+                    "completed_rounds": [0],
+                },
+                finished["claims"][0]["execution_result"],
+            )
+
+            aggregate = finish_agent_harness(registry_path)
+            self.assertEqual("EXECUTION_SUCCESS", aggregate["status"])
+
+    def test_execution_failure_cannot_finish_before_correction_three(self):
+        with TemporaryDirectory() as tmp:
+            registry_path = _prepare_ready_pair(Path(tmp) / "run")
+            start_agent_continuity(
+                registry_path,
+                CLAIM_ID,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                nonce=NONCE,
+            )
+            record_agent_continuity_round(
+                registry_path,
+                CLAIM_ID,
+                round_number=0,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                nonce=NONCE,
+                operator_to_builder_direct=True,
+                builder_to_operator_direct=True,
+            )
+
+            with self.assertRaisesRegex(ValueError, "correction 3"):
+                finish_agent_continuity(
+                    registry_path,
+                    CLAIM_ID,
+                    terminal_state="FAILED",
+                    correction_count=0,
+                    operator_agent_id=OPERATOR_ID,
+                    builder_agent_id=BUILDER_ID,
+                    nonce=NONCE,
+                    terminal_acknowledged_directly=True,
+                )
+
+    def test_failed_claim_does_not_change_a_successful_claim(self):
+        with TemporaryDirectory() as tmp:
+            registry_path, bindings = _prepare_two_active_continuity_pairs(
+                Path(tmp) / "run"
+            )
+            terminal_states = ("SUCCESS", "FAILED")
+            correction_counts = (0, 3)
+            for binding, terminal_state, correction_count in zip(
+                bindings,
+                terminal_states,
+                correction_counts,
+                strict=True,
+            ):
+                for round_number in range(correction_count + 1):
+                    record_agent_continuity_round(
+                        registry_path,
+                        binding["claim_id"],
+                        round_number=round_number,
+                        operator_agent_id=binding["operator_agent_id"],
+                        builder_agent_id=binding["builder_agent_id"],
+                        nonce=binding["nonce"],
+                        operator_to_builder_direct=True,
+                        builder_to_operator_direct=True,
+                    )
+                finish_agent_continuity(
+                    registry_path,
+                    binding["claim_id"],
+                    terminal_state=terminal_state,
+                    correction_count=correction_count,
+                    operator_agent_id=binding["operator_agent_id"],
+                    builder_agent_id=binding["builder_agent_id"],
+                    nonce=binding["nonce"],
+                    terminal_acknowledged_directly=True,
+                )
+
+            aggregate = finish_agent_harness(registry_path)
+
+            self.assertEqual(
+                "EXECUTION_COMPLETED_WITH_FAILURES",
+                aggregate["status"],
+            )
+            self.assertEqual(
+                ["EXECUTION_SUCCESS", "EXECUTION_FAILED"],
+                [claim["status"] for claim in aggregate["claims"]],
+            )
 
     def test_premature_completion_aborts_without_replacing_the_pair(self):
         with TemporaryDirectory() as tmp:

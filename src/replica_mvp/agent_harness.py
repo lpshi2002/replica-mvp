@@ -513,6 +513,7 @@ def finish_agent_continuity(
     builder_agent_id: str,
     nonce: str,
     terminal_acknowledged_directly: bool,
+    correction_count: int | None = None,
 ) -> dict[str, Any]:
     """Complete a long-lived pair only after an explicit direct terminal."""
     if terminal_state not in {"SUCCESS", "FAILED", "ABORTED"}:
@@ -536,13 +537,35 @@ def finish_agent_continuity(
         raise ValueError("Agent continuity terminal changed sibling identities")
     if claim.get("smoke", {}).get("nonce") != nonce:
         raise ValueError("Agent continuity nonce does not match claim pair")
-    if (
-        terminal_state != "ABORTED"
-        and continuity.get("completed_rounds") != [0, 1, 2, 3]
-    ):
-        raise ValueError(
-            "Agent continuity terminal requires four completed rounds"
-        )
+    if correction_count is None:
+        if (
+            terminal_state != "ABORTED"
+            and continuity.get("completed_rounds") != [0, 1, 2, 3]
+        ):
+            raise ValueError(
+                "Agent continuity terminal requires four completed rounds"
+            )
+    else:
+        if (
+            type(correction_count) is not int
+            or correction_count < 0
+            or correction_count > 3
+        ):
+            raise ValueError("execution correction_count must be between 0 and 3")
+        if terminal_state == "ABORTED":
+            raise ValueError("ABORTED continuity cannot claim an execution count")
+        expected_rounds = list(range(correction_count + 1))
+        if continuity.get("completed_rounds") != expected_rounds:
+            raise ValueError("execution terminal does not match completed rounds")
+        if terminal_state == "FAILED" and correction_count != 3:
+            raise ValueError("execution failure requires correction 3")
+        continuity["correction_count"] = correction_count
+        claim["status"] = f"EXECUTION_{terminal_state}"
+        claim["execution_result"] = {
+            "status": terminal_state,
+            "correction_count": correction_count,
+            "completed_rounds": expected_rounds,
+        }
     continuity["phase"] = f"TERMINAL_{terminal_state}"
     continuity["terminal_state"] = terminal_state
     continuity["operator_status"] = "COMPLETED"
@@ -585,6 +608,12 @@ def record_agent_premature_completion(
         "agent_id": completed_agent_id,
         "reason": reason,
     }
+    claim["status"] = "EXECUTION_ABORTED"
+    claim["execution_result"] = {
+        "status": "ABORTED",
+        "correction_count": continuity.get("correction_count", 0),
+        "completed_rounds": list(continuity.get("completed_rounds", [])),
+    }
     _replace_registry(registry_path, registry)
     return registry
 
@@ -595,14 +624,34 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
     if registry["scheduling"].get("active_claim_id") is not None:
         raise ValueError("cannot finish Agent harness with an active claim")
     statuses = [claim.get("status") for claim in registry["claims"]]
-    terminal_statuses = {"READY_FOR_PROTOCOL", "CREATION_FAILED"}
-    if not statuses or any(status not in terminal_statuses for status in statuses):
+    protocol_terminal_statuses = {"READY_FOR_PROTOCOL", "CREATION_FAILED"}
+    execution_terminal_statuses = {
+        "EXECUTION_SUCCESS",
+        "EXECUTION_FAILED",
+        "EXECUTION_ABORTED",
+        "CREATION_FAILED",
+    }
+    if not statuses:
         raise ValueError("cannot finish incomplete Agent harness")
-    status = (
-        "READY_FOR_PROTOCOL"
-        if all(claim_status == "READY_FOR_PROTOCOL" for claim_status in statuses)
-        else "COMPLETED_WITH_CREATION_FAILURES"
-    )
+    if any(
+        isinstance(status, str) and status.startswith("EXECUTION_")
+        for status in statuses
+    ):
+        if any(status not in execution_terminal_statuses for status in statuses):
+            raise ValueError("cannot finish incomplete Agent execution")
+        status = (
+            "EXECUTION_SUCCESS"
+            if all(status == "EXECUTION_SUCCESS" for status in statuses)
+            else "EXECUTION_COMPLETED_WITH_FAILURES"
+        )
+    else:
+        if any(status not in protocol_terminal_statuses for status in statuses):
+            raise ValueError("cannot finish incomplete Agent harness")
+        status = (
+            "READY_FOR_PROTOCOL"
+            if all(status == "READY_FOR_PROTOCOL" for status in statuses)
+            else "COMPLETED_WITH_CREATION_FAILURES"
+        )
     registry["status"] = status
     registry["replica_agent"]["status"] = status
     _replace_registry(registry_path, registry)

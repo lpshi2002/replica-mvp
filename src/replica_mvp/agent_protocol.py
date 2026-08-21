@@ -8,6 +8,8 @@ from typing import Any, NoReturn
 
 OPERATOR_INSTRUCTION = "replica-operator-instruction/v1"
 BUILDER_FEEDBACK = "replica-builder-feedback/v1"
+OPERATOR_EXECUTION_INSTRUCTION = "replica-operator-execution-instruction/v1"
+BUILDER_EXECUTION_FEEDBACK = "replica-builder-execution-feedback/v1"
 
 _COMMON_FIELDS = {
     "message_type",
@@ -35,6 +37,15 @@ _BUILDER_FIELDS = _COMMON_FIELDS | {
     "artifact_state",
     "relevant_diagnostics",
 }
+_EXECUTION_OPERATOR_FIELDS = _OPERATOR_FIELDS | {
+    "success_criteria",
+    "responds_to_feedback_sha256",
+    "correction_changes",
+}
+_EXECUTION_BUILDER_FIELDS = _BUILDER_FIELDS | {
+    "validation_results",
+    "test_summary",
+}
 
 
 def _is_text(value: Any) -> bool:
@@ -57,6 +68,14 @@ def _require_text_list(value: Any, field: str) -> None:
         or not all(_is_text(item) for item in value)
     ):
         raise ValueError(f"protocol field must be a non-empty text list: {field}")
+
+
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _require_builder_namespace_path(value: Any, claim_id: str) -> None:
@@ -113,6 +132,43 @@ def _validate_operator_instruction(
         artifact.get("description"),
         "expected_artifact.description",
     )
+
+
+def _validate_execution_criteria(value: Any) -> None:
+    fields = {"id", "what", "why", "pass_condition", "fail_condition"}
+    if not isinstance(value, list) or not value:
+        raise ValueError("success_criteria must be a non-empty list")
+    criterion_ids = []
+    for criterion in value:
+        if not isinstance(criterion, dict) or set(criterion) != fields:
+            raise ValueError("malformed success criterion")
+        for field in fields:
+            _require_text(criterion.get(field), f"success_criteria.{field}")
+        criterion_ids.append(criterion["id"])
+    if len(set(criterion_ids)) != len(criterion_ids):
+        raise ValueError("success criterion ids must be unique")
+
+
+def _validate_execution_instruction(
+    message: dict[str, Any],
+    claim_id: str,
+) -> None:
+    if set(message) != _EXECUTION_OPERATOR_FIELDS:
+        raise ValueError("malformed Operator execution instruction fields")
+    base = {field: message[field] for field in _OPERATOR_FIELDS}
+    base["message_type"] = OPERATOR_INSTRUCTION
+    _validate_operator_instruction(base, claim_id)
+    _validate_execution_criteria(message.get("success_criteria"))
+    correction_number = message.get("correction_number")
+    responds_to = message.get("responds_to_feedback_sha256")
+    changes = message.get("correction_changes")
+    if correction_number == 0:
+        if responds_to is not None or changes != []:
+            raise ValueError("initial instruction cannot claim a correction")
+    elif not _is_sha256(responds_to):
+        raise ValueError("correction must reference prior feedback sha256")
+    else:
+        _require_text_list(changes, "correction_changes")
 
 
 def _validate_builder_feedback(
@@ -177,6 +233,58 @@ def _validate_builder_feedback(
             raise ValueError("unsuccessful Builder feedback requires diagnostics")
 
 
+def _validate_execution_feedback(
+    message: dict[str, Any],
+    claim_id: str,
+) -> None:
+    if set(message) != _EXECUTION_BUILDER_FIELDS:
+        raise ValueError("malformed Builder execution feedback fields")
+    base = {field: message[field] for field in _BUILDER_FIELDS}
+    base["message_type"] = BUILDER_FEEDBACK
+    _validate_builder_feedback(base, claim_id)
+    results = message.get("validation_results")
+    result_fields = {"criterion_id", "passed", "evidence"}
+    if not isinstance(results, list) or not results:
+        raise ValueError("validation_results must be a non-empty list")
+    criterion_ids = []
+    for result in results:
+        if not isinstance(result, dict) or set(result) != result_fields:
+            raise ValueError("malformed validation result")
+        _require_text(result.get("criterion_id"), "validation criterion_id")
+        if not isinstance(result.get("passed"), bool):
+            raise ValueError("validation result passed must be boolean")
+        _require_text(result.get("evidence"), "validation evidence")
+        criterion_ids.append(result["criterion_id"])
+    if len(set(criterion_ids)) != len(criterion_ids):
+        raise ValueError("validation criterion ids must be unique")
+    summary = message.get("test_summary")
+    if not isinstance(summary, dict) or set(summary) != {
+        "passed",
+        "failed",
+        "total",
+        "kinds",
+        "test_suite_sha256",
+        "judge_identity",
+        "judge_mode",
+    }:
+        raise ValueError("malformed test_summary")
+    counts = [summary.get(field) for field in ("passed", "failed", "total")]
+    if any(type(count) is not int or count < 0 for count in counts):
+        raise ValueError("test_summary counts must be non-negative integers")
+    if summary["passed"] + summary["failed"] != summary["total"]:
+        raise ValueError("test_summary counts do not add up")
+    _require_text_list(summary.get("kinds"), "test_summary.kinds")
+    if not _is_sha256(summary.get("test_suite_sha256")):
+        raise ValueError("test_summary requires a frozen suite sha256")
+    _require_text(summary.get("judge_identity"), "test_summary.judge_identity")
+    if summary.get("judge_mode") not in {
+        "independent",
+        "same_session",
+        "not_required",
+    }:
+        raise ValueError("invalid test_summary judge_mode")
+
+
 def validate_agent_protocol_message(
     message: Any,
     *,
@@ -190,11 +298,16 @@ def validate_agent_protocol_message(
     if not isinstance(message, dict):
         raise ValueError("Agent protocol message must be a JSON object")
     message_type = message.get("message_type")
-    if message_type not in {OPERATOR_INSTRUCTION, BUILDER_FEEDBACK}:
+    if message_type not in {
+        OPERATOR_INSTRUCTION,
+        BUILDER_FEEDBACK,
+        OPERATOR_EXECUTION_INSTRUCTION,
+        BUILDER_EXECUTION_FEEDBACK,
+    }:
         raise ValueError("unsupported Agent protocol message type")
     if message.get("claim_id") != claim_id:
         raise ValueError("Agent protocol claim identity mismatch")
-    if message_type == OPERATOR_INSTRUCTION:
+    if message_type in {OPERATOR_INSTRUCTION, OPERATOR_EXECUTION_INSTRUCTION}:
         sender_agent_id = operator_agent_id
         recipient_agent_id = builder_agent_id
         identity_error = "Operator instruction does not match sibling identities"
@@ -223,8 +336,12 @@ def validate_agent_protocol_message(
         raise ValueError("Agent protocol correction number mismatch")
     if message_type == OPERATOR_INSTRUCTION:
         _validate_operator_instruction(message, claim_id)
-    else:
+    elif message_type == BUILDER_FEEDBACK:
         _validate_builder_feedback(message, claim_id)
+    elif message_type == OPERATOR_EXECUTION_INSTRUCTION:
+        _validate_execution_instruction(message, claim_id)
+    else:
+        _validate_execution_feedback(message, claim_id)
     return deepcopy(message)
 
 
