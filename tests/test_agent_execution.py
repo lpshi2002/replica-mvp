@@ -63,8 +63,8 @@ def _instruction(
         ],
         "expected_result": "Every medium-high success criterion passes.",
         "expected_artifact": {
-            "path": f"claims/{claim_id}/builder/replica.json",
-            "description": "Runnable claim-scoped Replica artifact.",
+            "path": f"claims/{claim_id}/builder/operator.json",
+            "description": "Candidate component for the final result pipeline.",
         },
         "validation_expectations": ["Run all documented success checks."],
         "success_criteria": replica_success_criteria(claim),
@@ -103,7 +103,7 @@ def _feedback(
         ),
         "artifact_state": [
             {
-                "path": f"claims/{claim_id}/builder/replica.json",
+                "path": f"claims/{claim_id}/builder/operator.json",
                 "status": "created" if correction_number == 0 else "updated",
                 "details": "Artifact was executed against the documented suite.",
             }
@@ -137,6 +137,28 @@ def _feedback(
 
 
 class AgentExecutionTest(unittest.TestCase):
+    def test_execution_requires_the_standard_terra_candidate_path(self):
+        state = create_agent_execution_state(
+            claim=_claim(),
+            claim_id=CLAIM_ID,
+            operator_agent_id=OPERATOR_ID,
+            builder_agent_id=BUILDER_ID,
+            pair_nonce=NONCE,
+        )
+        instruction = _instruction()
+        instruction["expected_artifact"]["path"] = (
+            f"claims/{CLAIM_ID}/builder/replica.json"
+        )
+        with self.assertRaisesRegex(ValueError, "operator.json"):
+            advance_agent_execution(state, instruction, _feedback())
+
+        feedback = _feedback()
+        feedback["artifact_state"][0]["path"] = (
+            f"claims/{CLAIM_ID}/builder/replica.json"
+        )
+        with self.assertRaisesRegex(ValueError, "operator.json"):
+            advance_agent_execution(state, _instruction(), feedback)
+
     def test_initial_attempt_passes_only_with_all_medium_high_checks(self):
         state = create_agent_execution_state(
             claim=_claim(),

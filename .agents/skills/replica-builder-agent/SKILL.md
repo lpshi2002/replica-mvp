@@ -99,6 +99,16 @@ claim-scoped commands and tests when they are available and permitted. Record
 actual stdout, stderr, exit state, failed checks, artifact paths, and observed
 behavior needed to explain the result.
 
+Write the implementation candidate at exactly
+`claims/<claim-id>/builder/operator.json`. It must be a
+`replica-component-generation/v1` envelope containing one
+`replica-generated-component/v1` component in either
+`replica-expression/v1` or `replica-python/v1`, with input and output contracts
+copied exactly from `claim.json`. Do not write a self-declared
+`replica-result.json`; the Replica Agent invokes the repository's existing
+evaluation, report, completion, and publication pipeline after the direct
+execution terminal.
+
 Run the supplied frozen suite and relevant claim-scoped repository checks.
 Evaluate every received success criterion separately. The executed checks must
 cover normal behavior, a boundary, negative/failure behavior, structural
@@ -131,7 +141,7 @@ Write `feedback-NNN.json` in the Builder namespace using this exact contract:
   "observed_behavior": "<concrete execution observation>",
   "artifact_state": [
     {
-      "path": "claims/<claim-id>/builder/<artifact-path>",
+      "path": "claims/<claim-id>/builder/operator.json",
       "status": "created|updated|unchanged|missing",
       "details": "<concrete state>"
     }

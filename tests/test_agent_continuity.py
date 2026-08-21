@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 from replica_mvp import (
     advance_agent_execution,
     create_agent_execution_state,
+    finalize_agent_candidate,
     finish_agent_continuity,
     finish_agent_harness,
     prepare_agent_harness,
@@ -213,6 +214,87 @@ def _write_execution_state(
     return state_path
 
 
+def _write_candidate(registry_path: Path, claim_id: str = CLAIM_ID) -> Path:
+    claim_path = registry_path.parent / "claims" / claim_id / "claim.json"
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    missing = {
+        "op": "missing",
+        "paths": [["annual_budget"], ["requested_seats"]],
+    }
+    score = {
+        "op": "add",
+        "args": [
+            {"op": "input", "path": ["annual_budget"]},
+            {
+                "op": "multiply",
+                "args": [
+                    {"op": "input", "path": ["requested_seats"]},
+                    {"op": "literal", "value": 1000},
+                ],
+            },
+        ],
+    }
+    candidate = {
+        "schema_version": "replica-component-generation/v1",
+        "generator_identity": "terra-builder/test",
+        "component": {
+            "schema_version": "replica-generated-component/v1",
+            "language": "replica-expression/v1",
+            "input_contract": claim["input_contract"],
+            "output_contract": claim["output_contract"],
+            "expression": {
+                "op": "if",
+                "condition": {
+                    "op": "greater_than",
+                    "args": [
+                        {"op": "length", "args": [missing]},
+                        {"op": "literal", "value": 0},
+                    ],
+                },
+                "then": {
+                    "op": "object",
+                    "fields": {
+                        "status": {
+                            "op": "literal",
+                            "value": "INSUFFICIENT_INFORMATION",
+                        },
+                        "missing": missing,
+                    },
+                },
+                "else": {
+                    "op": "object",
+                    "fields": {
+                        "status": {
+                            "op": "if",
+                            "condition": {
+                                "op": "greater_than_or_equal",
+                                "args": [
+                                    score,
+                                    {"op": "literal", "value": 75000},
+                                ],
+                            },
+                            "then": {"op": "literal", "value": "QUALIFIED"},
+                            "else": {
+                                "op": "literal",
+                                "value": "NOT_QUALIFIED",
+                            },
+                        },
+                        "score": score,
+                    },
+                },
+            },
+        },
+    }
+    candidate_path = (
+        registry_path.parent / "claims" / claim_id / "builder" / "operator.json"
+    )
+    candidate_path.write_text(
+        json.dumps(candidate, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return candidate_path
+
+
 class AgentContinuityTest(unittest.TestCase):
     def test_ready_pair_starts_one_long_lived_claim_session(self):
         with TemporaryDirectory() as tmp:
@@ -409,8 +491,109 @@ class AgentContinuityTest(unittest.TestCase):
                 execution_result["total_criteria"],
             )
 
+            with self.assertRaisesRegex(ValueError, "candidate finalization"):
+                finish_agent_harness(registry_path)
+
+            candidate_path = _write_candidate(registry_path)
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    0,
+                    main(
+                        [
+                            "agent-candidate-finalize",
+                            str(registry_path),
+                            CLAIM_ID,
+                            str(candidate_path),
+                        ]
+                    ),
+                )
+            finalized = json.loads(stdout.getvalue())
+            claim = finalized["claims"][0]
+            self.assertEqual("RESULT_SUCCESS", claim["status"])
+            self.assertEqual("BUILT_AND_PASSED", claim["final_result"]["status"])
+            self.assertEqual(
+                "replica-agent-final-result/v1",
+                claim["final_result"]["schema_version"],
+            )
+            for artifact in claim["final_result"]["artifacts"].values():
+                self.assertTrue((registry_path.parent / artifact["path"]).is_file())
+
+            report_record = claim["final_result"]["artifacts"]["report_markdown"]
+            report_path = registry_path.parent / report_record["path"]
+            report_bytes = report_path.read_bytes()
+            report_path.write_text("tampered\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "hash mismatch"):
+                finish_agent_harness(registry_path)
+            report_path.write_bytes(report_bytes)
+
             aggregate = finish_agent_harness(registry_path)
             self.assertEqual("EXECUTION_SUCCESS", aggregate["status"])
+
+    def test_invalid_terra_candidate_fails_the_final_result(self):
+        with TemporaryDirectory() as tmp:
+            registry_path = _prepare_ready_pair(Path(tmp) / "run")
+            start_agent_continuity(
+                registry_path,
+                CLAIM_ID,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                nonce=NONCE,
+            )
+            record_agent_continuity_round(
+                registry_path,
+                CLAIM_ID,
+                round_number=0,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                nonce=NONCE,
+                operator_to_builder_direct=True,
+                builder_to_operator_direct=True,
+            )
+            binding = {
+                "claim_id": CLAIM_ID,
+                "operator_agent_id": OPERATOR_ID,
+                "builder_agent_id": BUILDER_ID,
+                "nonce": NONCE,
+            }
+            state_path = _write_execution_state(
+                registry_path,
+                binding,
+                terminal_state="SUCCESS",
+                correction_count=0,
+            )
+            finish_agent_continuity(
+                registry_path,
+                CLAIM_ID,
+                terminal_state="SUCCESS",
+                execution_state_path=state_path,
+                operator_agent_id=OPERATOR_ID,
+                builder_agent_id=BUILDER_ID,
+                nonce=NONCE,
+                terminal_acknowledged_directly=True,
+            )
+            candidate_path = (
+                registry_path.parent
+                / "claims"
+                / CLAIM_ID
+                / "builder"
+                / "operator.json"
+            )
+            candidate_path.write_text("{}\n", encoding="utf-8")
+
+            finalized = finalize_agent_candidate(
+                registry_path,
+                CLAIM_ID,
+                candidate_path,
+            )
+
+            self.assertEqual("RESULT_FAILED", finalized["claims"][0]["status"])
+            self.assertEqual(
+                "VALIDATION_FAILED",
+                finalized["claims"][0]["final_result"]["status"],
+            )
+            aggregate = finish_agent_harness(registry_path)
+            self.assertEqual("EXECUTION_COMPLETED_WITH_FAILURES", aggregate["status"])
 
     def test_execution_failure_cannot_finish_before_correction_three(self):
         with TemporaryDirectory() as tmp:
@@ -500,6 +683,17 @@ class AgentContinuityTest(unittest.TestCase):
                     terminal_acknowledged_directly=True,
                 )
 
+            _write_candidate(registry_path, bindings[0]["claim_id"])
+            finalize_agent_candidate(
+                registry_path,
+                bindings[0]["claim_id"],
+                registry_path.parent
+                / "claims"
+                / bindings[0]["claim_id"]
+                / "builder"
+                / "operator.json",
+            )
+
             aggregate = finish_agent_harness(registry_path)
 
             self.assertEqual(
@@ -507,7 +701,7 @@ class AgentContinuityTest(unittest.TestCase):
                 aggregate["status"],
             )
             self.assertEqual(
-                ["EXECUTION_SUCCESS", "EXECUTION_FAILED"],
+                ["RESULT_SUCCESS", "EXECUTION_FAILED"],
                 [claim["status"] for claim in aggregate["claims"]],
             )
 

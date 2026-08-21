@@ -453,6 +453,7 @@ python -m pip install -e .
 |---|---|
 | `replica-mvp prepare-operator SOURCE --workspace WORKSPACE --evaluation-vault VAULT` | 원본과 고정 테스트는 비공개 vault에 보관하고 Codex용 task 생성 |
 | `replica-mvp finalize-operator TASK --workspace WORKSPACE --evaluation-vault VAULT [--report]` | Operator를 격리 실행·평가하고 성공한 Replica의 공개 사본 생성 |
+| `replica-mvp agent-candidate-finalize REGISTRY CLAIM_ID CANDIDATE` | Terra의 `operator.json` 후보를 기존 평가·보고·공개 파이프라인으로 처리하고 최종 결과 경로와 해시를 Agent registry에 결속 |
 | `replica-mvp run-replica RUN_DIR` | stdin의 JSON 객체를 생성된 Replica로 실행하고 결과 JSON 반환 |
 | `replica-mvp experience RUN_DIR [--question QUESTION]` | 대화형 Replica를 직접 실행하고 답변·출처·규칙·비교 수준 표시 |
 | `replica-mvp experience RUN_DIR --input INPUT.json [--output PREVIEW.html]` | 구조화·문서·HTML Replica를 입력 파일로 실행해 결과 표시 |

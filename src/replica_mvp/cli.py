@@ -10,6 +10,7 @@ from .agent_execution import (
     create_agent_execution_state_file,
 )
 from .agent_harness import (
+    finalize_agent_candidate,
     finish_agent_continuity,
     finish_agent_harness,
     prepare_agent_harness_from_path,
@@ -241,6 +242,14 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
 
+    candidate_finalize = sub.add_parser(
+        "agent-candidate-finalize",
+        help="Evaluate a Terra candidate and publish its final Replica result.",
+    )
+    candidate_finalize.add_argument("registry", type=Path)
+    candidate_finalize.add_argument("claim_id")
+    candidate_finalize.add_argument("candidate", type=Path)
+
     continuity_premature = sub.add_parser(
         "agent-continuity-premature",
         help="Abort when a bound Agent returns final before claim terminal.",
@@ -464,6 +473,13 @@ def main(argv: list[str] | None = None) -> int:
                 terminal_acknowledged_directly=(
                     args.terminal_acknowledged_directly
                 ),
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-candidate-finalize":
+            result = finalize_agent_candidate(
+                args.registry,
+                args.claim_id,
+                args.candidate,
             )
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-continuity-premature":

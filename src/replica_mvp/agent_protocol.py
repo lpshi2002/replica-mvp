@@ -158,6 +158,10 @@ def _validate_execution_instruction(
     base = {field: message[field] for field in _OPERATOR_FIELDS}
     base["message_type"] = OPERATOR_INSTRUCTION
     _validate_operator_instruction(base, claim_id)
+    if message["expected_artifact"]["path"] != (
+        f"claims/{claim_id}/builder/operator.json"
+    ):
+        raise ValueError("execution candidate must be Builder operator.json")
     _validate_execution_criteria(message.get("success_criteria"))
     correction_number = message.get("correction_number")
     responds_to = message.get("responds_to_feedback_sha256")
@@ -242,6 +246,12 @@ def _validate_execution_feedback(
     base = {field: message[field] for field in _BUILDER_FIELDS}
     base["message_type"] = BUILDER_FEEDBACK
     _validate_builder_feedback(base, claim_id)
+    expected_candidate_path = f"claims/{claim_id}/builder/operator.json"
+    if not any(
+        artifact["path"] == expected_candidate_path
+        for artifact in message["artifact_state"]
+    ):
+        raise ValueError("Builder feedback must report the operator.json candidate")
     results = message.get("validation_results")
     result_fields = {"criterion_id", "passed", "evidence"}
     if not isinstance(results, list) or not results:

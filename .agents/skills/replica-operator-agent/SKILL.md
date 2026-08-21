@@ -98,6 +98,14 @@ files, code or patch content when known, ordered commands or execution actions,
 expected observations, artifact location, and validation expectations. Do not
 delegate high-level strategy selection back to the Builder.
 
+The required candidate is always
+`claims/<claim-id>/builder/operator.json`. It is a
+`replica-component-generation/v1` envelope containing one
+`replica-generated-component/v1` component in either
+`replica-expression/v1` or `replica-python/v1`. It must copy the frozen claim's
+input and output contracts exactly. This is the candidate consumed by the
+repository finalizer, not a self-declared final `replica-result.json`.
+
 Write `instruction-NNN.json` in the Operator namespace using this exact
 contract (unknown or omitted fields are invalid):
 
@@ -116,8 +124,8 @@ contract (unknown or omitted fields are invalid):
   ],
   "expected_result": "<observable result>",
   "expected_artifact": {
-    "path": "claims/<claim-id>/builder/<artifact-path>",
-    "description": "<artifact contract>"
+    "path": "claims/<claim-id>/builder/operator.json",
+    "description": "replica-component-generation/v1 candidate for the final result pipeline"
   },
   "validation_expectations": ["<specific check or command>"],
   "success_criteria": [

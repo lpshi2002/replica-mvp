@@ -14,7 +14,8 @@ registry. Reject missing, replaced, or cross-claim Agent identities.
 
 This Skill enforces global execution policy and lifecycle metadata. It does not
 analyze failures, write corrections, relay semantic messages, aggregate claims,
-or create Final Replica JSON.
+or invent Final Replica JSON. It must invoke the repository's existing result
+pipeline for every successful Terra candidate.
 
 ## Activate the existing pair
 
@@ -76,7 +77,23 @@ correction count instead of trusting a terminal label. If either child returns
 final before terminal, run `agent-continuity-premature`, interrupt the
 remaining peer, and stop without respawn.
 
-After every ready claim has its own execution terminal, run
+After a `SUCCESS` execution terminal, finalize the exact bound Terra candidate:
+
+```text
+replica-mvp agent-candidate-finalize \
+  REGISTRY CLAIM_ID claims/CLAIM_ID/builder/operator.json
+```
+
+This command reuses `prepare-operator` and `finalize-operator`, runs the frozen
+evaluation and determinism checks, writes the completion assessment and final
+reports, publishes `replica-result.json`, and binds their paths and hashes to
+the claim registry. Require claim status `RESULT_SUCCESS`. A malformed or
+failing candidate becomes `RESULT_FAILED`; never replace that outcome with the
+earlier Agent feedback label. Failed and aborted execution claims have no
+candidate-finalization step.
+
+After every successful execution claim has `RESULT_SUCCESS` or `RESULT_FAILED`
+and every other claim has its execution terminal, run
 `agent-harness-finish`. Require `EXECUTION_SUCCESS` when all claims passed or
 `EXECUTION_COMPLETED_WITH_FAILURES` when any claim failed or aborted. Never
 rewrite one claim result because of another claim's outcome.

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, NoReturn
 
 from .agent_execution import load_agent_execution_state_file
+from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .second_pass import parse_second_pass
 
 
@@ -12,6 +14,22 @@ HARNESS_SCHEMA = "replica-agent-harness/v1"
 SOL_MODEL = "gpt-5.6-sol"
 TERRA_MODEL = "gpt-5.6-terra"
 REGISTRY_NAME = "agent-harness.json"
+FINAL_RESULT_SCHEMA = "replica-agent-final-result/v1"
+CANDIDATE_NAME = "operator.json"
+PUBLIC_RESULTS_ROOT = "final-results"
+EVALUATOR_VAULT_ROOT = "evaluator-vault"
+FINAL_ARTIFACT_NAMES = {
+    "replica_result",
+    "replica",
+    "evaluation_summary",
+    "report_json",
+    "report_markdown",
+}
+FAILED_RESULT_STATUSES = {
+    "VALIDATION_FAILED",
+    "RUNTIME_FAILED",
+    "EVALUATION_FAILED",
+}
 
 
 def _is_nonempty_text(value: Any) -> bool:
@@ -165,6 +183,8 @@ def prepare_agent_harness(
         "filesystem": {
             "registry_owner": "replica_agent",
             "shared_mutation": "forbidden",
+            "public_results_root": PUBLIC_RESULTS_ROOT,
+            "evaluator_vault_root": EVALUATOR_VAULT_ROOT,
         },
         "claims": claims,
     }
@@ -604,6 +624,245 @@ def finish_agent_continuity(
     return registry
 
 
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _relative_path(root: Path, path: Path) -> str:
+    resolved = path.resolve()
+    if not resolved.is_relative_to(root.resolve()):
+        raise ValueError("Agent final result escaped the harness run directory")
+    return resolved.relative_to(root.resolve()).as_posix()
+
+
+def finalize_agent_candidate(
+    registry_path: Path,
+    claim_id: str,
+    candidate_path: Path,
+) -> dict[str, Any]:
+    """Evaluate one Terra candidate and bind its published result to the claim."""
+    registry = _read_registry(registry_path)
+    claim = _claim_record(registry, claim_id)
+    if (
+        claim.get("status") != "EXECUTION_SUCCESS"
+        or claim.get("continuity", {}).get("phase") != "TERMINAL_SUCCESS"
+    ):
+        raise ValueError("Agent candidate requires a successful execution terminal")
+    if "final_result" in claim:
+        raise ValueError("Agent candidate is already finalized")
+
+    run_dir = registry_path.parent.resolve()
+    expected_candidate = (
+        run_dir / claim["builder"]["artifact_namespace"] / CANDIDATE_NAME
+    )
+    candidate_relative_path = _relative_path(run_dir, expected_candidate)
+    if (
+        candidate_relative_path != f"claims/{claim_id}/builder/{CANDIDATE_NAME}"
+        or candidate_path.is_symlink()
+        or candidate_path.resolve() != expected_candidate.resolve()
+        or expected_candidate.is_symlink()
+        or not expected_candidate.is_file()
+    ):
+        raise ValueError(
+            "Terra candidate must be the bound Builder operator.json artifact"
+        )
+
+    claim_payload = run_dir / claim["claim_payload_path"]
+    if (
+        _relative_path(run_dir, claim_payload) != f"claims/{claim_id}/claim.json"
+        or claim_payload.is_symlink()
+        or not claim_payload.is_file()
+    ):
+        raise ValueError("Agent candidate claim payload is not immutable")
+    try:
+        claim_payload_value = json.loads(
+            claim_payload.read_text(encoding="utf-8"),
+            parse_constant=_reject_nonstandard_constant,
+        )
+    except (OSError, ValueError) as error:
+        raise ValueError(f"invalid immutable claim payload: {error}") from None
+    execution_state_path = (
+        run_dir / claim["operator"]["artifact_namespace"] / "execution-state.json"
+    )
+    _, execution_state_sha256 = load_agent_execution_state_file(
+        execution_state_path,
+        claim_payload_value,
+    )
+    if execution_state_sha256 != claim["execution_result"]["execution_state_sha256"]:
+        raise ValueError("Terra candidate changed the bound execution state")
+    workspace = run_dir / PUBLIC_RESULTS_ROOT
+    evaluator_vault = run_dir / EVALUATOR_VAULT_ROOT
+    candidate_bytes = expected_candidate.read_bytes()
+    candidate_sha256 = hashlib.sha256(candidate_bytes).hexdigest()
+    prepared = prepare_codex_operator(claim_payload, workspace, evaluator_vault)
+    operator_path = Path(prepared["operator_path"])
+    with operator_path.open("xb") as stream:
+        stream.write(candidate_bytes)
+    result = finalize_codex_operator(
+        Path(prepared["task_dir"]),
+        workspace,
+        evaluator_vault,
+        include_report=True,
+    )
+
+    final_result: dict[str, Any] = {
+        "schema_version": FINAL_RESULT_SCHEMA,
+        "status": result["status"],
+        "candidate_path": candidate_relative_path,
+        "candidate_sha256": candidate_sha256,
+        "execution_state_sha256": claim["execution_result"][
+            "execution_state_sha256"
+        ],
+        "attempt": result["attempt"],
+        "max_attempts": result["max_attempts"],
+        "retryable": result["retryable"],
+    }
+    if "evaluation" in result:
+        final_result["evaluation"] = result["evaluation"]
+
+    if result["status"] == "BUILT_AND_PASSED":
+        public_run_dir = Path(result["run_dir"])
+        published = {
+            "replica_result": public_run_dir / "replica-result.json",
+            "replica": Path(result["replica_path"]),
+            "evaluation_summary": public_run_dir / "evaluation-summary.json",
+            "report_json": public_run_dir / "report.json",
+            "report_markdown": Path(result["report_path"]),
+        }
+        final_result["public_run_dir"] = _relative_path(run_dir, public_run_dir)
+        final_result["artifacts"] = {
+            name: {
+                "path": _relative_path(run_dir, path),
+                "sha256": _sha256(path),
+            }
+            for name, path in published.items()
+        }
+        claim["status"] = "RESULT_SUCCESS"
+    else:
+        claim["status"] = "RESULT_FAILED"
+    claim["final_result"] = final_result
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def _validate_bound_artifact(
+    run_dir: Path,
+    record: Any,
+    *,
+    label: str,
+) -> Path:
+    if (
+        not isinstance(record, dict)
+        or set(record) != {"path", "sha256"}
+        or not _is_nonempty_text(record.get("path"))
+        or not _is_nonempty_text(record.get("sha256"))
+    ):
+        raise ValueError(f"invalid Agent final result artifact: {label}")
+    path = run_dir / record["path"]
+    if (
+        _relative_path(run_dir, path) != record["path"]
+        or path.is_symlink()
+        or not path.is_file()
+        or _sha256(path) != record["sha256"]
+    ):
+        raise ValueError(f"Agent final result artifact hash mismatch: {label}")
+    return path
+
+
+def _validate_final_result(run_dir: Path, claim: dict[str, Any]) -> None:
+    final_result = claim.get("final_result")
+    base_fields = {
+        "schema_version",
+        "status",
+        "candidate_path",
+        "candidate_sha256",
+        "execution_state_sha256",
+        "attempt",
+        "max_attempts",
+        "retryable",
+    }
+    if (
+        not isinstance(final_result, dict)
+        or final_result.get("schema_version") != FINAL_RESULT_SCHEMA
+        or not isinstance(final_result.get("attempt"), int)
+        or not isinstance(final_result.get("max_attempts"), int)
+        or not isinstance(final_result.get("retryable"), bool)
+        or final_result.get("execution_state_sha256")
+        != claim.get("execution_result", {}).get("execution_state_sha256")
+    ):
+        raise ValueError("invalid Agent final result binding")
+
+    candidate = _validate_bound_artifact(
+        run_dir,
+        {
+            "path": final_result.get("candidate_path"),
+            "sha256": final_result.get("candidate_sha256"),
+        },
+        label="candidate",
+    )
+    if candidate != (
+        run_dir / "claims" / claim["claim_id"] / "builder" / CANDIDATE_NAME
+    ).resolve():
+        raise ValueError("invalid Agent final result candidate binding")
+
+    if claim.get("status") == "RESULT_FAILED":
+        allowed_fields = base_fields | (
+            {"evaluation"} if "evaluation" in final_result else set()
+        )
+        if (
+            set(final_result) != allowed_fields
+            or final_result.get("status") not in FAILED_RESULT_STATUSES
+        ):
+            raise ValueError("invalid failed Agent final result")
+        return
+
+    if (
+        claim.get("status") != "RESULT_SUCCESS"
+        or set(final_result)
+        != base_fields | {"evaluation", "public_run_dir", "artifacts"}
+        or final_result.get("status") != "BUILT_AND_PASSED"
+        or final_result.get("retryable") is not False
+        or final_result.get("evaluation", {}).get("status") != "PASSED"
+    ):
+        raise ValueError("invalid successful Agent final result")
+    artifacts = final_result.get("artifacts")
+    if not isinstance(artifacts, dict) or set(artifacts) != FINAL_ARTIFACT_NAMES:
+        raise ValueError("invalid Agent final result artifacts")
+    artifact_paths = {
+        name: _validate_bound_artifact(run_dir, record, label=name)
+        for name, record in artifacts.items()
+    }
+    public_run_dir = run_dir / final_result["public_run_dir"]
+    if (
+        _relative_path(run_dir, public_run_dir) != final_result["public_run_dir"]
+        or public_run_dir.is_symlink()
+        or not public_run_dir.is_dir()
+        or not public_run_dir.resolve().is_relative_to(
+            (run_dir / PUBLIC_RESULTS_ROOT / "runs").resolve()
+        )
+        or any(
+            path.parent != public_run_dir.resolve()
+            for path in artifact_paths.values()
+        )
+    ):
+        raise ValueError("invalid Agent public result directory")
+    try:
+        public_result = json.loads(
+            artifact_paths["replica_result"].read_text(encoding="utf-8"),
+            parse_constant=_reject_nonstandard_constant,
+        )
+    except (OSError, ValueError) as error:
+        raise ValueError(f"invalid Agent public result: {error}") from None
+    if (
+        not isinstance(public_result, dict)
+        or public_result.get("schema_version") != "replica-public-result/v1"
+        or public_result.get("status") != "BUILT_AND_PASSED"
+        or public_result.get("replica_id") != claim["claim_id"]
+        or public_result.get("evaluation", {}).get("status") != "PASSED"
+    ):
+        raise ValueError("invalid Agent public result contract")
+
+
 def record_agent_premature_completion(
     registry_path: Path,
     claim_id: str,
@@ -656,22 +915,31 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
     statuses = [claim.get("status") for claim in registry["claims"]]
     protocol_terminal_statuses = {"READY_FOR_PROTOCOL", "CREATION_FAILED"}
     execution_terminal_statuses = {
-        "EXECUTION_SUCCESS",
+        "RESULT_SUCCESS",
+        "RESULT_FAILED",
         "EXECUTION_FAILED",
         "EXECUTION_ABORTED",
         "CREATION_FAILED",
     }
     if not statuses:
         raise ValueError("cannot finish incomplete Agent harness")
+    for claim in registry["claims"]:
+        if claim.get("status") in {"RESULT_SUCCESS", "RESULT_FAILED"}:
+            _validate_final_result(registry_path.parent.resolve(), claim)
     if any(
-        isinstance(status, str) and status.startswith("EXECUTION_")
+        isinstance(status, str)
+        and (status.startswith("EXECUTION_") or status.startswith("RESULT_"))
         for status in statuses
     ):
+        if "EXECUTION_SUCCESS" in statuses:
+            raise ValueError(
+                "cannot finish Agent execution before candidate finalization"
+            )
         if any(status not in execution_terminal_statuses for status in statuses):
             raise ValueError("cannot finish incomplete Agent execution")
         status = (
             "EXECUTION_SUCCESS"
-            if all(status == "EXECUTION_SUCCESS" for status in statuses)
+            if all(status == "RESULT_SUCCESS" for status in statuses)
             else "EXECUTION_COMPLETED_WITH_FAILURES"
         )
     else:

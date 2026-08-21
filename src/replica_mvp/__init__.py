@@ -1,6 +1,7 @@
 """Build and evaluate evidence-bounded AI replicas."""
 
 from .agent_harness import (
+    finalize_agent_candidate,
     finish_agent_continuity,
     finish_agent_harness,
     prepare_agent_harness,
@@ -40,6 +41,7 @@ __all__ = [
     "build_project",
     "evaluate_frozen_suite",
     "evaluate_project",
+    "finalize_agent_candidate",
     "finalize_codex_operator",
     "freeze_test_suite",
     "init_project",
