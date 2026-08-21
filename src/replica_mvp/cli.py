@@ -175,6 +175,7 @@ def _parser() -> argparse.ArgumentParser:
         help="Create one Operator-owned Replica execution loop.",
     )
     execution_start.add_argument("state", type=Path)
+    execution_start.add_argument("claim", type=Path)
     execution_start.add_argument("--claim-id", required=True)
     execution_start.add_argument("--operator-agent-id", required=True)
     execution_start.add_argument("--builder-agent-id", required=True)
@@ -233,7 +234,7 @@ def _parser() -> argparse.ArgumentParser:
     continuity_terminal.add_argument("--operator-agent-id", required=True)
     continuity_terminal.add_argument("--builder-agent-id", required=True)
     continuity_terminal.add_argument("--nonce", required=True)
-    continuity_terminal.add_argument("--correction-count", type=int)
+    continuity_terminal.add_argument("--execution-state", type=Path)
     continuity_terminal.add_argument(
         "--terminal-acknowledged-directly",
         action="store_true",
@@ -416,6 +417,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "agent-execution-start":
             result = create_agent_execution_state_file(
                 args.state,
+                args.claim,
                 claim_id=args.claim_id,
                 operator_agent_id=args.operator_agent_id,
                 builder_agent_id=args.builder_agent_id,
@@ -458,7 +460,7 @@ def main(argv: list[str] | None = None) -> int:
                 operator_agent_id=args.operator_agent_id,
                 builder_agent_id=args.builder_agent_id,
                 nonce=args.nonce,
-                correction_count=args.correction_count,
+                execution_state_path=args.execution_state,
                 terminal_acknowledged_directly=(
                     args.terminal_acknowledged_directly
                 ),

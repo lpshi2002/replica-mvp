@@ -6,6 +6,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from replica_mvp import (
+    advance_agent_execution,
+    create_agent_execution_state,
     finish_agent_continuity,
     finish_agent_harness,
     prepare_agent_harness,
@@ -17,6 +19,7 @@ from replica_mvp import (
     start_agent_continuity,
 )
 from replica_mvp.cli import main
+from tests.test_agent_execution import _feedback, _instruction
 
 
 REPOSITORY_ROOT = Path(__file__).parents[1]
@@ -139,6 +142,75 @@ def _prepare_two_active_continuity_pairs(run_dir: Path) -> tuple[Path, list[dict
             }
         )
     return registry_path, bindings
+
+
+def _write_execution_state(
+    registry_path: Path,
+    binding: dict,
+    *,
+    terminal_state: str | None,
+    correction_count: int,
+) -> Path:
+    claim_path = (
+        registry_path.parent
+        / "claims"
+        / binding["claim_id"]
+        / "claim.json"
+    )
+    claim = json.loads(claim_path.read_text(encoding="utf-8"))
+    state = create_agent_execution_state(
+        claim=claim,
+        claim_id=binding["claim_id"],
+        operator_agent_id=binding["operator_agent_id"],
+        builder_agent_id=binding["builder_agent_id"],
+        pair_nonce=binding["nonce"],
+    )
+    for round_number in range(correction_count + 1):
+        state = advance_agent_execution(
+            state,
+            _instruction(
+                round_number,
+                responds_to=(
+                    None
+                    if round_number == 0
+                    else state["attempts"][-1]["feedback_sha256"]
+                ),
+                changes=(
+                    None
+                    if round_number == 0
+                    else [f"Apply correction {round_number}."]
+                ),
+                claim=claim,
+                claim_id=binding["claim_id"],
+                operator_id=binding["operator_agent_id"],
+                builder_id=binding["builder_agent_id"],
+                nonce=binding["nonce"],
+            ),
+            _feedback(
+                round_number,
+                passed=(
+                    terminal_state == "SUCCESS"
+                    and round_number == correction_count
+                ),
+                claim=claim,
+                claim_id=binding["claim_id"],
+                operator_id=binding["operator_agent_id"],
+                builder_id=binding["builder_agent_id"],
+                nonce=binding["nonce"],
+            ),
+        )
+    state_path = (
+        registry_path.parent
+        / "claims"
+        / binding["claim_id"]
+        / "operator"
+        / "execution-state.json"
+    )
+    state_path.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return state_path
 
 
 class AgentContinuityTest(unittest.TestCase):
@@ -299,12 +371,24 @@ class AgentContinuityTest(unittest.TestCase):
                 operator_to_builder_direct=True,
                 builder_to_operator_direct=True,
             )
+            binding = {
+                "claim_id": CLAIM_ID,
+                "operator_agent_id": OPERATOR_ID,
+                "builder_agent_id": BUILDER_ID,
+                "nonce": NONCE,
+            }
+            state_path = _write_execution_state(
+                registry_path,
+                binding,
+                terminal_state="SUCCESS",
+                correction_count=0,
+            )
 
             finished = finish_agent_continuity(
                 registry_path,
                 CLAIM_ID,
                 terminal_state="SUCCESS",
-                correction_count=0,
+                execution_state_path=state_path,
                 operator_agent_id=OPERATOR_ID,
                 builder_agent_id=BUILDER_ID,
                 nonce=NONCE,
@@ -315,13 +399,14 @@ class AgentContinuityTest(unittest.TestCase):
             self.assertEqual("TERMINAL_SUCCESS", continuity["phase"])
             self.assertEqual(0, continuity["correction_count"])
             self.assertEqual("EXECUTION_SUCCESS", finished["claims"][0]["status"])
+            execution_result = finished["claims"][0]["execution_result"]
+            self.assertEqual("SUCCESS", execution_result["status"])
+            self.assertEqual(0, execution_result["correction_count"])
+            self.assertEqual([0], execution_result["completed_rounds"])
+            self.assertEqual(0, execution_result["failed_check_count"])
             self.assertEqual(
-                {
-                    "status": "SUCCESS",
-                    "correction_count": 0,
-                    "completed_rounds": [0],
-                },
-                finished["claims"][0]["execution_result"],
+                execution_result["passed_criteria"],
+                execution_result["total_criteria"],
             )
 
             aggregate = finish_agent_harness(registry_path)
@@ -347,18 +432,32 @@ class AgentContinuityTest(unittest.TestCase):
                 operator_to_builder_direct=True,
                 builder_to_operator_direct=True,
             )
+            binding = {
+                "claim_id": CLAIM_ID,
+                "operator_agent_id": OPERATOR_ID,
+                "builder_agent_id": BUILDER_ID,
+                "nonce": NONCE,
+            }
+            state_path = _write_execution_state(
+                registry_path,
+                binding,
+                terminal_state=None,
+                correction_count=0,
+            )
 
-            with self.assertRaisesRegex(ValueError, "correction 3"):
-                finish_agent_continuity(
-                    registry_path,
-                    CLAIM_ID,
-                    terminal_state="FAILED",
-                    correction_count=0,
-                    operator_agent_id=OPERATOR_ID,
-                    builder_agent_id=BUILDER_ID,
-                    nonce=NONCE,
-                    terminal_acknowledged_directly=True,
-                )
+            for claimed_terminal in ("SUCCESS", "FAILED"):
+                with self.subTest(claimed_terminal=claimed_terminal):
+                    with self.assertRaisesRegex(ValueError, "terminal result"):
+                        finish_agent_continuity(
+                            registry_path,
+                            CLAIM_ID,
+                            terminal_state=claimed_terminal,
+                            execution_state_path=state_path,
+                            operator_agent_id=OPERATOR_ID,
+                            builder_agent_id=BUILDER_ID,
+                            nonce=NONCE,
+                            terminal_acknowledged_directly=True,
+                        )
 
     def test_failed_claim_does_not_change_a_successful_claim(self):
         with TemporaryDirectory() as tmp:
@@ -384,11 +483,17 @@ class AgentContinuityTest(unittest.TestCase):
                         operator_to_builder_direct=True,
                         builder_to_operator_direct=True,
                     )
+                state_path = _write_execution_state(
+                    registry_path,
+                    binding,
+                    terminal_state=terminal_state,
+                    correction_count=correction_count,
+                )
                 finish_agent_continuity(
                     registry_path,
                     binding["claim_id"],
                     terminal_state=terminal_state,
-                    correction_count=correction_count,
+                    execution_state_path=state_path,
                     operator_agent_id=binding["operator_agent_id"],
                     builder_agent_id=binding["builder_agent_id"],
                     nonce=binding["nonce"],

@@ -76,7 +76,7 @@ installed `replica-mvp` console script or an exact Python 3.12 executable.
 Use that resolved invocation in place of `replica-mvp` below.
 
 ```text
-replica-mvp agent-execution-start EXECUTION_STATE \
+replica-mvp agent-execution-start EXECUTION_STATE CLAIM_PATH \
   --claim-id CLAIM_ID \
   --operator-agent-id OPERATOR_ID \
   --builder-agent-id BUILDER_ID \

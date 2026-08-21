@@ -17,7 +17,7 @@ EXECUTION_SCHEMA = "replica-agent-execution/v1"
 MAX_CORRECTIONS = 3
 REQUIRED_TEST_KINDS = {"normal", "boundary", "negative", "structural"}
 
-_SUCCESS_CRITERIA = (
+_BASE_SUCCESS_CRITERIA = (
     {
         "id": "functional_correctness",
         "what": "Supported inputs produce the contractually expected behavior.",
@@ -63,9 +63,38 @@ _SUCCESS_CRITERIA = (
 )
 
 
-def replica_success_criteria() -> list[dict[str, str]]:
-    """Return the documented Medium-High acceptance contract."""
-    return deepcopy(list(_SUCCESS_CRITERIA))
+def replica_success_criteria(claim: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Design a Medium-High contract from one immutable claim."""
+    if not isinstance(claim, Mapping):
+        raise ValueError("success criteria require an immutable claim object")
+    acceptance = claim.get("acceptance_criteria")
+    if not isinstance(acceptance, list) or not acceptance:
+        raise ValueError("claim requires non-empty acceptance_criteria")
+    derived = []
+    seen_ids = set()
+    for criterion in acceptance:
+        if (
+            not isinstance(criterion, Mapping)
+            or not _is_text(criterion.get("id"))
+            or not _is_text(criterion.get("description"))
+            or criterion["id"] in seen_ids
+        ):
+            raise ValueError("invalid claim acceptance criterion")
+        seen_ids.add(criterion["id"])
+        derived.append(
+            {
+                "id": f"claim:{criterion['id']}",
+                "what": criterion["description"],
+                "why": "This behavior is required by the immutable claim acceptance contract.",
+                "pass_condition": (
+                    f"At least one executable check mapped to {criterion['id']} passes."
+                ),
+                "fail_condition": (
+                    f"No executable check covers {criterion['id']}, or a mapped check fails."
+                ),
+            }
+        )
+    return deepcopy(list(_BASE_SUCCESS_CRITERIA) + derived)
 
 
 def _is_text(value: Any) -> bool:
@@ -114,8 +143,24 @@ def _instruction_plan_sha256(instruction: Mapping[str, Any]) -> str:
     )
 
 
+def _criteria_are_documented(criteria: Any) -> bool:
+    fields = {"id", "what", "why", "pass_condition", "fail_condition"}
+    return bool(
+        isinstance(criteria, list)
+        and criteria
+        and all(
+            isinstance(criterion, dict)
+            and set(criterion) == fields
+            and all(_is_text(criterion.get(field)) for field in fields)
+            for criterion in criteria
+        )
+        and len({criterion["id"] for criterion in criteria}) == len(criteria)
+    )
+
+
 def create_agent_execution_state(
     *,
+    claim: Mapping[str, Any],
     claim_id: str,
     operator_agent_id: str,
     builder_agent_id: str,
@@ -129,14 +174,18 @@ def create_agent_execution_state(
         raise ValueError("execution loop requires non-empty pair identity")
     if operator_agent_id == builder_agent_id:
         raise ValueError("execution loop requires distinct sibling identities")
+    claim_identity = claim.get("claim_id", claim.get("replica_id"))
+    if claim_identity != claim_id:
+        raise ValueError("execution loop claim identity mismatch")
     return {
         "schema_version": EXECUTION_SCHEMA,
         "claim_id": claim_id,
         "operator_agent_id": operator_agent_id,
         "builder_agent_id": builder_agent_id,
         "pair_nonce": pair_nonce,
+        "claim_sha256": _canonical_sha256(claim),
         "status": "ACTIVE",
-        "success_criteria": replica_success_criteria(),
+        "success_criteria": replica_success_criteria(claim),
         "attempts": [],
         "next_correction_number": 0,
         "correction_count": 0,
@@ -151,6 +200,7 @@ def _validate_state(state: Any) -> dict[str, Any]:
         "operator_agent_id",
         "builder_agent_id",
         "pair_nonce",
+        "claim_sha256",
         "status",
         "success_criteria",
         "attempts",
@@ -162,7 +212,8 @@ def _validate_state(state: Any) -> dict[str, Any]:
         not isinstance(state, dict)
         or set(state) != fields
         or state.get("schema_version") != EXECUTION_SCHEMA
-        or state.get("success_criteria") != replica_success_criteria()
+        or not _criteria_are_documented(state.get("success_criteria"))
+        or not _is_sha256(state.get("claim_sha256"))
         or not isinstance(state.get("attempts"), list)
         or type(state.get("next_correction_number")) is not int
         or type(state.get("correction_count")) is not int
@@ -230,29 +281,55 @@ def _validate_state(state: Any) -> dict[str, Any]:
         "total_criteria",
         "decision",
     }
-    valid_attempts = all(
-        isinstance(attempt, dict)
-        and set(attempt) == attempt_fields
-        and attempt.get("correction_number") == index
-        and all(
-            _is_sha256(attempt.get(field))
-            for field in (
-                "instruction_sha256",
-                "instruction_plan_sha256",
-                "feedback_sha256",
-                "test_suite_sha256",
+    criteria_count = len(state["success_criteria"])
+    valid_attempts = True
+    for index, attempt in enumerate(attempts):
+        valid_attempt = (
+            isinstance(attempt, dict)
+            and set(attempt) == attempt_fields
+            and attempt.get("correction_number") == index
+            and all(
+                _is_sha256(attempt.get(field))
+                for field in (
+                    "instruction_sha256",
+                    "instruction_plan_sha256",
+                    "feedback_sha256",
+                    "test_suite_sha256",
+                )
             )
+            and type(attempt.get("failed_check_count")) is int
+            and attempt["failed_check_count"] >= 0
+            and type(attempt.get("passed_criteria")) is int
+            and 0 <= attempt["passed_criteria"] <= criteria_count
+            and attempt.get("total_criteria") == criteria_count
+            and attempt.get("execution_status") in {"succeeded", "failed", "blocked"}
+            and attempt.get("test_status") in {"passed", "failed", "not_run"}
+            and _is_text(attempt.get("judge_identity"))
+            and attempt.get("judge_mode")
+            in {"independent", "same_session", "not_required"}
+            and attempt.get("decision") in {"RETRY", "PASS", "FAIL"}
         )
-        for index, attempt in enumerate(attempts)
-    )
+        if valid_attempt and attempt["decision"] == "PASS":
+            valid_attempt = (
+                attempt["execution_status"] == "succeeded"
+                and attempt["test_status"] == "passed"
+                and attempt["failed_check_count"] == 0
+                and attempt["passed_criteria"] == criteria_count
+            )
+        if not valid_attempt:
+            valid_attempts = False
+            break
     if not valid_lifecycle or not valid_attempts:
         raise ValueError("invalid Agent execution state")
     return deepcopy(state)
 
 
-def _criteria_pass(feedback: Mapping[str, Any]) -> bool:
+def _criteria_pass(
+    feedback: Mapping[str, Any],
+    success_criteria: list[dict[str, str]],
+) -> bool:
     results = feedback["validation_results"]
-    expected_ids = [criterion["id"] for criterion in _SUCCESS_CRITERIA]
+    expected_ids = [criterion["id"] for criterion in success_criteria]
     if [result["criterion_id"] for result in results] != expected_ids:
         raise ValueError("Builder validation results do not match success criteria")
     summary = feedback["test_summary"]
@@ -260,7 +337,7 @@ def _criteria_pass(feedback: Mapping[str, Any]) -> bool:
         all(result["passed"] for result in results)
         and summary["failed"] == 0
         and summary["passed"] == summary["total"]
-        and summary["total"] >= len(_SUCCESS_CRITERIA)
+        and summary["total"] >= len(results)
         and REQUIRED_TEST_KINDS <= set(summary["kinds"])
     )
 
@@ -322,7 +399,10 @@ def advance_agent_execution(
         if instruction_plan_sha256 == prior_attempt["instruction_plan_sha256"]:
             raise ValueError("correction did not change the actionable plan")
 
-    criteria_passed = _criteria_pass(validated_feedback)
+    criteria_passed = _criteria_pass(
+        validated_feedback,
+        current["success_criteria"],
+    )
     passed = _attempt_passed(validated_feedback, criteria_passed)
     if passed:
         decision = "PASS"
@@ -397,6 +477,7 @@ def _write_state(path: Path, state: Mapping[str, Any], *, new: bool) -> None:
 
 def create_agent_execution_state_file(
     state_path: Path,
+    claim_path: Path,
     *,
     claim_id: str,
     operator_agent_id: str,
@@ -404,7 +485,9 @@ def create_agent_execution_state_file(
     pair_nonce: str,
 ) -> dict[str, Any]:
     """Create a new Operator-owned execution state file without replacement."""
+    claim = _read_json_object(claim_path, "immutable claim")
     state = create_agent_execution_state(
+        claim=claim,
         claim_id=claim_id,
         operator_agent_id=operator_agent_id,
         builder_agent_id=builder_agent_id,
@@ -426,3 +509,21 @@ def advance_agent_execution_from_paths(
     advanced = advance_agent_execution(state, instruction, feedback)
     _write_state(state_path, advanced, new=False)
     return advanced
+
+
+def load_agent_execution_state_file(
+    state_path: Path,
+    claim: Mapping[str, Any],
+) -> tuple[dict[str, Any], str]:
+    """Load a terminal state and bind it to the immutable claim digest."""
+    try:
+        raw = state_path.read_bytes()
+    except OSError as error:
+        raise ValueError(f"cannot read Agent execution state: {error}") from None
+    state = _validate_state(_read_json_object(state_path, "Agent execution state"))
+    if (
+        state["claim_sha256"] != _canonical_sha256(claim)
+        or state["success_criteria"] != replica_success_criteria(claim)
+    ):
+        raise ValueError("Agent execution state does not match immutable claim")
+    return state, hashlib.sha256(raw).hexdigest()

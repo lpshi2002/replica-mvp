@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, NoReturn
 
+from .agent_execution import load_agent_execution_state_file
 from .second_pass import parse_second_pass
 
 
@@ -513,7 +514,7 @@ def finish_agent_continuity(
     builder_agent_id: str,
     nonce: str,
     terminal_acknowledged_directly: bool,
-    correction_count: int | None = None,
+    execution_state_path: Path | None = None,
 ) -> dict[str, Any]:
     """Complete a long-lived pair only after an explicit direct terminal."""
     if terminal_state not in {"SUCCESS", "FAILED", "ABORTED"}:
@@ -537,7 +538,7 @@ def finish_agent_continuity(
         raise ValueError("Agent continuity terminal changed sibling identities")
     if claim.get("smoke", {}).get("nonce") != nonce:
         raise ValueError("Agent continuity nonce does not match claim pair")
-    if correction_count is None:
+    if execution_state_path is None:
         if (
             terminal_state != "ABORTED"
             and continuity.get("completed_rounds") != [0, 1, 2, 3]
@@ -546,25 +547,54 @@ def finish_agent_continuity(
                 "Agent continuity terminal requires four completed rounds"
             )
     else:
-        if (
-            type(correction_count) is not int
-            or correction_count < 0
-            or correction_count > 3
-        ):
-            raise ValueError("execution correction_count must be between 0 and 3")
         if terminal_state == "ABORTED":
-            raise ValueError("ABORTED continuity cannot claim an execution count")
+            raise ValueError("ABORTED continuity cannot claim execution success")
+        expected_state_path = (
+            registry_path.parent
+            / claim["operator"]["artifact_namespace"]
+            / "execution-state.json"
+        ).resolve()
+        if execution_state_path.resolve() != expected_state_path:
+            raise ValueError("execution state must remain in Operator namespace")
+        claim_payload_path = registry_path.parent / claim["claim_payload_path"]
+        try:
+            claim_payload = json.loads(
+                claim_payload_path.read_text(encoding="utf-8"),
+                parse_constant=_reject_nonstandard_constant,
+            )
+        except (OSError, ValueError) as error:
+            raise ValueError(f"invalid immutable claim payload: {error}") from None
+        state, state_sha256 = load_agent_execution_state_file(
+            execution_state_path,
+            claim_payload,
+        )
+        if (
+            state["claim_id"] != claim_id
+            or state["operator_agent_id"] != operator_agent_id
+            or state["builder_agent_id"] != builder_agent_id
+            or state["pair_nonce"] != nonce
+        ):
+            raise ValueError("execution state changed sibling binding")
+        if state["status"] != terminal_state or state["terminal_state"] != terminal_state:
+            raise ValueError("execution state is not the claimed terminal result")
+        correction_count = state["correction_count"]
         expected_rounds = list(range(correction_count + 1))
         if continuity.get("completed_rounds") != expected_rounds:
             raise ValueError("execution terminal does not match completed rounds")
-        if terminal_state == "FAILED" and correction_count != 3:
-            raise ValueError("execution failure requires correction 3")
         continuity["correction_count"] = correction_count
         claim["status"] = f"EXECUTION_{terminal_state}"
+        final_attempt = state["attempts"][-1]
         claim["execution_result"] = {
             "status": terminal_state,
             "correction_count": correction_count,
             "completed_rounds": expected_rounds,
+            "execution_state_sha256": state_sha256,
+            "test_suite_sha256": final_attempt["test_suite_sha256"],
+            "passed_criteria": final_attempt["passed_criteria"],
+            "total_criteria": final_attempt["total_criteria"],
+            "failed_check_count": final_attempt["failed_check_count"],
+            "judge_identity": final_attempt["judge_identity"],
+            "judge_mode": final_attempt["judge_mode"],
         }
     continuity["phase"] = f"TERMINAL_{terminal_state}"
     continuity["terminal_state"] = terminal_state

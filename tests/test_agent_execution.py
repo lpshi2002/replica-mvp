@@ -19,13 +19,42 @@ BUILDER_ID = "/root/replica_agent/builder_001"
 NONCE = "execution-nonce"
 
 
-def _instruction(correction_number=0, *, responds_to=None, changes=None):
+def _claim(claim_id=CLAIM_ID):
+    return {
+        "claim_id": claim_id,
+        "input_contract": {"type": "object"},
+        "output_contract": {"type": "object"},
+        "acceptance_criteria": [
+            {
+                "id": "criterion-score",
+                "description": "The score follows the frozen claim formula.",
+            },
+            {
+                "id": "criterion-threshold",
+                "description": "The approved threshold classification is exact.",
+            },
+        ],
+    }
+
+
+def _instruction(
+    correction_number=0,
+    *,
+    responds_to=None,
+    changes=None,
+    claim=None,
+    claim_id=CLAIM_ID,
+    operator_id=OPERATOR_ID,
+    builder_id=BUILDER_ID,
+    nonce=NONCE,
+):
+    claim = _claim(claim_id) if claim is None else claim
     return {
         "message_type": "replica-operator-execution-instruction/v1",
-        "claim_id": CLAIM_ID,
-        "sender_agent_id": OPERATOR_ID,
-        "recipient_agent_id": BUILDER_ID,
-        "pair_nonce": NONCE,
+        "claim_id": claim_id,
+        "sender_agent_id": operator_id,
+        "recipient_agent_id": builder_id,
+        "pair_nonce": nonce,
         "objective": "Implement and validate the frozen claim contract.",
         "replication_strategy": f"Deterministic strategy {correction_number}",
         "implementation_instructions": ["Implement the claim-scoped behavior."],
@@ -34,25 +63,35 @@ def _instruction(correction_number=0, *, responds_to=None, changes=None):
         ],
         "expected_result": "Every medium-high success criterion passes.",
         "expected_artifact": {
-            "path": f"claims/{CLAIM_ID}/builder/replica.json",
+            "path": f"claims/{claim_id}/builder/replica.json",
             "description": "Runnable claim-scoped Replica artifact.",
         },
         "validation_expectations": ["Run all documented success checks."],
-        "success_criteria": replica_success_criteria(),
+        "success_criteria": replica_success_criteria(claim),
         "responds_to_feedback_sha256": responds_to,
         "correction_changes": [] if changes is None else changes,
         "correction_number": correction_number,
     }
 
 
-def _feedback(correction_number=0, *, passed=True):
-    criteria = replica_success_criteria()
+def _feedback(
+    correction_number=0,
+    *,
+    passed=True,
+    claim=None,
+    claim_id=CLAIM_ID,
+    operator_id=OPERATOR_ID,
+    builder_id=BUILDER_ID,
+    nonce=NONCE,
+):
+    claim = _claim(claim_id) if claim is None else claim
+    criteria = replica_success_criteria(claim)
     return {
         "message_type": "replica-builder-execution-feedback/v1",
-        "claim_id": CLAIM_ID,
-        "sender_agent_id": BUILDER_ID,
-        "recipient_agent_id": OPERATOR_ID,
-        "pair_nonce": NONCE,
+        "claim_id": claim_id,
+        "sender_agent_id": builder_id,
+        "recipient_agent_id": operator_id,
+        "pair_nonce": nonce,
         "execution_status": "succeeded",
         "test_status": "passed" if passed else "failed",
         "failed_checks": [] if passed else ["functional_correctness"],
@@ -64,7 +103,7 @@ def _feedback(correction_number=0, *, passed=True):
         ),
         "artifact_state": [
             {
-                "path": f"claims/{CLAIM_ID}/builder/replica.json",
+                "path": f"claims/{claim_id}/builder/replica.json",
                 "status": "created" if correction_number == 0 else "updated",
                 "details": "Artifact was executed against the documented suite.",
             }
@@ -100,6 +139,7 @@ def _feedback(correction_number=0, *, passed=True):
 class AgentExecutionTest(unittest.TestCase):
     def test_initial_attempt_passes_only_with_all_medium_high_checks(self):
         state = create_agent_execution_state(
+            claim=_claim(),
             claim_id=CLAIM_ID,
             operator_agent_id=OPERATOR_ID,
             builder_agent_id=BUILDER_ID,
@@ -121,9 +161,26 @@ class AgentExecutionTest(unittest.TestCase):
                 set(criterion),
             )
             self.assertTrue(all(criterion.values()))
+        claim_criteria = {
+            criterion["id"]: criterion
+            for criterion in result["success_criteria"]
+            if criterion["id"].startswith("claim:")
+        }
+        self.assertEqual(
+            {
+                "claim:criterion-score",
+                "claim:criterion-threshold",
+            },
+            set(claim_criteria),
+        )
+        self.assertIn(
+            "frozen claim formula",
+            claim_criteria["claim:criterion-score"]["what"],
+        )
 
     def test_initial_failure_then_first_correction_passes(self):
         state = create_agent_execution_state(
+            claim=_claim(),
             claim_id=CLAIM_ID,
             operator_agent_id=OPERATOR_ID,
             builder_agent_id=BUILDER_ID,
@@ -155,6 +212,7 @@ class AgentExecutionTest(unittest.TestCase):
         for pass_at in (2, 3):
             with self.subTest(pass_at=pass_at):
                 state = create_agent_execution_state(
+                    claim=_claim(),
                     claim_id=CLAIM_ID,
                     operator_agent_id=OPERATOR_ID,
                     builder_agent_id=BUILDER_ID,
@@ -189,6 +247,7 @@ class AgentExecutionTest(unittest.TestCase):
 
     def test_third_correction_failure_is_terminal_and_blocks_a_fourth(self):
         state = create_agent_execution_state(
+            claim=_claim(),
             claim_id=CLAIM_ID,
             operator_agent_id=OPERATOR_ID,
             builder_agent_id=BUILDER_ID,
@@ -232,6 +291,7 @@ class AgentExecutionTest(unittest.TestCase):
 
     def test_false_success_is_rejected_by_medium_high_criteria(self):
         state = create_agent_execution_state(
+            claim=_claim(),
             claim_id=CLAIM_ID,
             operator_agent_id=OPERATOR_ID,
             builder_agent_id=BUILDER_ID,
@@ -250,6 +310,7 @@ class AgentExecutionTest(unittest.TestCase):
 
     def test_failed_feedback_must_remain_detailed_for_the_operator(self):
         state = create_agent_execution_state(
+            claim=_claim(),
             claim_id=CLAIM_ID,
             operator_agent_id=OPERATOR_ID,
             builder_agent_id=BUILDER_ID,
@@ -264,6 +325,7 @@ class AgentExecutionTest(unittest.TestCase):
 
     def test_correction_must_reference_feedback_and_change_the_actionable_plan(self):
         state = create_agent_execution_state(
+            claim=_claim(),
             claim_id=CLAIM_ID,
             operator_agent_id=OPERATOR_ID,
             builder_agent_id=BUILDER_ID,
@@ -286,6 +348,7 @@ class AgentExecutionTest(unittest.TestCase):
 
     def test_same_builder_is_required_for_every_execution(self):
         state = create_agent_execution_state(
+            claim=_claim(),
             claim_id=CLAIM_ID,
             operator_agent_id=OPERATOR_ID,
             builder_agent_id=BUILDER_ID,
@@ -299,6 +362,7 @@ class AgentExecutionTest(unittest.TestCase):
 
     def test_tampered_execution_counter_fails_closed(self):
         state = create_agent_execution_state(
+            claim=_claim(),
             claim_id=CLAIM_ID,
             operator_agent_id=OPERATOR_ID,
             builder_agent_id=BUILDER_ID,
@@ -310,14 +374,30 @@ class AgentExecutionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "invalid Agent execution state"):
             advance_agent_execution(state, _instruction(1), _feedback(1))
 
+    def test_tampered_terminal_pass_counts_fail_closed(self):
+        state = create_agent_execution_state(
+            claim=_claim(),
+            claim_id=CLAIM_ID,
+            operator_agent_id=OPERATOR_ID,
+            builder_agent_id=BUILDER_ID,
+            pair_nonce=NONCE,
+        )
+        passed = advance_agent_execution(state, _instruction(), _feedback())
+        passed["attempts"][0]["passed_criteria"] = 0
+
+        with self.assertRaisesRegex(ValueError, "invalid Agent execution state"):
+            advance_agent_execution(passed, _instruction(), _feedback())
+
     def test_one_claim_result_does_not_mutate_another_claim(self):
         first = create_agent_execution_state(
+            claim=_claim(),
             claim_id=CLAIM_ID,
             operator_agent_id=OPERATOR_ID,
             builder_agent_id=BUILDER_ID,
             pair_nonce=NONCE,
         )
         second = create_agent_execution_state(
+            claim=_claim("growth-labs-seat-guidance"),
             claim_id="growth-labs-seat-guidance",
             operator_agent_id="/root/replica_agent/operator_002",
             builder_agent_id="/root/replica_agent/builder_002",
@@ -335,6 +415,7 @@ class AgentExecutionTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
             state_path = root / "execution-state.json"
+            claim_path = root / "claim.json"
             instruction_path = root / "instruction-000.json"
             feedback_path = root / "feedback-000.json"
             instruction_path.write_text(
@@ -345,6 +426,7 @@ class AgentExecutionTest(unittest.TestCase):
                 json.dumps(_feedback()),
                 encoding="utf-8",
             )
+            claim_path.write_text(json.dumps(_claim()), encoding="utf-8")
             stdout = io.StringIO()
             with redirect_stdout(stdout):
                 self.assertEqual(
@@ -353,6 +435,7 @@ class AgentExecutionTest(unittest.TestCase):
                         [
                             "agent-execution-start",
                             str(state_path),
+                            str(claim_path),
                             "--claim-id",
                             CLAIM_ID,
                             "--operator-agent-id",

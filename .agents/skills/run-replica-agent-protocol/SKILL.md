@@ -67,10 +67,14 @@ false success and fail closed.
 For `CORRECTION_REQUIRED`, require the next number only; do not write or
 suggest correction content. `SUCCESS` may terminal after correction 0, 1, 2,
 or 3. `FAILED` is valid only after correction 3. Reject count greater than 3.
-Call `agent-continuity-terminal --correction-count N` after the Operator and
-Builder complete a direct terminal exchange. If either child returns final
-before terminal, run `agent-continuity-premature`, interrupt the remaining
-peer, and stop without respawn.
+Call `agent-continuity-terminal --execution-state EXECUTION_STATE` after the
+Operator and Builder complete a direct terminal exchange. The state path must
+be the exact `execution-state.json` in the bound Operator namespace. This lets
+the harness verify the immutable claim hash, pair binding, PASS/FAIL decision,
+criterion results, failed-check count, suite hash, Judge metadata, and
+correction count instead of trusting a terminal label. If either child returns
+final before terminal, run `agent-continuity-premature`, interrupt the
+remaining peer, and stop without respawn.
 
 After every ready claim has its own execution terminal, run
 `agent-harness-finish`. Require `EXECUTION_SUCCESS` when all claims passed or

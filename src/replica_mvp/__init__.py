@@ -18,6 +18,7 @@ from .agent_execution import (
     advance_agent_execution_from_paths,
     create_agent_execution_state,
     create_agent_execution_state_file,
+    load_agent_execution_state_file,
     replica_success_criteria,
 )
 from .agent_protocol import (
@@ -59,6 +60,7 @@ __all__ = [
     "advance_agent_execution_from_paths",
     "create_agent_execution_state",
     "create_agent_execution_state_file",
+    "load_agent_execution_state_file",
     "replica_success_criteria",
     "receive_second_pass",
     "parse_second_pass",
