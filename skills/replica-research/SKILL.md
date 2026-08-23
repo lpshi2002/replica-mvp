@@ -169,6 +169,14 @@ When the user asks to start actual replication, expand one ready contract into
 `work/<company-slug>/runs/<capability-slug>/evidence.json`, `spec.json`, and
 `tests.json`, then build `replica.json`.
 
+For the Sol/Terra Agent harness, pass the authoritative completed
+`work/<company-slug>/research.json` directly to `agent-harness-init`. Do not
+flatten away `workflow`, `findings.datasets_apis`, `findings.oss_papers_patents`,
+`findings.access_license`, `findings.impl_path`, or alternate replication
+scenarios. The harness selects `ready` + `build` claims, gives Sol the complete
+immutable Second-pass claim, and gives Terra a public `builder-context.json`
+without test expectations or reference facts.
+
 When producing the standalone `replica-second-pass-result/v1` build input for
 a question-answer capability, copy the frozen public `experience` object to
 its top-level `experience` field. A successful finalize publishes it as

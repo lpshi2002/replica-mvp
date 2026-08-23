@@ -57,6 +57,16 @@ CLI나 공개 결과 JSON은 evaluator vault 경로, 테스트 내용, 기대값
 network, 자격증명, 파일 접근, import, subprocess와 private-company 추정을
 허용하지 않는다.
 
+Sol/Terra Agent 경로는 완료된 company research도 직접 받는다. ready/build claim의
+전체 Second-pass를 Sol에 보존하고 Terra에는 테스트 기대값과 reference facts를
+제거한 `builder-context.json`을 준다. 전체 workflow가 단일 Component로 표현되지
+않으면 Sol은 `implementation/manifest.json`을 요구하고 Terra는 다중 파일,
+dependency source/version/license, 환경변수 이름과 실행 명령을 선언한다.
+
+이 bundle은 경로, symlink, 선언 파일 집합과 SHA-256을 검증해
+`IMPLEMENTATION_READY`로 묶는다. 아직 evaluator가 bundle dependency를 준비하고
+실행하는 단계는 없으므로 이 상태는 공개 결과나 재현 성공이 아니다.
+
 ## 공개 계약
 
 ```text
@@ -77,7 +87,8 @@ replica-mvp run-replica PUBLIC_RUN_DIR
 
 ## 범위
 
-자동 복제 대상은 Second-pass 계약으로 충분히 정의되고 고정 테스트로 검증할 수
-있는 공개 범위의 결정적 기능이다. 비공개 데이터, 원제품 내부 구현, 학습 모델,
-외부 시스템 자격증명, OCR·브라우저·데이터베이스 연동은 별도 capability와
-권한이 없으면 자동 복제 범위가 아니다.
+제한 Component 자동 평가 대상은 Second-pass 계약으로 충분히 정의되고 고정
+테스트로 검증할 수 있는 공개 범위의 결정적 기능이다. OSS, 파일, API, 모델과
+다단계 workflow는 implementation bundle로 작성할 수 있지만 아직 자동 평가·공개
+범위는 아니다. 비공개 데이터와 외부 자격증명은 계약과 명시적 권한 없이는 사용할
+수 없다.

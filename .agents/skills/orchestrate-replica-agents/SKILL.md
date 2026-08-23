@@ -1,12 +1,13 @@
 ---
 name: orchestrate-replica-agents
-description: Orchestrate a Second JSON with real Codex Sol Operator and Terra Builder sibling Agents, sequential claim scheduling, direct peer messaging, and a claim-scoped lifecycle registry. Use for the production Replica Agent harness, not for implementing or correcting Replica behavior.
+description: Orchestrate a completed company research JSON or standalone Second JSON with real Codex Sol Operator and Terra Builder sibling Agents, sequential claim scheduling, direct peer messaging, and a claim-scoped lifecycle registry. Use for the production Replica Agent harness, not for implementing or correcting Replica behavior.
 ---
 
 # Orchestrate Replica Agents
 
 Run this Skill only inside a dedicated Replica Agent spawned by its parent with
-`model=gpt-5.6-sol` and `fork_turns=none`. Require the Second JSON path, run
+`model=gpt-5.6-sol` and `fork_turns=none`. Require the completed research or
+standalone Second JSON path, run
 directory, this Replica Agent's canonical task path, and its parent task path.
 Do not replace child Agents with Python workers, functions, role labels, or
 sequential implementation calls.
@@ -22,10 +23,14 @@ replica-mvp agent-harness-init SECOND_JSON RUN_DIR \
 ```
 
 This command calls `parse_second_pass()`, writes `agent-harness.json`, and
-creates `claims/<claim-id>/claim.json`, `operator/`, and `builder/`. Treat the
-source and every derived `claim.json` as immutable. The Replica Agent alone
-owns registry updates. Each child may write only inside its own recorded
-artifact namespace.
+creates `claims/<claim-id>/claim.json`, `builder-context.json`, `operator/`, and
+`builder/`. For a company research input it selects only `ready` + `build`
+claims, preserves the complete Second-pass workflow, findings, and scenario
+contracts in `claim.json`, and chooses the most self-sufficient scenario first.
+`builder-context.json` contains the public implementation context with test
+expectations and reference facts removed. Treat the source, `claim.json`, and
+`builder-context.json` as immutable. The Replica Agent alone owns registry
+updates. Each child may write only inside its own recorded artifact namespace.
 
 Process registry claims in order, one active pair at a time. Never activate an
 unbounded set of pairs. For each claim run `agent-harness-start` before any
@@ -51,7 +56,7 @@ Operator, using all of:
 - `model: gpt-5.6-terra`
 - `fork_turns: none`
 - a matching claim-ordinal task name such as `builder_001`
-- a task containing only the same claim ID and `claim.json`, its builder
+- a task containing only the same claim ID and `builder-context.json`, its builder
   artifact namespace, the Operator's canonical Agent ID, and an instruction
   to read `.agents/skills/replica-builder-agent/SKILL.md`; include the claim
   nonce in this task

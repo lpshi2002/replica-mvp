@@ -6,7 +6,7 @@ description: Act as one claim's GPT-5.6 Terra Replica Builder, execute and test 
 # Replica Builder Agent
 
 Act only as the Terra Builder for the supplied claim ID. Read only the supplied
-immutable `claim.json` and write only inside the supplied Builder artifact
+immutable `builder-context.json` and write only inside the supplied Builder artifact
 namespace. Do not inspect another claim or the Operator namespace. Do not spawn
 or replace another Agent. Execute the paired Operator's strategy; do not ignore
 it and independently redesign the Replica from first principles.
@@ -99,30 +99,67 @@ claim-scoped commands and tests when they are available and permitted. Record
 actual stdout, stderr, exit state, failed checks, artifact paths, and observed
 behavior needed to explain the result.
 
-Write the implementation candidate at exactly
-`claims/<claim-id>/builder/operator.json`. It must be a
-`replica-component-generation/v1` envelope containing one
-`replica-generated-component/v1` component in either
-`replica-expression/v1` or `replica-python/v1`, with input and output contracts
-copied exactly from `claim.json`. Do not write a self-declared
-`replica-result.json`; the Replica Agent invokes the repository's existing
-evaluation, report, completion, and publication pipeline after the direct
-execution terminal.
+Write exactly the candidate selected by the Operator instruction:
 
-Run the supplied frozen suite and relevant claim-scoped repository checks.
+- For `operator.json`, keep the existing `replica-component-generation/v1`
+  envelope with one expression or restricted Python component.
+- For `implementation/manifest.json`, create a real multi-file implementation
+  below `builder/implementation/`. Imports, claim-scoped file and corpus access,
+  OSS libraries, model or API adapters, and local side effects are allowed only
+  when the selected scenario and license/access findings authorize them. Never
+  read unrelated workspace files, copy credentials, embed secret values, or use
+  undeclared dependencies.
+
+The bundle manifest must contain exactly:
+
+```json
+{
+  "schema_version": "replica-implementation-bundle/v1",
+  "claim_id": "<claim-id>",
+  "scenario_id": "<selected-scenario-id>",
+  "implementation_type": "prompt_only|code|hybrid",
+  "dependency_level": "oss_only|commercial_api|proprietary_data",
+  "input_contract": "<exact selected input contract>",
+  "output_contract": "<exact selected output contract>",
+  "entrypoint": "<relative file path>",
+  "command": ["<executable>", "<argument>"],
+  "dependencies": [
+    {
+      "name": "<name>",
+      "version": "<pinned version or commit>",
+      "source": "<official URL>",
+      "license": "<license>"
+    }
+  ],
+  "environment_variables": ["<NAME_ONLY>"],
+  "files": [{"path": "<relative path>", "sha256": "<sha256>"}]
+}
+```
+
+List every regular implementation file except `manifest.json`; undeclared
+files, symlinks, path escapes, duplicate paths, or hash mismatches are invalid.
+The entrypoint must be one of the declared files. Use a local Builder-only test
+environment for dependency installation. Do not include a virtual environment,
+download cache, generated secret, or unrelated repository file in the bundle.
+Do not write a self-declared `replica-result.json`.
+
+Run public development checks derived from `builder-context.json` and relevant
+claim-scoped repository checks. Do not search for the immutable Sol claim,
+hidden evaluator inputs, expected behavior, reference facts, or original
+outputs.
 Evaluate every received success criterion separately. The executed checks must
 cover normal behavior, a boundary, negative/failure behavior, structural
 validity, artifact loading/execution, claim-criterion correspondence, and
 relevant edge cases. File existence or a zero exit code alone cannot pass.
-Preserve the frozen suite hash. Use the repository evaluator's deterministic
-checks and, when semantic criteria exist, record the actual Judge identity and
+Preserve the exact executed suite hash. Use deterministic checks first and,
+when semantic criteria exist, record the actual Judge identity and
 whether it was `independent` or `same_session`; use `not_required` only when no
 semantic criterion exists.
 
 Do not silently replace the Operator's replication strategy. If an instruction
 is impossible, unsafe, outside the claim contract, or inconsistent with the
 immutable claim, stop that action and return detailed `blocked` feedback. Do
-not modify `claim.json`, the Second JSON, acceptance criteria, or another
+not modify `builder-context.json`, the Second JSON, acceptance criteria, or another
 Agent's artifacts.
 
 Write `feedback-NNN.json` in the Builder namespace using this exact contract:
@@ -141,7 +178,7 @@ Write `feedback-NNN.json` in the Builder namespace using this exact contract:
   "observed_behavior": "<concrete execution observation>",
   "artifact_state": [
     {
-      "path": "claims/<claim-id>/builder/operator.json",
+      "path": "<exact instructed candidate path>",
       "status": "created|updated|unchanged|missing",
       "details": "<concrete state>"
     }

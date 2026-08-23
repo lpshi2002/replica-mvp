@@ -13,7 +13,84 @@ def _legacy_claim():
     return json.loads(LEGACY_EXAMPLE.read_text(encoding="utf-8"))
 
 
+def _research():
+    scenario = {
+        "id": "s-commercial",
+        "self_sufficiency": "commercial_api",
+        "boundaries": "Text only.",
+        "input": "A UTF-8 document and question.",
+        "output": "A cited JSON answer.",
+        "acceptance_criteria": ["Answers with a valid citation."],
+        "tests": [
+            {
+                "id": "normal",
+                "input": "example",
+                "expected_behavior": "answer",
+                "reference_facts": ["fact"],
+            }
+        ],
+    }
+    oss = dict(scenario)
+    oss.update({"id": "s-oss", "self_sufficiency": "oss_only"})
+    second_pass = {
+        "claim_id": "claim-001",
+        "status": "confirmed",
+        "workflow": {"input": "document", "steps": [], "output": "answer"},
+        "findings": {
+            "impl_path": {"state": "filled", "note": "Use a local retriever."},
+            "datasets_apis": {"state": "filled", "note": "Use public text."},
+        },
+        "readiness": {"status": "ready"},
+        "handoff": {"action": "build"},
+        "replication_contract": [scenario, oss],
+    }
+    return {
+        "schema_version": 2,
+        "company": {"name": "Example", "url": "https://example.com"},
+        "claims": [
+            {
+                "id": "claim-001",
+                "first_pass": {"claim": "Answers from supplied documents."},
+                "second_pass": second_pass,
+            },
+            {
+                "id": "claim-002",
+                "first_pass": {"claim": "Not ready."},
+                "second_pass": {
+                    **second_pass,
+                    "claim_id": "claim-002",
+                    "readiness": {"status": "partial"},
+                },
+            },
+        ],
+    }
+
+
 class SecondPassParserTest(unittest.TestCase):
+    def test_company_research_preserves_the_full_ready_claim_for_sol(self):
+        research = _research()
+
+        parsed = parse_second_pass(research)
+
+        self.assertEqual(1, parsed["claim_count"])
+        claim = parsed["claims"][0]
+        payload = claim["payload"]
+        self.assertEqual("claim-001", claim["claim_id"])
+        self.assertEqual("replica-agent-claim/v2", payload["schema_version"])
+        self.assertEqual("s-oss", payload["selected_scenario_id"])
+        self.assertEqual(
+            research["claims"][0]["second_pass"],
+            payload["second_pass"],
+        )
+        self.assertEqual(
+            "Use a local retriever.",
+            payload["second_pass"]["findings"]["impl_path"]["note"],
+        )
+        self.assertEqual(
+            [{"id": "criterion-001", "description": "Answers with a valid citation."}],
+            payload["acceptance_criteria"],
+        )
+
     def test_legacy_single_claim_normalizes_to_canonical_collection(self):
         claim = _legacy_claim()
 

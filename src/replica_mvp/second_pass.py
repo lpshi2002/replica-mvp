@@ -12,6 +12,12 @@ from .experience import validate_experience_profile
 LEGACY_SECOND_PASS_SCHEMA = "replica-second-pass-result/v1"
 MULTI_SECOND_PASS_SCHEMA = "replica-second-pass-claim-collection/v1"
 CANONICAL_CLAIM_COLLECTION_SCHEMA = "replica-claim-collection/v1"
+RESEARCH_AGENT_CLAIM_SCHEMA = "replica-agent-claim/v2"
+DEPENDENCY_ORDER = {
+    "oss_only": 0,
+    "commercial_api": 1,
+    "proprietary_data": 2,
+}
 SECOND_PASS_FIELDS = {
     "schema_version",
     "replica_id",
@@ -230,11 +236,109 @@ def validate_second_pass_claim(
     return value
 
 
+def _research_agent_claims(value: dict[str, Any]) -> list[dict[str, Any]]:
+    company = value.get("company")
+    claims = value.get("claims")
+    if (
+        value.get("schema_version") not in {1, 2}
+        or not isinstance(company, dict)
+        or not _is_nonempty_text(company.get("name"))
+        or not isinstance(claims, list)
+        or not claims
+    ):
+        raise ValueError("invalid company research contract")
+
+    prepared = []
+    for claim in claims:
+        if not isinstance(claim, dict):
+            raise ValueError("invalid company research claim")
+        second_pass = claim.get("second_pass")
+        if second_pass is None:
+            continue
+        if not isinstance(second_pass, dict):
+            raise ValueError("invalid company research second pass")
+        readiness = second_pass.get("readiness")
+        handoff = second_pass.get("handoff")
+        if (
+            second_pass.get("status") not in {"confirmed", "refined"}
+            or not isinstance(readiness, dict)
+            or readiness.get("status") != "ready"
+            or not isinstance(handoff, dict)
+            or handoff.get("action") != "build"
+        ):
+            continue
+
+        claim_id = claim.get("id")
+        scenarios = second_pass.get("replication_contract")
+        if (
+            not _is_nonempty_text(claim_id)
+            or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", claim_id)
+            or second_pass.get("claim_id", claim_id) != claim_id
+            or not isinstance(scenarios, list)
+            or not scenarios
+        ):
+            raise ValueError("invalid executable research claim")
+        for scenario in scenarios:
+            if (
+                not isinstance(scenario, dict)
+                or not _is_nonempty_text(scenario.get("id"))
+                or scenario.get("self_sufficiency") not in DEPENDENCY_ORDER
+                or not _is_nonempty_text(scenario.get("input"))
+                or not _is_nonempty_text(scenario.get("output"))
+                or not _is_text_list(
+                    scenario.get("acceptance_criteria"),
+                    allow_empty=False,
+                )
+            ):
+                raise ValueError("invalid research replication scenario")
+        scenario_ids = [scenario["id"] for scenario in scenarios]
+        if len(set(scenario_ids)) != len(scenario_ids):
+            raise ValueError("duplicate research scenario identity")
+        selected = min(
+            enumerate(scenarios),
+            key=lambda item: (
+                DEPENDENCY_ORDER[item[1]["self_sufficiency"]],
+                item[0],
+            ),
+        )[1]
+        prepared.append(
+            {
+                "claim_id": claim_id,
+                "payload": {
+                    "schema_version": RESEARCH_AGENT_CLAIM_SCHEMA,
+                    "claim_id": claim_id,
+                    "company": copy.deepcopy(company),
+                    "first_pass": copy.deepcopy(claim.get("first_pass")),
+                    "second_pass": copy.deepcopy(second_pass),
+                    "selected_scenario_id": selected["id"],
+                    "input_contract": selected["input"],
+                    "output_contract": selected["output"],
+                    "acceptance_criteria": [
+                        {
+                            "id": f"criterion-{index:03d}",
+                            "description": description,
+                        }
+                        for index, description in enumerate(
+                            selected["acceptance_criteria"],
+                            start=1,
+                        )
+                    ],
+                },
+            }
+        )
+    if not prepared:
+        raise ValueError("company research has no ready build claims")
+    return prepared
+
+
 def parse_second_pass(value: Any) -> dict[str, Any]:
     """Normalize a Second-pass input to the canonical claim collection."""
     if not isinstance(value, dict):
         raise ValueError("invalid second-pass claim collection")
-    if value.get("schema_version") == LEGACY_SECOND_PASS_SCHEMA:
+    if value.get("schema_version") in {1, 2}:
+        canonical_claims = _research_agent_claims(value)
+        source_claims = None
+    elif value.get("schema_version") == LEGACY_SECOND_PASS_SCHEMA:
         source_claims = [value]
     elif (
         value.get("schema_version") == MULTI_SECOND_PASS_SCHEMA
@@ -245,16 +349,21 @@ def parse_second_pass(value: Any) -> dict[str, Any]:
         source_claims = value["claims"]
     else:
         raise ValueError("invalid second-pass claim collection")
-    claims = [
-        copy.deepcopy(
-            validate_second_pass_claim(
-                claim,
-                allow_missing_implementation=True,
+    if source_claims is not None:
+        claims = [
+            copy.deepcopy(
+                validate_second_pass_claim(
+                    claim,
+                    allow_missing_implementation=True,
+                )
             )
-        )
-        for claim in source_claims
-    ]
-    claim_ids = [claim["replica_id"] for claim in claims]
+            for claim in source_claims
+        ]
+        canonical_claims = [
+            {"claim_id": claim["replica_id"], "payload": claim}
+            for claim in claims
+        ]
+    claim_ids = [claim["claim_id"] for claim in canonical_claims]
     seen_claim_ids: set[str] = set()
     for claim_id in claim_ids:
         if claim_id in seen_claim_ids:
@@ -262,12 +371,6 @@ def parse_second_pass(value: Any) -> dict[str, Any]:
         seen_claim_ids.add(claim_id)
     return {
         "schema_version": CANONICAL_CLAIM_COLLECTION_SCHEMA,
-        "claim_count": len(claims),
-        "claims": [
-            {
-                "claim_id": claim_id,
-                "payload": claim,
-            }
-            for claim_id, claim in zip(claim_ids, claims, strict=True)
-        ],
+        "claim_count": len(canonical_claims),
+        "claims": canonical_claims,
     }

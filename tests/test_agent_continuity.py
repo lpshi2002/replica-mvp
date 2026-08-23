@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import unittest
@@ -21,6 +22,7 @@ from replica_mvp import (
 )
 from replica_mvp.cli import main
 from tests.test_agent_execution import _feedback, _instruction
+from tests.test_second_pass import _research
 
 
 REPOSITORY_ROOT = Path(__file__).parents[1]
@@ -74,6 +76,55 @@ def _prepare_ready_pair(run_dir: Path) -> Path:
         nonce=NONCE,
     )
     return registry_path
+
+
+def _prepare_rich_ready_pair(run_dir: Path) -> tuple[Path, dict]:
+    claim_id = "claim-001"
+    operator_id = "/root/replica_agent/operator_rich"
+    builder_id = "/root/replica_agent/builder_rich"
+    nonce = "rich-continuity-nonce"
+    registry_path = run_dir / "agent-harness.json"
+    prepare_agent_harness(
+        _research(),
+        run_dir,
+        replica_agent_id="/root/replica_agent",
+        parent_agent_id="/root",
+    )
+    start_agent_claim(registry_path, claim_id)
+    record_agent_spawn(
+        registry_path,
+        claim_id,
+        role="operator",
+        agent_id=operator_id,
+        parent_agent_id="/root/replica_agent",
+        requested_model="gpt-5.6-sol",
+    )
+    record_agent_spawn(
+        registry_path,
+        claim_id,
+        role="builder",
+        agent_id=builder_id,
+        parent_agent_id="/root/replica_agent",
+        requested_model="gpt-5.6-terra",
+    )
+    for direction, sender, recipient in (
+        ("operator_to_builder", operator_id, builder_id),
+        ("builder_to_operator", builder_id, operator_id),
+    ):
+        record_direct_agent_message(
+            registry_path,
+            claim_id,
+            direction=direction,
+            sender_agent_id=sender,
+            recipient_agent_id=recipient,
+            nonce=nonce,
+        )
+    return registry_path, {
+        "claim_id": claim_id,
+        "operator_agent_id": operator_id,
+        "builder_agent_id": builder_id,
+        "nonce": nonce,
+    }
 
 
 def _prepare_two_active_continuity_pairs(run_dir: Path) -> tuple[Path, list[dict]]:
@@ -151,6 +202,7 @@ def _write_execution_state(
     *,
     terminal_state: str | None,
     correction_count: int,
+    candidate_path: str | None = None,
 ) -> Path:
     claim_path = (
         registry_path.parent
@@ -186,6 +238,7 @@ def _write_execution_state(
                 operator_id=binding["operator_agent_id"],
                 builder_id=binding["builder_agent_id"],
                 nonce=binding["nonce"],
+                candidate_path=candidate_path,
             ),
             _feedback(
                 round_number,
@@ -198,6 +251,7 @@ def _write_execution_state(
                 operator_id=binding["operator_agent_id"],
                 builder_id=binding["builder_agent_id"],
                 nonce=binding["nonce"],
+                candidate_path=candidate_path,
             ),
         )
     state_path = (
@@ -529,6 +583,127 @@ class AgentContinuityTest(unittest.TestCase):
 
             aggregate = finish_agent_harness(registry_path)
             self.assertEqual("EXECUTION_SUCCESS", aggregate["status"])
+
+    def test_rich_second_pass_binds_a_multi_file_implementation_bundle(self):
+        with TemporaryDirectory() as tmp:
+            registry_path, binding = _prepare_rich_ready_pair(Path(tmp) / "run")
+            start_agent_continuity(
+                registry_path,
+                binding["claim_id"],
+                operator_agent_id=binding["operator_agent_id"],
+                builder_agent_id=binding["builder_agent_id"],
+                nonce=binding["nonce"],
+            )
+            record_agent_continuity_round(
+                registry_path,
+                binding["claim_id"],
+                round_number=0,
+                operator_agent_id=binding["operator_agent_id"],
+                builder_agent_id=binding["builder_agent_id"],
+                nonce=binding["nonce"],
+                operator_to_builder_direct=True,
+                builder_to_operator_direct=True,
+            )
+            candidate_relative_path = (
+                "claims/claim-001/builder/implementation/manifest.json"
+            )
+            state_path = _write_execution_state(
+                registry_path,
+                binding,
+                terminal_state="SUCCESS",
+                correction_count=0,
+                candidate_path=candidate_relative_path,
+            )
+            finish_agent_continuity(
+                registry_path,
+                binding["claim_id"],
+                terminal_state="SUCCESS",
+                execution_state_path=state_path,
+                operator_agent_id=binding["operator_agent_id"],
+                builder_agent_id=binding["builder_agent_id"],
+                nonce=binding["nonce"],
+                terminal_acknowledged_directly=True,
+            )
+
+            implementation_dir = (
+                registry_path.parent / "claims/claim-001/builder/implementation"
+            )
+            implementation_dir.mkdir()
+            source_path = implementation_dir / "replica.py"
+            source_path.write_text(
+                "import json, sys\njson.dump(json.load(sys.stdin), sys.stdout)\n",
+                encoding="utf-8",
+            )
+            claim = json.loads(
+                (registry_path.parent / "claims/claim-001/claim.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            selected = next(
+                scenario
+                for scenario in claim["second_pass"]["replication_contract"]
+                if scenario["id"] == claim["selected_scenario_id"]
+            )
+            manifest_path = implementation_dir / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "replica-implementation-bundle/v1",
+                        "claim_id": "claim-001",
+                        "scenario_id": selected["id"],
+                        "implementation_type": "hybrid",
+                        "dependency_level": selected["self_sufficiency"],
+                        "input_contract": selected["input"],
+                        "output_contract": selected["output"],
+                        "entrypoint": "replica.py",
+                        "command": ["python3", "replica.py"],
+                        "dependencies": [
+                            {
+                                "name": "example-retriever",
+                                "version": "1.0.0",
+                                "source": "https://example.com/retriever",
+                                "license": "MIT",
+                            }
+                        ],
+                        "environment_variables": [],
+                        "files": [
+                            {
+                                "path": "replica.py",
+                                "sha256": hashlib.sha256(
+                                    source_path.read_bytes()
+                                ).hexdigest(),
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            finalized = finalize_agent_candidate(
+                registry_path,
+                binding["claim_id"],
+                manifest_path,
+            )
+
+            result = finalized["claims"][0]["implementation_result"]
+            self.assertEqual("IMPLEMENTATION_READY", finalized["claims"][0]["status"])
+            self.assertEqual("hybrid", result["implementation_type"])
+            self.assertEqual("oss_only", result["dependency_level"])
+            self.assertEqual(
+                candidate_relative_path,
+                result["candidate_path"],
+            )
+            source_bytes = source_path.read_bytes()
+            source_path.write_text("tampered\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "hash mismatch"):
+                finish_agent_harness(registry_path)
+            source_path.write_bytes(source_bytes)
+            aggregate = finish_agent_harness(registry_path)
+            self.assertEqual("IMPLEMENTATION_READY", aggregate["status"])
 
     def test_invalid_terra_candidate_fails_the_final_result(self):
         with TemporaryDirectory() as tmp:

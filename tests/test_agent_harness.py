@@ -15,6 +15,7 @@ from replica_mvp import (
     start_agent_claim,
 )
 from replica_mvp.cli import main
+from tests.test_second_pass import _research
 
 
 REPOSITORY_ROOT = Path(__file__).parents[1]
@@ -36,6 +37,36 @@ def _multi_claim_input():
 
 
 class ReplicaAgentHarnessTest(unittest.TestCase):
+    def test_research_claim_gives_sol_full_context_and_terra_a_public_build_context(self):
+        with TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run"
+
+            registry = prepare_agent_harness(
+                _research(),
+                run_dir,
+                replica_agent_id="/root/replica_agent",
+                parent_agent_id="/root",
+            )
+
+            claim = registry["claims"][0]
+            sol_claim = json.loads(
+                (run_dir / claim["claim_payload_path"]).read_text(encoding="utf-8")
+            )
+            terra_context_path = run_dir / claim["builder_context_path"]
+            terra_context = json.loads(terra_context_path.read_text(encoding="utf-8"))
+            self.assertEqual("replica-agent-claim/v2", sol_claim["schema_version"])
+            self.assertIn("tests", sol_claim["second_pass"]["replication_contract"][0])
+            self.assertEqual("replica-builder-context/v1", terra_context["schema_version"])
+            self.assertEqual("s-oss", terra_context["selected_scenario"]["id"])
+            self.assertEqual(
+                "Use a local retriever.",
+                terra_context["findings"]["impl_path"]["note"],
+            )
+            serialized = json.dumps(terra_context)
+            self.assertNotIn("expected_behavior", serialized)
+            self.assertNotIn("reference_facts", serialized)
+            self.assertNotIn('"tests"', serialized)
+
     def test_legacy_single_claim_prepares_one_sol_terra_pair(self):
         with TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "run"

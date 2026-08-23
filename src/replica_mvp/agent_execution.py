@@ -268,6 +268,7 @@ def _validate_state(state: Any) -> dict[str, Any]:
         valid_lifecycle = False
     attempt_fields = {
         "correction_number",
+        "candidate_path",
         "instruction_sha256",
         "instruction_plan_sha256",
         "feedback_sha256",
@@ -281,13 +282,21 @@ def _validate_state(state: Any) -> dict[str, Any]:
         "total_criteria",
         "decision",
     }
+    legacy_attempt_fields = attempt_fields - {"candidate_path"}
     criteria_count = len(state["success_criteria"])
     valid_attempts = True
     for index, attempt in enumerate(attempts):
         valid_attempt = (
             isinstance(attempt, dict)
-            and set(attempt) == attempt_fields
+            and frozenset(attempt)
+            in {frozenset(attempt_fields), frozenset(legacy_attempt_fields)}
             and attempt.get("correction_number") == index
+            and _is_text(
+                attempt.get(
+                    "candidate_path",
+                    f"claims/{state['claim_id']}/builder/operator.json",
+                )
+            )
             and all(
                 _is_sha256(attempt.get(field))
                 for field in (
@@ -315,6 +324,10 @@ def _validate_state(state: Any) -> dict[str, Any]:
                 and attempt["test_status"] == "passed"
                 and attempt["failed_check_count"] == 0
                 and attempt["passed_criteria"] == criteria_count
+            )
+        if valid_attempt and "candidate_path" not in attempt:
+            attempt["candidate_path"] = (
+                f"claims/{state['claim_id']}/builder/operator.json"
             )
         if not valid_attempt:
             valid_attempts = False
@@ -385,6 +398,12 @@ def advance_agent_execution(
         raise ValueError("execution loop requires Builder execution feedback")
     if validated_instruction["success_criteria"] != current["success_criteria"]:
         raise ValueError("Operator changed the frozen success criteria")
+    candidate_path = validated_instruction["expected_artifact"]["path"]
+    if not any(
+        artifact["path"] == candidate_path
+        for artifact in validated_feedback["artifact_state"]
+    ):
+        raise ValueError("Builder feedback does not match the instructed candidate")
 
     instruction_sha256 = _canonical_sha256(validated_instruction)
     instruction_plan_sha256 = _instruction_plan_sha256(validated_instruction)
@@ -421,6 +440,7 @@ def advance_agent_execution(
     current["attempts"].append(
         {
             "correction_number": correction_number,
+            "candidate_path": candidate_path,
             "instruction_sha256": instruction_sha256,
             "instruction_plan_sha256": instruction_plan_sha256,
             "feedback_sha256": feedback_sha256,

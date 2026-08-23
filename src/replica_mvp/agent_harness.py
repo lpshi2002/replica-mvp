@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -15,7 +17,13 @@ SOL_MODEL = "gpt-5.6-sol"
 TERRA_MODEL = "gpt-5.6-terra"
 REGISTRY_NAME = "agent-harness.json"
 FINAL_RESULT_SCHEMA = "replica-agent-final-result/v1"
+IMPLEMENTATION_RESULT_SCHEMA = "replica-agent-implementation-result/v1"
 CANDIDATE_NAME = "operator.json"
+BUNDLE_MANIFEST_NAME = "implementation/manifest.json"
+IMPLEMENTATION_BUNDLE_SCHEMA = "replica-implementation-bundle/v1"
+BUILDER_CONTEXT_SCHEMA = "replica-builder-context/v1"
+MAX_BUNDLE_FILES = 256
+MAX_BUNDLE_BYTES = 20_000_000
 PUBLIC_RESULTS_ROOT = "final-results"
 EVALUATOR_VAULT_ROOT = "evaluator-vault"
 FINAL_ARTIFACT_NAMES = {
@@ -84,6 +92,46 @@ def _claim_record(registry: dict[str, Any], claim_id: str) -> dict[str, Any]:
     raise ValueError(f"unknown claim identity: {claim_id}")
 
 
+def _builder_context(claim_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    if payload.get("schema_version") != "replica-agent-claim/v2":
+        public_contract = deepcopy(payload)
+        public_contract.pop("tests", None)
+        return {
+            "schema_version": BUILDER_CONTEXT_SCHEMA,
+            "claim_id": claim_id,
+            "contract": public_contract,
+        }
+
+    second_pass = payload["second_pass"]
+    scenarios = second_pass["replication_contract"]
+    selected = next(
+        scenario
+        for scenario in scenarios
+        if scenario["id"] == payload["selected_scenario_id"]
+    )
+    public_scenario = deepcopy(selected)
+    public_scenario.pop("tests", None)
+    return {
+        "schema_version": BUILDER_CONTEXT_SCHEMA,
+        "claim_id": claim_id,
+        "company": deepcopy(payload["company"]),
+        "first_pass": deepcopy(payload.get("first_pass")),
+        "workflow": deepcopy(second_pass.get("workflow")),
+        "findings": deepcopy(second_pass.get("findings")),
+        "selected_scenario": public_scenario,
+        "available_scenarios": [
+            {
+                key: deepcopy(scenario.get(key))
+                for key in ("id", "self_sufficiency", "boundaries")
+            }
+            for scenario in scenarios
+        ],
+        "input_contract": deepcopy(payload["input_contract"]),
+        "output_contract": deepcopy(payload["output_contract"]),
+        "acceptance_criteria": deepcopy(payload["acceptance_criteria"]),
+    }
+
+
 def prepare_agent_harness(
     second_pass: Any,
     run_dir: Path,
@@ -110,15 +158,22 @@ def prepare_agent_harness(
         builder_dir.mkdir()
         claim_namespace = f"claims/{claim_id}"
         claim_payload_path = f"{claim_namespace}/claim.json"
+        builder_context_path = f"{claim_namespace}/builder-context.json"
         _write_new_json(
             run_dir / claim_payload_path,
             canonical_claim["payload"],
+        )
+        _write_new_json(
+            run_dir / builder_context_path,
+            _builder_context(claim_id, canonical_claim["payload"]),
         )
         claims.append(
             {
                 "claim_id": claim_id,
                 "claim_payload_owner": "replica_agent",
                 "claim_payload_path": claim_payload_path,
+                "builder_context_owner": "replica_agent",
+                "builder_context_path": builder_context_path,
                 "status": "PENDING",
                 "namespace": claim_namespace,
                 "operator": {
@@ -609,6 +664,7 @@ def finish_agent_continuity(
             "correction_count": correction_count,
             "completed_rounds": expected_rounds,
             "execution_state_sha256": state_sha256,
+            "candidate_path": final_attempt["candidate_path"],
             "test_suite_sha256": final_attempt["test_suite_sha256"],
             "passed_criteria": final_attempt["passed_criteria"],
             "total_criteria": final_attempt["total_criteria"],
@@ -635,6 +691,159 @@ def _relative_path(root: Path, path: Path) -> str:
     return resolved.relative_to(root.resolve()).as_posix()
 
 
+def _is_sha256(value: Any) -> bool:
+    return bool(
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _safe_bundle_path(value: Any) -> bool:
+    if not _is_nonempty_text(value) or "\\" in value:
+        return False
+    path = Path(value)
+    return bool(
+        not path.is_absolute()
+        and path.as_posix() == value
+        and all(part not in {"", ".", ".."} for part in path.parts)
+    )
+
+
+def _selected_scenario(payload: dict[str, Any]) -> dict[str, Any] | None:
+    if payload.get("schema_version") != "replica-agent-claim/v2":
+        return None
+    return next(
+        (
+            scenario
+            for scenario in payload["second_pass"]["replication_contract"]
+            if scenario["id"] == payload["selected_scenario_id"]
+        ),
+        None,
+    )
+
+
+def _validate_implementation_bundle(
+    run_dir: Path,
+    claim_id: str,
+    manifest_path: Path,
+    claim_payload: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
+    try:
+        manifest = json.loads(
+            manifest_path.read_text(encoding="utf-8"),
+            parse_constant=_reject_nonstandard_constant,
+        )
+    except (OSError, ValueError) as error:
+        raise ValueError(f"invalid Terra implementation manifest: {error}") from None
+    fields = {
+        "schema_version",
+        "claim_id",
+        "scenario_id",
+        "implementation_type",
+        "dependency_level",
+        "input_contract",
+        "output_contract",
+        "entrypoint",
+        "command",
+        "dependencies",
+        "environment_variables",
+        "files",
+    }
+    dependencies = manifest.get("dependencies")
+    environment_variables = manifest.get("environment_variables")
+    files = manifest.get("files")
+    if (
+        not isinstance(manifest, dict)
+        or set(manifest) != fields
+        or manifest.get("schema_version") != IMPLEMENTATION_BUNDLE_SCHEMA
+        or manifest.get("claim_id") != claim_id
+        or not _is_nonempty_text(manifest.get("scenario_id"))
+        or manifest.get("implementation_type") not in {"prompt_only", "code", "hybrid"}
+        or manifest.get("dependency_level")
+        not in {"oss_only", "commercial_api", "proprietary_data"}
+        or not _safe_bundle_path(manifest.get("entrypoint"))
+        or not isinstance(manifest.get("command"), list)
+        or not manifest["command"]
+        or not all(_is_nonempty_text(item) for item in manifest["command"])
+        or not isinstance(dependencies, list)
+        or not all(
+            isinstance(dependency, dict)
+            and set(dependency) == {"name", "version", "source", "license"}
+            and all(_is_nonempty_text(dependency.get(field)) for field in dependency)
+            and dependency["source"].startswith(("https://", "http://"))
+            for dependency in dependencies
+        )
+        or not isinstance(environment_variables, list)
+        or len(set(environment_variables)) != len(environment_variables)
+        or not all(
+            isinstance(name, str) and re.fullmatch(r"[A-Z][A-Z0-9_]*", name)
+            for name in environment_variables
+        )
+        or not isinstance(files, list)
+        or not files
+        or len(files) > MAX_BUNDLE_FILES
+    ):
+        raise ValueError("invalid Terra implementation bundle contract")
+
+    file_paths = [record.get("path") for record in files if isinstance(record, dict)]
+    if (
+        len(file_paths) != len(files)
+        or len(set(file_paths)) != len(file_paths)
+        or manifest["entrypoint"] not in file_paths
+    ):
+        raise ValueError("invalid Terra implementation bundle files")
+    bundle_root = manifest_path.parent.resolve()
+    artifacts: dict[str, dict[str, str]] = {}
+    total_bytes = 0
+    for record in files:
+        if (
+            set(record) != {"path", "sha256"}
+            or not _safe_bundle_path(record.get("path"))
+            or not _is_sha256(record.get("sha256"))
+        ):
+            raise ValueError("invalid Terra implementation bundle file record")
+        path = bundle_root / record["path"]
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or not path.resolve().is_relative_to(bundle_root)
+            or _sha256(path) != record["sha256"]
+        ):
+            raise ValueError("Terra implementation bundle file hash mismatch")
+        total_bytes += path.stat().st_size
+        artifacts[record["path"]] = {
+            "path": _relative_path(run_dir, path),
+            "sha256": record["sha256"],
+        }
+    if total_bytes > MAX_BUNDLE_BYTES:
+        raise ValueError("Terra implementation bundle exceeds size limit")
+    present = set()
+    for path in bundle_root.rglob("*"):
+        if path.is_symlink():
+            raise ValueError("Terra implementation bundle cannot contain symlinks")
+        if path.is_file() and path != manifest_path:
+            present.add(path.relative_to(bundle_root).as_posix())
+    if present != set(file_paths):
+        raise ValueError("Terra implementation bundle contains undeclared files")
+
+    selected = _selected_scenario(claim_payload)
+    if selected is not None:
+        if (
+            manifest["scenario_id"] != selected["id"]
+            or manifest["dependency_level"] != selected["self_sufficiency"]
+            or manifest["input_contract"] != selected["input"]
+            or manifest["output_contract"] != selected["output"]
+        ):
+            raise ValueError("Terra implementation bundle changed the selected scenario")
+    elif (
+        manifest["input_contract"] != claim_payload.get("input_contract")
+        or manifest["output_contract"] != claim_payload.get("output_contract")
+    ):
+        raise ValueError("Terra implementation bundle changed the claim contract")
+    return manifest, artifacts
+
+
 def finalize_agent_candidate(
     registry_path: Path,
     claim_id: str,
@@ -648,24 +857,31 @@ def finalize_agent_candidate(
         or claim.get("continuity", {}).get("phase") != "TERMINAL_SUCCESS"
     ):
         raise ValueError("Agent candidate requires a successful execution terminal")
-    if "final_result" in claim:
+    if "final_result" in claim or "implementation_result" in claim:
         raise ValueError("Agent candidate is already finalized")
 
     run_dir = registry_path.parent.resolve()
-    expected_candidate = (
-        run_dir / claim["builder"]["artifact_namespace"] / CANDIDATE_NAME
+    candidate_relative_path = claim.get("execution_result", {}).get(
+        "candidate_path",
+        f"claims/{claim_id}/builder/{CANDIDATE_NAME}",
     )
-    candidate_relative_path = _relative_path(run_dir, expected_candidate)
+    allowed_candidates = {
+        f"claims/{claim_id}/builder/{CANDIDATE_NAME}",
+        f"claims/{claim_id}/builder/{BUNDLE_MANIFEST_NAME}",
+    }
+    if candidate_relative_path not in allowed_candidates:
+        raise ValueError("Agent execution did not bind a supported Terra candidate")
+    expected_candidate = run_dir / candidate_relative_path
+    resolved_candidate_path = _relative_path(run_dir, expected_candidate)
     if (
-        candidate_relative_path != f"claims/{claim_id}/builder/{CANDIDATE_NAME}"
+        resolved_candidate_path != candidate_relative_path
         or candidate_path.is_symlink()
+        or expected_candidate.parent.is_symlink()
         or candidate_path.resolve() != expected_candidate.resolve()
         or expected_candidate.is_symlink()
         or not expected_candidate.is_file()
     ):
-        raise ValueError(
-            "Terra candidate must be the bound Builder operator.json artifact"
-        )
+        raise ValueError("Terra candidate must match the bound Builder artifact")
 
     claim_payload = run_dir / claim["claim_payload_path"]
     if (
@@ -690,10 +906,38 @@ def finalize_agent_candidate(
     )
     if execution_state_sha256 != claim["execution_result"]["execution_state_sha256"]:
         raise ValueError("Terra candidate changed the bound execution state")
+    candidate_sha256 = _sha256(expected_candidate)
+    if candidate_relative_path.endswith(BUNDLE_MANIFEST_NAME):
+        manifest, artifacts = _validate_implementation_bundle(
+            run_dir,
+            claim_id,
+            expected_candidate,
+            claim_payload_value,
+        )
+        claim["status"] = "IMPLEMENTATION_READY"
+        claim["implementation_result"] = {
+            "schema_version": IMPLEMENTATION_RESULT_SCHEMA,
+            "status": "IMPLEMENTATION_READY",
+            "candidate_path": candidate_relative_path,
+            "candidate_sha256": candidate_sha256,
+            "execution_state_sha256": execution_state_sha256,
+            "scenario_id": manifest["scenario_id"],
+            "implementation_type": manifest["implementation_type"],
+            "dependency_level": manifest["dependency_level"],
+            "entrypoint": manifest["entrypoint"],
+            "command": manifest["command"],
+            "dependencies": manifest["dependencies"],
+            "environment_variables": manifest["environment_variables"],
+            "artifacts": artifacts,
+        }
+        _replace_registry(registry_path, registry)
+        return registry
+
+    if claim_payload_value.get("schema_version") == "replica-agent-claim/v2":
+        raise ValueError("research claims require an implementation bundle")
     workspace = run_dir / PUBLIC_RESULTS_ROOT
     evaluator_vault = run_dir / EVALUATOR_VAULT_ROOT
     candidate_bytes = expected_candidate.read_bytes()
-    candidate_sha256 = hashlib.sha256(candidate_bytes).hexdigest()
     prepared = prepare_codex_operator(claim_payload, workspace, evaluator_vault)
     operator_path = Path(prepared["operator_path"])
     with operator_path.open("xb") as stream:
@@ -863,6 +1107,92 @@ def _validate_final_result(run_dir: Path, claim: dict[str, Any]) -> None:
         raise ValueError("invalid Agent public result contract")
 
 
+def _validate_implementation_result(run_dir: Path, claim: dict[str, Any]) -> None:
+    result = claim.get("implementation_result")
+    fields = {
+        "schema_version",
+        "status",
+        "candidate_path",
+        "candidate_sha256",
+        "execution_state_sha256",
+        "scenario_id",
+        "implementation_type",
+        "dependency_level",
+        "entrypoint",
+        "command",
+        "dependencies",
+        "environment_variables",
+        "artifacts",
+    }
+    if (
+        not isinstance(result, dict)
+        or set(result) != fields
+        or result.get("schema_version") != IMPLEMENTATION_RESULT_SCHEMA
+        or result.get("status") != "IMPLEMENTATION_READY"
+        or result.get("execution_state_sha256")
+        != claim.get("execution_result", {}).get("execution_state_sha256")
+    ):
+        raise ValueError("invalid Agent implementation result binding")
+    manifest_path = _validate_bound_artifact(
+        run_dir,
+        {
+            "path": result.get("candidate_path"),
+            "sha256": result.get("candidate_sha256"),
+        },
+        label="implementation manifest",
+    )
+    expected_manifest = (
+        run_dir
+        / "claims"
+        / claim["claim_id"]
+        / "builder"
+        / BUNDLE_MANIFEST_NAME
+    ).resolve()
+    if manifest_path != expected_manifest:
+        raise ValueError("invalid Agent implementation candidate binding")
+    claim_payload_path = run_dir / claim["claim_payload_path"]
+    try:
+        claim_payload = json.loads(
+            claim_payload_path.read_text(encoding="utf-8"),
+            parse_constant=_reject_nonstandard_constant,
+        )
+    except (OSError, ValueError) as error:
+        raise ValueError(f"invalid immutable claim payload: {error}") from None
+    state, state_sha256 = load_agent_execution_state_file(
+        run_dir
+        / claim["operator"]["artifact_namespace"]
+        / "execution-state.json",
+        claim_payload,
+    )
+    if (
+        state_sha256 != result["execution_state_sha256"]
+        or state.get("status") != "SUCCESS"
+        or state["attempts"][-1].get("candidate_path")
+        != result["candidate_path"]
+    ):
+        raise ValueError("Agent implementation result changed the execution binding")
+    manifest, expected_artifacts = _validate_implementation_bundle(
+        run_dir,
+        claim["claim_id"],
+        manifest_path,
+        claim_payload,
+    )
+    summary_fields = {
+        "scenario_id",
+        "implementation_type",
+        "dependency_level",
+        "entrypoint",
+        "command",
+        "dependencies",
+        "environment_variables",
+    }
+    if (
+        any(result[field] != manifest[field] for field in summary_fields)
+        or result.get("artifacts") != expected_artifacts
+    ):
+        raise ValueError("Agent implementation result changed the Terra bundle")
+
+
 def record_agent_premature_completion(
     registry_path: Path,
     claim_id: str,
@@ -915,6 +1245,7 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
     statuses = [claim.get("status") for claim in registry["claims"]]
     protocol_terminal_statuses = {"READY_FOR_PROTOCOL", "CREATION_FAILED"}
     execution_terminal_statuses = {
+        "IMPLEMENTATION_READY",
         "RESULT_SUCCESS",
         "RESULT_FAILED",
         "EXECUTION_FAILED",
@@ -926,9 +1257,15 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
     for claim in registry["claims"]:
         if claim.get("status") in {"RESULT_SUCCESS", "RESULT_FAILED"}:
             _validate_final_result(registry_path.parent.resolve(), claim)
+        elif claim.get("status") == "IMPLEMENTATION_READY":
+            _validate_implementation_result(registry_path.parent.resolve(), claim)
     if any(
         isinstance(status, str)
-        and (status.startswith("EXECUTION_") or status.startswith("RESULT_"))
+        and (
+            status.startswith("EXECUTION_")
+            or status.startswith("RESULT_")
+            or status == "IMPLEMENTATION_READY"
+        )
         for status in statuses
     ):
         if "EXECUTION_SUCCESS" in statuses:
@@ -937,11 +1274,15 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
             )
         if any(status not in execution_terminal_statuses for status in statuses):
             raise ValueError("cannot finish incomplete Agent execution")
-        status = (
-            "EXECUTION_SUCCESS"
-            if all(status == "RESULT_SUCCESS" for status in statuses)
-            else "EXECUTION_COMPLETED_WITH_FAILURES"
-        )
+        if all(status == "RESULT_SUCCESS" for status in statuses):
+            status = "EXECUTION_SUCCESS"
+        elif all(
+            status in {"RESULT_SUCCESS", "IMPLEMENTATION_READY"}
+            for status in statuses
+        ):
+            status = "IMPLEMENTATION_READY"
+        else:
+            status = "EXECUTION_COMPLETED_WITH_FAILURES"
     else:
         if any(status not in protocol_terminal_statuses for status in statuses):
             raise ValueError("cannot finish incomplete Agent harness")

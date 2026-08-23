@@ -89,6 +89,14 @@ def _require_builder_namespace_path(value: Any, claim_id: str) -> None:
         raise ValueError("artifact path must remain inside the claim Builder namespace")
 
 
+def _candidate_paths(claim_id: str) -> set[str]:
+    prefix = f"claims/{claim_id}/builder/"
+    return {
+        f"{prefix}operator.json",
+        f"{prefix}implementation/manifest.json",
+    }
+
+
 def _validate_operator_instruction(
     message: dict[str, Any],
     claim_id: str,
@@ -158,10 +166,11 @@ def _validate_execution_instruction(
     base = {field: message[field] for field in _OPERATOR_FIELDS}
     base["message_type"] = OPERATOR_INSTRUCTION
     _validate_operator_instruction(base, claim_id)
-    if message["expected_artifact"]["path"] != (
-        f"claims/{claim_id}/builder/operator.json"
-    ):
-        raise ValueError("execution candidate must be Builder operator.json")
+    if message["expected_artifact"]["path"] not in _candidate_paths(claim_id):
+        raise ValueError(
+            "execution candidate must be Builder operator.json or "
+            "implementation/manifest.json"
+        )
     _validate_execution_criteria(message.get("success_criteria"))
     correction_number = message.get("correction_number")
     responds_to = message.get("responds_to_feedback_sha256")
@@ -246,12 +255,13 @@ def _validate_execution_feedback(
     base = {field: message[field] for field in _BUILDER_FIELDS}
     base["message_type"] = BUILDER_FEEDBACK
     _validate_builder_feedback(base, claim_id)
-    expected_candidate_path = f"claims/{claim_id}/builder/operator.json"
     if not any(
-        artifact["path"] == expected_candidate_path
+        artifact["path"] in _candidate_paths(claim_id)
         for artifact in message["artifact_state"]
     ):
-        raise ValueError("Builder feedback must report the operator.json candidate")
+        raise ValueError(
+            "Builder feedback must report operator.json or implementation/manifest.json"
+        )
     results = message.get("validation_results")
     result_fields = {"criterion_id", "passed", "evidence"}
     if not isinstance(results, list) or not results:

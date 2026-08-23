@@ -244,7 +244,9 @@ def _parser() -> argparse.ArgumentParser:
 
     candidate_finalize = sub.add_parser(
         "agent-candidate-finalize",
-        help="Evaluate a Terra candidate and publish its final Replica result.",
+        help=(
+            "Evaluate a component candidate or bind a verified implementation bundle."
+        ),
     )
     candidate_finalize.add_argument("registry", type=Path)
     candidate_finalize.add_argument("claim_id")

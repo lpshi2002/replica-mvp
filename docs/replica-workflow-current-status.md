@@ -1,7 +1,7 @@
 # Replica 워크플로우 현재 상태
 
-작성일: 2026-08-16
-현재 종료 지점: 공개 산출물 파일 생성
+작성일: 2026-08-22
+현재 종료 지점: 제한 Component는 공개 산출물, 실제 2차 bundle은 구현 준비 완료
 
 ## 전체 흐름
 
@@ -50,12 +50,22 @@ Vault를 분리한다. Operator는 공개 계약만 읽고 `replicate(runtime_in
 
 ## 현재 지원 범위
 
-현재 자동 구현 경로는 외부 파일, 네트워크, 로그인 정보 또는 외부 API 없이
-JSON 입력만으로 처리할 수 있는 기능을 대상으로 한다. 생성된 Python 구현은 제한된
-별도 프로세스에서 실행되며 파일·네트워크·프로세스 생성 기능을 사용할 수 없다.
+두 경로를 지원한다.
+
+- 기존 standalone Second-pass는 제한 expression/Python으로 구현하고 동결 평가와
+  공개를 끝낸다.
+- 완료된 company research는 ready/build claim의 전체 workflow, findings,
+  OSS/API/license 정보와 scenario를 Sol에 보존해서 전달한다. Terra는 테스트 정답이
+  제거된 Builder context와 Sol 지시를 받아 다중 파일 `implementation/` bundle,
+  dependency record, 환경변수 이름과 실행 명령을 만든다.
+
+Implementation bundle은 파일 경계와 해시까지 검증한 `IMPLEMENTATION_READY`다.
+아직 dependency 설치, 격리 실행, 봉인 평가와 공개 결과 처리가 연결되지 않았으므로
+`reproduced`나 `RESULT_SUCCESS`로 기록하지 않는다.
 
 ## 현재 결론
 
-현재 Replica 단계는 2차 JSON을 받아 실제 구현을 만들고, 비공개 동결 테스트와
-Completion Standard 판정을 거쳐 공개 파일 묶음을 생성하는 지점까지 구현되어 있다.
-UI 생성은 이 흐름에서 제거되었다.
+제한 Component 경로는 비공개 동결 테스트, Completion Standard 판정과 공개 파일
+묶음까지 구현되어 있다. 실제 research 기반 bundle 경로는 Sol/Terra 구현 handoff와
+구조 검증까지 구현되어 있으며 평가·공개 연결은 다음 단계다. UI 생성은 두 흐름에
+포함하지 않는다.

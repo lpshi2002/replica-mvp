@@ -47,8 +47,10 @@ def _instruction(
     operator_id=OPERATOR_ID,
     builder_id=BUILDER_ID,
     nonce=NONCE,
+    candidate_path=None,
 ):
     claim = _claim(claim_id) if claim is None else claim
+    candidate_path = candidate_path or f"claims/{claim_id}/builder/operator.json"
     return {
         "message_type": "replica-operator-execution-instruction/v1",
         "claim_id": claim_id,
@@ -63,7 +65,7 @@ def _instruction(
         ],
         "expected_result": "Every medium-high success criterion passes.",
         "expected_artifact": {
-            "path": f"claims/{claim_id}/builder/operator.json",
+            "path": candidate_path,
             "description": "Candidate component for the final result pipeline.",
         },
         "validation_expectations": ["Run all documented success checks."],
@@ -83,8 +85,10 @@ def _feedback(
     operator_id=OPERATOR_ID,
     builder_id=BUILDER_ID,
     nonce=NONCE,
+    candidate_path=None,
 ):
     claim = _claim(claim_id) if claim is None else claim
+    candidate_path = candidate_path or f"claims/{claim_id}/builder/operator.json"
     criteria = replica_success_criteria(claim)
     return {
         "message_type": "replica-builder-execution-feedback/v1",
@@ -103,7 +107,7 @@ def _feedback(
         ),
         "artifact_state": [
             {
-                "path": f"claims/{claim_id}/builder/operator.json",
+                "path": candidate_path,
                 "status": "created" if correction_number == 0 else "updated",
                 "details": "Artifact was executed against the documented suite.",
             }
@@ -174,6 +178,10 @@ class AgentExecutionTest(unittest.TestCase):
         self.assertEqual("SUCCESS", result["terminal_state"])
         self.assertEqual(0, result["correction_count"])
         self.assertEqual(1, len(result["attempts"]))
+        self.assertEqual(
+            f"claims/{CLAIM_ID}/builder/operator.json",
+            result["attempts"][0]["candidate_path"],
+        )
         self.assertEqual("PASS", result["attempts"][0]["decision"])
         self.assertNotIn("instruction", result["attempts"][0])
         self.assertNotIn("feedback", result["attempts"][0])
@@ -200,6 +208,46 @@ class AgentExecutionTest(unittest.TestCase):
             claim_criteria["claim:criterion-score"]["what"],
         )
 
+    def test_execution_accepts_and_binds_an_implementation_bundle(self):
+        state = create_agent_execution_state(
+            claim=_claim(),
+            claim_id=CLAIM_ID,
+            operator_agent_id=OPERATOR_ID,
+            builder_agent_id=BUILDER_ID,
+            pair_nonce=NONCE,
+        )
+        candidate_path = (
+            f"claims/{CLAIM_ID}/builder/implementation/manifest.json"
+        )
+
+        result = advance_agent_execution(
+            state,
+            _instruction(candidate_path=candidate_path),
+            _feedback(candidate_path=candidate_path),
+        )
+
+        self.assertEqual("SUCCESS", result["status"])
+        self.assertEqual(candidate_path, result["attempts"][0]["candidate_path"])
+
+    def test_feedback_must_report_the_instructed_candidate(self):
+        state = create_agent_execution_state(
+            claim=_claim(),
+            claim_id=CLAIM_ID,
+            operator_agent_id=OPERATOR_ID,
+            builder_agent_id=BUILDER_ID,
+            pair_nonce=NONCE,
+        )
+        with self.assertRaisesRegex(ValueError, "instructed candidate"):
+            advance_agent_execution(
+                state,
+                _instruction(
+                    candidate_path=(
+                        f"claims/{CLAIM_ID}/builder/implementation/manifest.json"
+                    )
+                ),
+                _feedback(),
+            )
+
     def test_initial_failure_then_first_correction_passes(self):
         state = create_agent_execution_state(
             claim=_claim(),
@@ -213,6 +261,7 @@ class AgentExecutionTest(unittest.TestCase):
             _instruction(),
             _feedback(passed=False),
         )
+        del failed["attempts"][0]["candidate_path"]
 
         corrected = advance_agent_execution(
             failed,
@@ -229,6 +278,10 @@ class AgentExecutionTest(unittest.TestCase):
         self.assertEqual(["RETRY", "PASS"], [
             attempt["decision"] for attempt in corrected["attempts"]
         ])
+        self.assertEqual(
+            f"claims/{CLAIM_ID}/builder/operator.json",
+            corrected["attempts"][0]["candidate_path"],
+        )
 
     def test_second_or_third_correction_can_pass(self):
         for pass_at in (2, 3):

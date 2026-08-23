@@ -14,8 +14,10 @@ registry. Reject missing, replaced, or cross-claim Agent identities.
 
 This Skill enforces global execution policy and lifecycle metadata. It does not
 analyze failures, write corrections, relay semantic messages, aggregate claims,
-or invent Final Replica JSON. It must invoke the repository's existing result
-pipeline for every successful Terra candidate.
+or invent Final Replica JSON. It must invoke `agent-candidate-finalize` for
+every successful Terra candidate. A legacy component enters the existing
+evaluation/publication pipeline; an implementation bundle is hash-bound as
+`IMPLEMENTATION_READY` without claiming final reproduction.
 
 ## Activate the existing pair
 
@@ -77,26 +79,32 @@ correction count instead of trusting a terminal label. If either child returns
 final before terminal, run `agent-continuity-premature`, interrupt the
 remaining peer, and stop without respawn.
 
-After a `SUCCESS` execution terminal, finalize the exact bound Terra candidate:
+After a `SUCCESS` execution terminal, read the exact `candidate_path` bound in
+the execution result and finalize that path:
 
 ```text
 replica-mvp agent-candidate-finalize \
-  REGISTRY CLAIM_ID claims/CLAIM_ID/builder/operator.json
+  REGISTRY CLAIM_ID BOUND_CANDIDATE_PATH
 ```
 
-This command reuses `prepare-operator` and `finalize-operator`, runs the frozen
-evaluation and determinism checks, writes the completion assessment and final
-reports, publishes `replica-result.json`, and binds their paths and hashes to
-the claim registry. Require claim status `RESULT_SUCCESS`. A malformed or
-failing candidate becomes `RESULT_FAILED`; never replace that outcome with the
+For `operator.json`, this command reuses `prepare-operator` and
+`finalize-operator`, runs the frozen evaluation and determinism checks, writes
+the completion assessment and final reports, and requires `RESULT_SUCCESS` or
+records `RESULT_FAILED`. For `implementation/manifest.json`, it validates the
+selected scenario, dependency record, entrypoint, command, declared file set,
+paths, symlinks, and hashes, then requires `IMPLEMENTATION_READY`. This state is
+only a verified implementation handoff; it is not `RESULT_SUCCESS`,
+`reproduced`, or published final output. Never replace either outcome with the
 earlier Agent feedback label. Failed and aborted execution claims have no
 candidate-finalization step.
 
-After every successful execution claim has `RESULT_SUCCESS` or `RESULT_FAILED`
-and every other claim has its execution terminal, run
-`agent-harness-finish`. Require `EXECUTION_SUCCESS` when all claims passed or
-`EXECUTION_COMPLETED_WITH_FAILURES` when any claim failed or aborted. Never
-rewrite one claim result because of another claim's outcome.
+After every successful execution claim has `RESULT_SUCCESS`, `RESULT_FAILED`,
+or `IMPLEMENTATION_READY` and every other claim has its execution terminal, run
+`agent-harness-finish`. Require `EXECUTION_SUCCESS` only when every claim has a
+published passing result, `IMPLEMENTATION_READY` when all remaining claims are
+verified bundles or published results, or `EXECUTION_COMPLETED_WITH_FAILURES`
+when any claim failed or aborted. Never rewrite one claim result because of
+another claim's outcome.
 
 Do not receive, forward, summarize, rewrite, or persist the instruction or
 feedback in the Replica Agent registry. After a direct terminal exchange and

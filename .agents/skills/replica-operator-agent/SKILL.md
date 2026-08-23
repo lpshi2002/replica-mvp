@@ -86,25 +86,39 @@ replica-mvp agent-execution-start EXECUTION_STATE CLAIM_PATH \
 Use the exact `success_criteria` returned in that state. Do not weaken, remove,
 or rewrite them after observing an artifact or test result.
 
-Derive the strategy from the claim's frozen input/output contract, acceptance
-criteria, supported scope, unsupported scope, limitations, evidence policy,
-and implementation instructions. Prefer deterministic parsing, calculation,
-and validation. Use only claim-provided facts and caller-supplied runtime
-input. Do not broaden supported scope, invent private-company behavior, alter
-acceptance criteria, or modify `claim.json`.
+For `replica-agent-claim/v2`, derive the strategy from the complete frozen
+`second_pass`: workflow steps, findings, implementation path, datasets/APIs,
+OSS sources, access and license notes, and the selected replication scenario.
+For a legacy claim, use its input/output contract, acceptance criteria, scope,
+limitations, evidence policy, and implementation instructions. Prefer the
+smallest implementation that performs the whole selected workflow. Use only
+claim-supported facts and authorized runtime inputs and assets. Do not broaden
+scope, invent private-company behavior, alter acceptance criteria, or modify
+`claim.json`.
 
-Give the Builder a complete execution plan. It must identify the exact method,
-files, code or patch content when known, ordered commands or execution actions,
-expected observations, artifact location, and validation expectations. Do not
-delegate high-level strategy selection back to the Builder.
+Give the Builder a complete execution plan. Identify the selected scenario,
+implementation type, exact method, files, pinned dependencies and sources,
+license constraints, required environment-variable names, ordered commands,
+expected observations, artifact location, and validation expectations. Never
+include Second-pass test expected behavior, reference facts, or original
+outputs in the instruction. Do not delegate high-level strategy selection back
+to the Builder.
 
-The required candidate is always
-`claims/<claim-id>/builder/operator.json`. It is a
-`replica-component-generation/v1` envelope containing one
-`replica-generated-component/v1` component in either
-`replica-expression/v1` or `replica-python/v1`. It must copy the frozen claim's
-input and output contracts exactly. This is the candidate consumed by the
-repository finalizer, not a self-declared final `replica-result.json`.
+Choose one candidate boundary:
+
+- Use `claims/<claim-id>/builder/operator.json` only when the whole workflow is
+  a pure JSON transformation expressible as one `replica-expression/v1` or
+  restricted `replica-python/v1` component.
+- Use `claims/<claim-id>/builder/implementation/manifest.json` for
+  `replica-agent-claim/v2` and for any workflow that needs multiple files,
+  imports, file or corpus access, OSS dependencies, a model or API adapter,
+  state, or an external side effect. The manifest is
+  `replica-implementation-bundle/v1` and its declared files are the candidate.
+
+Copy the selected scenario's input, output, and dependency level exactly. Do
+not ask for a self-declared `replica-result.json`. A bundle is structurally
+bound as `IMPLEMENTATION_READY`; later evaluator expansion, not Agent feedback,
+determines whether it is reproduced.
 
 Write `instruction-NNN.json` in the Operator namespace using this exact
 contract (unknown or omitted fields are invalid):
@@ -124,8 +138,8 @@ contract (unknown or omitted fields are invalid):
   ],
   "expected_result": "<observable result>",
   "expected_artifact": {
-    "path": "claims/<claim-id>/builder/operator.json",
-    "description": "replica-component-generation/v1 candidate for the final result pipeline"
+    "path": "<exact-selected-candidate-path>",
+    "description": "the selected component or implementation-bundle candidate"
   },
   "validation_expectations": ["<specific check or command>"],
   "success_criteria": [
