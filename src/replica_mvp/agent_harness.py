@@ -138,12 +138,20 @@ def prepare_agent_harness(
     *,
     replica_agent_id: str,
     parent_agent_id: str,
+    replica_agent_model: str = SOL_MODEL,
+    operator_model: str = SOL_MODEL,
+    builder_model: str = TERRA_MODEL,
 ) -> dict[str, Any]:
-    """Prepare deterministic state for real Codex Agent orchestration."""
+    """Prepare deterministic state for real Agent orchestration."""
     if not _is_nonempty_text(replica_agent_id) or not _is_nonempty_text(
         parent_agent_id
     ):
         raise ValueError("invalid Replica Agent identity")
+    if not all(
+        _is_nonempty_text(model)
+        for model in (replica_agent_model, operator_model, builder_model)
+    ):
+        raise ValueError("invalid Agent model policy")
     canonical = parse_second_pass(second_pass)
     run_dir.mkdir(parents=True, exist_ok=False)
     claims_root = run_dir / "claims"
@@ -183,7 +191,7 @@ def prepare_agent_harness(
                     "artifact_owner": "operator",
                     "claim_id": claim_id,
                     "parent_agent_id": replica_agent_id,
-                    "requested_model": SOL_MODEL,
+                    "requested_model": operator_model,
                     "role": "operator",
                     "status": "PENDING",
                 },
@@ -194,7 +202,7 @@ def prepare_agent_harness(
                     "artifact_owner": "builder",
                     "claim_id": claim_id,
                     "parent_agent_id": replica_agent_id,
-                    "requested_model": TERRA_MODEL,
+                    "requested_model": builder_model,
                     "role": "builder",
                     "status": "PENDING",
                 },
@@ -225,7 +233,7 @@ def prepare_agent_harness(
         "replica_agent": {
             "agent_id": replica_agent_id,
             "parent_agent_id": parent_agent_id,
-            "requested_model": SOL_MODEL,
+            "requested_model": replica_agent_model,
             "role": "replica_agent",
             "status": "RUNNING",
         },
@@ -253,6 +261,9 @@ def prepare_agent_harness_from_path(
     *,
     replica_agent_id: str,
     parent_agent_id: str,
+    replica_agent_model: str = SOL_MODEL,
+    operator_model: str = SOL_MODEL,
+    builder_model: str = TERRA_MODEL,
 ) -> dict[str, Any]:
     """Read immutable Second JSON and prepare a real-Agent harness registry."""
     try:
@@ -267,6 +278,9 @@ def prepare_agent_harness_from_path(
         run_dir,
         replica_agent_id=replica_agent_id,
         parent_agent_id=parent_agent_id,
+        replica_agent_model=replica_agent_model,
+        operator_model=operator_model,
+        builder_model=builder_model,
     )
 
 

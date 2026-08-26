@@ -160,6 +160,63 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                     "growth-labs-seat-guidance",
                 )
 
+    def test_model_policy_is_configurable_and_still_binds_every_spawn(self):
+        with TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run"
+            registry_path = run_dir / "agent-harness.json"
+            claim_id = "growth-labs-lead-qualification"
+            registry = prepare_agent_harness(
+                _legacy_claim(),
+                run_dir,
+                replica_agent_id="/root/replica_agent",
+                parent_agent_id="/root",
+                replica_agent_model="claude-opus-5",
+                operator_model="claude-opus-5",
+                builder_model="claude-sonnet-5",
+            )
+
+            self.assertEqual(
+                "claude-opus-5",
+                registry["replica_agent"]["requested_model"],
+            )
+            claim = registry["claims"][0]
+            self.assertEqual("claude-opus-5", claim["operator"]["requested_model"])
+            self.assertEqual("claude-sonnet-5", claim["builder"]["requested_model"])
+
+            start_agent_claim(registry_path, claim_id)
+            with self.assertRaises(ValueError):
+                record_agent_spawn(
+                    registry_path,
+                    claim_id,
+                    role="operator",
+                    agent_id="/root/replica_agent/operator_001",
+                    parent_agent_id="/root/replica_agent",
+                    requested_model="gpt-5.6-sol",
+                )
+            linked = record_agent_spawn(
+                registry_path,
+                claim_id,
+                role="operator",
+                agent_id="/root/replica_agent/operator_001",
+                parent_agent_id="/root/replica_agent",
+                requested_model="claude-opus-5",
+            )
+            self.assertEqual(
+                "claude-opus-5",
+                linked["claims"][0]["operator"]["requested_model"],
+            )
+
+    def test_model_policy_rejects_an_empty_model_request(self):
+        with TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                prepare_agent_harness(
+                    _legacy_claim(),
+                    Path(tmp) / "run",
+                    replica_agent_id="/root/replica_agent",
+                    parent_agent_id="/root",
+                    builder_model="",
+                )
+
     def test_spawned_agents_are_same_parent_siblings_and_exact_peers(self):
         with TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "run"

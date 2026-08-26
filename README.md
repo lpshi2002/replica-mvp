@@ -21,8 +21,10 @@
 
 | 구성요소 | 역할 |
 |---|---|
-| `AGENTS.md` | 기업 조사·Replica 요청을 감지해 전용 Skill을 읽도록 라우팅 |
+| `AGENTS.md` | Codex 세션에서 기업 조사·Replica 요청을 감지해 전용 Skill을 읽도록 라우팅 |
+| `CLAUDE.md` | Claude Code 세션의 같은 라우팅. 런타임 모델 정책과 Codex 대비 차이를 함께 정의 |
 | `skills/replica-research/SKILL.md` | 출처 정책, 1·2차 조사 순서, 점수화, 준비도와 실행 경계를 정의하는 운영 로직 |
+| `.agents/skills/`, `.claude/skills/` | 각각 Codex·Claude 런타임 전용 Replica 구현·하네스 Skill |
 | 현재 Codex 태스크 | 웹 조사, 주장 추출, 점수화, JSON 갱신과 선택적 Replica 실행을 수행하는 실행 주체 |
 | `templates/company-research.json` | 회사별 조사 결과가 따라야 하는 최소 구조 |
 | `src/replica_mvp/` | 준비된 주장 하나를 실행 파일로 펼치고 평가·보고하는 CLI |

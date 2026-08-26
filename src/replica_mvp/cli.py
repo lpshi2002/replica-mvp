@@ -10,6 +10,8 @@ from .agent_execution import (
     create_agent_execution_state_file,
 )
 from .agent_harness import (
+    SOL_MODEL,
+    TERRA_MODEL,
     finalize_agent_candidate,
     finish_agent_continuity,
     finish_agent_harness,
@@ -99,6 +101,9 @@ def _parser() -> argparse.ArgumentParser:
     harness_init.add_argument("run_dir", type=Path)
     harness_init.add_argument("--replica-agent-id", required=True)
     harness_init.add_argument("--parent-agent-id", required=True)
+    harness_init.add_argument("--replica-agent-model", default=SOL_MODEL)
+    harness_init.add_argument("--operator-model", default=SOL_MODEL)
+    harness_init.add_argument("--builder-model", default=TERRA_MODEL)
 
     harness_start = sub.add_parser(
         "agent-harness-start",
@@ -372,6 +377,9 @@ def main(argv: list[str] | None = None) -> int:
                 args.run_dir,
                 replica_agent_id=args.replica_agent_id,
                 parent_agent_id=args.parent_agent_id,
+                replica_agent_model=args.replica_agent_model,
+                operator_model=args.operator_model,
+                builder_model=args.builder_model,
             )
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-harness-start":
