@@ -102,7 +102,11 @@ Collect enough public evidence to decide and prepare replication:
 - benchmarks, reference answers, rules, or other evaluation assets;
 - access method, coverage, license or usage limits, and a synthetic fallback
   when required inputs are not public;
-- minimum implementation path, limitations, and open questions.
+- implementation paths that perform the full documented workflow, including
+  fidelity-critical model, API, OSS, data, and side-effect dependencies,
+  limitations, and open questions. Do not present a rule-based shortcut or
+  test double as the implementation path unless the public scenario explicitly
+  defines it as production behavior.
 
 Attach the result to that claim's `second_pass` field in the same
 `research.json`. Use `confirmed`, `refined`, `merged`, or `rejected` for its

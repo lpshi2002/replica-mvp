@@ -93,19 +93,29 @@ For `replica-agent-claim/v2`, derive the strategy from the complete frozen
 `second_pass`: workflow steps, findings, implementation path, datasets/APIs, OSS
 sources, access and license notes, and the selected replication scenario. For a
 legacy claim, use its input/output contract, acceptance criteria, scope,
-limitations, evidence policy, and implementation instructions. Prefer the
-smallest implementation that performs the whole selected workflow. Use only
-claim-supported facts and authorized runtime inputs and assets. Do not broaden
-scope, invent private-company behavior, alter acceptance criteria, or modify
-`claim.json`.
+limitations, evidence policy, and implementation instructions. Treat the
+selected scenario and its researched implementation path as fidelity
+requirements, not optimization hints. Implement the whole selected workflow
+through its documented model, API, OSS, data, and side-effect path. Do not
+replace that path with rules, templates, extractive heuristics, a no-op action,
+or a test adapter merely because the substitute is cheaper, local, or can pass
+the frozen cases. A synthetic or deterministic fallback is valid only when the
+selected scenario explicitly defines it as production behavior. If a required
+public dependency, asset, credential, or runtime cannot be used, instruct the
+Builder to return `blocked` with the missing requirement instead of downgrading
+the implementation. Use only claim-supported facts and authorized runtime
+inputs and assets. Do not broaden scope, invent private-company behavior, alter
+acceptance criteria, or modify `claim.json`.
 
 Give the Builder a complete execution plan. Identify the selected scenario,
 implementation type, exact method, files, pinned dependencies and sources,
 license constraints, required environment-variable names, ordered commands,
-expected observations, artifact location, and validation expectations. Never
-include Second-pass test expected behavior, reference facts, or original outputs
-in the instruction. Do not delegate high-level strategy selection back to the
-Builder.
+expected observations, artifact location, and validation expectations. Mark
+each fidelity-critical dependency or side effect and require an actual runtime
+check of the production path. Test doubles may check an adapter boundary but
+cannot satisfy a functional or claim criterion. Never include Second-pass test
+expected behavior, reference facts, or original outputs in the instruction. Do
+not delegate high-level strategy selection back to the Builder.
 
 Choose one candidate boundary:
 

@@ -110,6 +110,14 @@ Write exactly the candidate selected by the Operator instruction:
   read unrelated workspace files, copy credentials, embed secret values, or use
   undeclared dependencies.
 
+The selected scenario and the Operator's researched implementation path are
+mandatory. Do not downgrade a model, API, OSS, data, or side-effect path to
+rules, templates, extractive heuristics, a no-op action, or a test adapter. A
+test double may exercise an adapter boundary, but it is not the production
+candidate and cannot prove a functional or claim criterion. If the required
+dependency, asset, credential, or runtime is unavailable, return detailed
+`blocked` feedback rather than reporting success for a substitute.
+
 The bundle manifest must contain exactly:
 
 ```json
