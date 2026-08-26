@@ -1,0 +1,18 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  full-suite:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run the full test suite
+        run: python -m unittest discover -s tests
