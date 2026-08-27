@@ -24,9 +24,10 @@ evaluation/publication pipeline; an implementation bundle is hash-bound as
 For each ready claim, reuse its recorded Operator and Builder. Process claims
 independently; a terminal failure does not change another claim. Never spawn a
 protocol or correction replacement. A plain `send_message` does not start a
-new turn for a completed Agent, so activate the Builder once with
-`followup_task`, then activate the Operator once. Both follow-ups must target
-the registry's exact canonical IDs. Give both only this identity envelope:
+new turn for a completed Agent. Start each round by activating any completed
+participant with `followup_task`, Builder first and then Operator. Reuse the
+registry's exact canonical IDs; never spawn a replacement. Both follow-ups
+contain only this identity envelope:
 
 ```json
 {
@@ -54,8 +55,17 @@ Run `agent-continuity-start` with the exact pair IDs and nonce. The Sol
 Operator sends `replica-operator-execution-instruction/v1` directly to the
 Terra Builder. The Builder sends
 `replica-builder-execution-feedback/v1` directly to that Operator.
-Both stay inside those activated turns and use bounded native `wait_agent`
-between direct rounds. Do not issue another follow-up for a correction.
+An Agent may use bounded native `wait_agent` and stay active between direct
+rounds. It may also yield a control-only round report after its required direct
+send or receive. In that case, reactivate the same canonical Agent ID for the
+next round; this is a round pause, not premature claim completion.
+
+Do not wait forever for a round action. Allow at most two consecutive
+60-second waits without new control metadata or Operator execution-state
+progress. After the first timeout, request control-only status from the bound
+child. After the second, interrupt that stalled child, record a claim-scoped
+abort with `agent-continuity-premature` and a timeout reason, interrupt its
+peer, and continue with the next ready claim.
 
 ## Preserve the non-relay path
 
@@ -76,12 +86,15 @@ Operator and Builder complete a direct terminal exchange. The state path must
 be the exact `execution-state.json` in the bound Operator namespace. This lets
 the harness verify the immutable claim hash, pair binding, PASS/FAIL decision,
 criterion results, failed-check count, suite hash, Judge metadata, and
-correction count instead of trusting a terminal label. If either child returns
-final before terminal, run `agent-continuity-premature`, interrupt the
-remaining peer, and do not respawn or reactivate that claim. This abort is
-claim-scoped: continue with the next `READY_FOR_PROTOCOL` claim and preserve
-its existing sibling pair. A failed, aborted, or blocked claim must never stop
-unrelated claims from reaching their own terminal and candidate finalization.
+correction count instead of trusting a terminal label. Run
+`agent-continuity-premature` only when a child returns before completing its
+required direct action for the current round, returns semantic content to the
+Replica Agent, or changes the bound identity. A validated control-only report
+confirming that the instruction or feedback was sent directly is a round pause:
+keep the claim active and reactivate that same child when its next direct
+message is queued. A real abort is claim-scoped: interrupt the remaining peer,
+do not replace the pair, continue with the next `READY_FOR_PROTOCOL` claim,
+and never let a failed, aborted, or blocked claim stop unrelated claims.
 
 After a `SUCCESS` execution terminal, read the exact `candidate_path` bound in
 the execution result and finalize that path:
@@ -112,5 +125,7 @@ another claim's outcome.
 
 Do not receive, forward, summarize, rewrite, or persist the instruction or
 feedback in the Replica Agent registry. After a direct terminal exchange and
-ack, run `agent-continuity-terminal`; only then may both child turns return
-final. Leave the source Second JSON and every derived `claim.json` unchanged.
+ack, run `agent-continuity-terminal`; only then is the claim final. Earlier
+child finals satisfying the round-pause rule above are control yields, not
+terminal claim results. Leave the source Second JSON and every derived
+`claim.json` unchanged.

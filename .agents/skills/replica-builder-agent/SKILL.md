@@ -22,11 +22,12 @@ completion report in response to a different control type.
 When the activation also has `replica_execution_loop: true`, accept the STEP 4
 execution contracts below and enforce correction numbers 0 through 3.
 
-The smoke turn may finish because it only verifies pair creation. A persistent
-claim turn must remain active across every instruction/feedback round and may
-return final only after `SUCCESS`, `FAILED`, or `ABORTED` terminal exchange.
-Use bounded native `wait_agent` calls to wait for the Operator; do not busy
-poll.
+The smoke turn may finish because it only verifies pair creation. During a
+persistent claim, use bounded native `wait_agent` calls to wait for the
+Operator; do not busy poll. If the turn yields after a validated direct
+feedback send, return control metadata only. The Replica Agent may reactivate
+this same canonical Builder ID for the next queued direct message; that round
+pause is not a terminal claim result.
 
 ## Harness smoke mode
 
@@ -247,16 +248,15 @@ primitive. During the active session, send the Replica Agent only control
 metadata with `send_message`: claim ID, pair identities, nonce, correction
 number, instruction received directly, feedback sent directly, and validation
 success. Never send or summarize the semantic instruction or feedback through
-the Replica Agent. Return a final control report only after the direct terminal
-ack.
+the Replica Agent. Any pre-terminal return is only a control-only round-pause
+report. The claim is final only after the direct terminal ack.
 
-Every `blocked` feedback is nonterminal. Never return final merely because a
-credential, asset, or dependency is missing. After nonterminal feedback, remain
-in the same active turn and wait for the
-same Operator with bounded `wait_agent`. Accept the next correction directly;
-do not require a Replica follow-up and do not return final between rounds. On
-direct terminal control, send a direct ack and only then return final. If the
-peer disappears or this Agent cannot remain active before terminal, report
-continuity failure without spawning or accepting a replacement. This Skill
-rejects a correction number greater than 3 and does not silently rerun with a
-new Builder.
+Every feedback, including `success`, `failed`, and `blocked`, is nonterminal;
+only the Operator sends terminal control. Never claim terminal completion
+merely because feedback was sent or a credential, asset, or dependency is
+missing. After feedback, wait for the same Operator when possible. If the turn
+yields first, accept a later identity-only reactivation from the Replica Agent
+for this same canonical ID and read the already queued direct correction or
+terminal control. On terminal, send a direct ack and only then report terminal
+completion. Reject a changed peer, pair binding, or correction number greater
+than 3; never accept a replacement Builder.

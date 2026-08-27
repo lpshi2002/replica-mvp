@@ -214,12 +214,13 @@ Send the validated JSON itself directly to the exact Builder with the
 Agent-to-Agent messaging primitive. Do not send it to the Replica Agent for
 forwarding, summarization, or rewriting.
 
-After sending, remain in the same active turn and wait for the direct Builder
-feedback with bounded `wait_agent`. Do not return final after sending an
-instruction or receiving a nonterminal feedback message. For every validated
-round trip, send the Replica Agent only control metadata containing the bound
-IDs, nonce, round number, and direct send/receive booleans; never include the
-instruction or feedback body.
+After sending, wait for direct Builder feedback with bounded `wait_agent`. If
+the turn yields after the validated direct send, return control metadata only;
+the Replica Agent may reactivate this same canonical Operator ID after the
+Builder's direct feedback is queued. Such a round pause is not a terminal claim
+result. For every validated round trip, send the Replica Agent only control
+metadata containing the bound IDs, nonce, round number, and direct send/receive
+booleans; never include the instruction or feedback body.
 
 ## Analyze direct Builder feedback
 
