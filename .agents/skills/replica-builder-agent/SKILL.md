@@ -118,6 +118,18 @@ candidate and cannot prove a functional or claim criterion. If the required
 dependency, asset, credential, or runtime is unavailable, return detailed
 `blocked` feedback rather than reporting success for a substitute.
 
+For a `model_runtime`, implement the instructed provider with the standard
+library subprocess API and the exact non-interactive, isolated CLI controls in
+the Operator instruction. Pass an argv list without `shell=True`, enforce a
+timeout, keep prompts and schemas in a temporary working directory, validate
+the exit status and structured JSON output, and surface stderr without leaking
+credentials. Never give the model tools or access to the Replica workspace.
+Declare the installed `codex-cli` or `claude-code` version and official source
+in `dependencies`; do not add an SDK or download a separate generative model.
+Run at least one real production-path model check. A missing executable, missing
+authentication, timeout, or malformed response is `blocked` or failed evidence,
+not permission to use a deterministic substitute.
+
 The bundle manifest must contain exactly:
 
 ```json

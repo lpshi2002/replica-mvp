@@ -13,6 +13,7 @@ LEGACY_SECOND_PASS_SCHEMA = "replica-second-pass-result/v1"
 MULTI_SECOND_PASS_SCHEMA = "replica-second-pass-claim-collection/v1"
 CANONICAL_CLAIM_COLLECTION_SCHEMA = "replica-claim-collection/v1"
 RESEARCH_AGENT_CLAIM_SCHEMA = "replica-agent-claim/v2"
+MODEL_RUNTIMES = ("codex", "claude")
 DEPENDENCY_ORDER = {
     "oss_only": 0,
     "commercial_api": 1,
@@ -236,7 +237,11 @@ def validate_second_pass_claim(
     return value
 
 
-def _research_agent_claims(value: dict[str, Any]) -> list[dict[str, Any]]:
+def _research_agent_claims(
+    value: dict[str, Any],
+    *,
+    model_runtime: str | None,
+) -> list[dict[str, Any]]:
     company = value.get("company")
     claims = value.get("claims")
     if (
@@ -294,36 +299,50 @@ def _research_agent_claims(value: dict[str, Any]) -> list[dict[str, Any]]:
         scenario_ids = [scenario["id"] for scenario in scenarios]
         if len(set(scenario_ids)) != len(scenario_ids):
             raise ValueError("duplicate research scenario identity")
-        selected = min(
+        selected = next(
+            (
+                scenario
+                for scenario in scenarios
+                if model_runtime
+                and scenario["self_sufficiency"] == "commercial_api"
+            ),
+            None,
+        ) or min(
             enumerate(scenarios),
             key=lambda item: (
                 DEPENDENCY_ORDER[item[1]["self_sufficiency"]],
                 item[0],
             ),
         )[1]
+        payload = {
+            "schema_version": RESEARCH_AGENT_CLAIM_SCHEMA,
+            "claim_id": claim_id,
+            "company": copy.deepcopy(company),
+            "first_pass": copy.deepcopy(claim.get("first_pass")),
+            "second_pass": copy.deepcopy(second_pass),
+            "selected_scenario_id": selected["id"],
+            "input_contract": selected["input"],
+            "output_contract": selected["output"],
+            "acceptance_criteria": [
+                {
+                    "id": f"criterion-{index:03d}",
+                    "description": description,
+                }
+                for index, description in enumerate(
+                    selected["acceptance_criteria"],
+                    start=1,
+                )
+            ],
+        }
+        if model_runtime:
+            payload["model_runtime"] = {
+                "provider": model_runtime,
+                "transport": "local_cli",
+            }
         prepared.append(
             {
                 "claim_id": claim_id,
-                "payload": {
-                    "schema_version": RESEARCH_AGENT_CLAIM_SCHEMA,
-                    "claim_id": claim_id,
-                    "company": copy.deepcopy(company),
-                    "first_pass": copy.deepcopy(claim.get("first_pass")),
-                    "second_pass": copy.deepcopy(second_pass),
-                    "selected_scenario_id": selected["id"],
-                    "input_contract": selected["input"],
-                    "output_contract": selected["output"],
-                    "acceptance_criteria": [
-                        {
-                            "id": f"criterion-{index:03d}",
-                            "description": description,
-                        }
-                        for index, description in enumerate(
-                            selected["acceptance_criteria"],
-                            start=1,
-                        )
-                    ],
-                },
+                "payload": payload,
             }
         )
     if not prepared:
@@ -331,12 +350,21 @@ def _research_agent_claims(value: dict[str, Any]) -> list[dict[str, Any]]:
     return prepared
 
 
-def parse_second_pass(value: Any) -> dict[str, Any]:
+def parse_second_pass(
+    value: Any,
+    *,
+    model_runtime: str | None = None,
+) -> dict[str, Any]:
     """Normalize a Second-pass input to the canonical claim collection."""
+    if model_runtime is not None and model_runtime not in MODEL_RUNTIMES:
+        raise ValueError("invalid Replica model runtime")
     if not isinstance(value, dict):
         raise ValueError("invalid second-pass claim collection")
     if value.get("schema_version") in {1, 2}:
-        canonical_claims = _research_agent_claims(value)
+        canonical_claims = _research_agent_claims(
+            value,
+            model_runtime=model_runtime,
+        )
         source_claims = None
     elif value.get("schema_version") == LEGACY_SECOND_PASS_SCHEMA:
         source_claims = [value]

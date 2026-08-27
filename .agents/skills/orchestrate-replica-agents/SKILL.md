@@ -19,14 +19,18 @@ Run:
 ```text
 replica-mvp agent-harness-init SECOND_JSON RUN_DIR \
   --replica-agent-id REPLICA_AGENT_ID \
-  --parent-agent-id PARENT_AGENT_ID
+  --parent-agent-id PARENT_AGENT_ID \
+  --model-runtime codex
 ```
 
 This command calls `parse_second_pass()`, writes `agent-harness.json`, and
 creates `claims/<claim-id>/claim.json`, `builder-context.json`, `operator/`, and
 `builder/`. For a company research input it selects only `ready` + `build`
 claims, preserves the complete Second-pass workflow, findings, and scenario
-contracts in `claim.json`, and chooses the most self-sufficient scenario first.
+contracts in `claim.json`, and chooses the first `commercial_api` scenario when
+one exists. Supported language and vision model steps in that scenario use
+Codex; explicit modality-specific APIs remain unchanged. If there is no
+commercial scenario, the harness keeps the existing self-sufficiency order.
 `builder-context.json` contains the public implementation context with test
 expectations and reference facts removed. Treat the source, `claim.json`, and
 `builder-context.json` as immutable. The Replica Agent alone owns registry
@@ -45,7 +49,8 @@ Spawn the Operator with the real Agent primitive using all of:
 - a claim-ordinal task name such as `operator_001`
 - a task containing only the claim ID, that claim's `claim.json` path, its
   operator artifact namespace, this Replica Agent ID, and an instruction to
-  read `.agents/skills/replica-operator-agent/SKILL.md`
+  read `.agents/skills/replica-operator-agent/SKILL.md`; include model runtime
+  `codex`
 
 Record the returned canonical Agent ID with `agent-harness-spawned`, including
 the exact requested model and this Replica Agent ID as parent.
@@ -59,7 +64,7 @@ Operator, using all of:
 - a task containing only the same claim ID and `builder-context.json`, its builder
   artifact namespace, the Operator's canonical Agent ID, and an instruction
   to read `.agents/skills/replica-builder-agent/SKILL.md`; include the claim
-  nonce in this task
+  nonce and model runtime `codex` in this task
 
 Record the returned Builder ID in the same way. The registry links peers only
 after both spawns have succeeded and proves siblinghood by their identical

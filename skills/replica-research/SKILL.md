@@ -16,7 +16,8 @@ internal systems.
 - Do not ask the user for model commands, API keys, specs, tests, or a target
   capability when public research can derive them.
 - Keep this repository from calling Codex or a model API unless the user
-  explicitly requests a standalone automated runner.
+  explicitly requests a standalone automated runner or starts the Agent harness
+  with its explicit `--model-runtime` setting.
 - Perform company research in two passes. Stop after pass 2 unless the user
   asks to build, run, or evaluate a Replica.
 - Create the authoritative `work/<company-slug>/research.json` from
@@ -107,6 +108,11 @@ Collect enough public evidence to decide and prepare replication:
   limitations, and open questions. Do not present a rule-based shortcut or
   test double as the implementation path unless the public scenario explicitly
   defines it as production behavior.
+- when a text or supported-vision model is required, a `commercial_api` scenario that can
+  use the harness-selected `codex` or `claude` local CLI runtime instead of
+  requiring a separately downloaded generative model. Keep embeddings, OCR,
+  speech, audio, video, and other modality-specific dependencies explicit when
+  the selected runtime cannot perform them.
 
 Attach the result to that claim's `second_pass` field in the same
 `research.json`. Use `confirmed`, `refined`, `merged`, or `rejected` for its
@@ -180,6 +186,12 @@ flatten away `workflow`, `findings.datasets_apis`, `findings.oss_papers_patents`
 scenarios. The harness selects `ready` + `build` claims, gives Sol the complete
 immutable Second-pass claim, and gives Terra a public `builder-context.json`
 without test expectations or reference facts.
+
+Set `--model-runtime codex` on the Codex route and `--model-runtime claude` on
+the Claude route. When a claim has a `commercial_api` scenario, the harness
+selects it so the generated Replica can use that runtime for text or supported-vision
+model work. If no such scenario exists, keep the researched scenario unchanged;
+the Agents must block rather than silently relabel an OSS path as commercial.
 
 When producing the standalone `replica-second-pass-result/v1` build input for
 a question-answer capability, copy the frozen public `experience` object to

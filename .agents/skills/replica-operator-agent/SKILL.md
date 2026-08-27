@@ -104,6 +104,27 @@ the implementation. Use only claim-supported facts and authorized runtime
 inputs and assets. Do not broaden scope, invent private-company behavior, alter
 acceptance criteria, or modify `claim.json`.
 
+When the workflow needs generative text, reasoning, or supported vision, use
+the frozen `model_runtime` from `claim.json` (or the launch metadata for a
+legacy claim) as the production model. Generate a small standard-library
+subprocess adapter for exactly that provider:
+
+- `codex`: run `codex exec` non-interactively with `--ephemeral`,
+  `--ignore-user-config`, `--ignore-rules`, `--sandbox read-only`, an isolated
+  temporary `--cd`, stdin prompt input, `--output-schema`, and
+  `--output-last-message`.
+- `claude`: run `claude -p` with `--safe-mode`, `--no-session-persistence`,
+  `--permission-mode dontAsk`, `--tools ""`, `--output-format json`, and
+  `--json-schema` from an isolated temporary working directory.
+
+Require an argv invocation without a shell, a bounded timeout, exit-code and
+stderr handling, JSON decoding, and output-schema validation. Do not expose the
+Replica workspace or grant model tools. This runtime does not replace required
+embedding, OCR, speech, audio, video, or side-effect dependencies. If using it
+would contradict a non-`commercial_api` selected scenario, or the executable or
+authentication is unavailable, return `blocked` instead of changing the frozen
+dependency level or falling back to rules.
+
 Give the Builder a complete execution plan. Identify the selected scenario,
 implementation type, exact method, files, pinned dependencies and sources,
 license constraints, required environment-variable names, ordered commands,
@@ -112,7 +133,9 @@ each fidelity-critical dependency or side effect and require an actual runtime
 check of the production path. Test doubles may check an adapter boundary but
 cannot satisfy a functional or claim criterion. Never include Second-pass test
 expected behavior, reference facts, or original outputs in the instruction. Do
-not delegate high-level strategy selection back to the Builder.
+not delegate high-level strategy selection back to the Builder. For a model
+runtime, require the manifest to declare the installed `codex-cli` or
+`claude-code` version and official source.
 
 Choose one candidate boundary:
 

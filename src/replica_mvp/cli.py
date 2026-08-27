@@ -31,6 +31,7 @@ from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .experience import experience_input_once, experience_once
 from .intake import receive_second_pass
 from .project import build_project, evaluate_project, init_project, write_report
+from .second_pass import MODEL_RUNTIMES
 
 
 def _command_arguments(value: str) -> list[str]:
@@ -104,6 +105,11 @@ def _parser() -> argparse.ArgumentParser:
     harness_init.add_argument("--replica-agent-model", default=SOL_MODEL)
     harness_init.add_argument("--operator-model", default=SOL_MODEL)
     harness_init.add_argument("--builder-model", default=TERRA_MODEL)
+    harness_init.add_argument(
+        "--model-runtime",
+        choices=MODEL_RUNTIMES,
+        default="codex",
+    )
 
     harness_start = sub.add_parser(
         "agent-harness-start",
@@ -380,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
                 replica_agent_model=args.replica_agent_model,
                 operator_model=args.operator_model,
                 builder_model=args.builder_model,
+                model_runtime=args.model_runtime,
             )
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-harness-start":

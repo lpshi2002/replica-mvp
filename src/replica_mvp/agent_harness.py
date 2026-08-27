@@ -9,7 +9,7 @@ from typing import Any, NoReturn
 
 from .agent_execution import load_agent_execution_state_file
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
-from .second_pass import parse_second_pass
+from .second_pass import MODEL_RUNTIMES, parse_second_pass
 
 
 HARNESS_SCHEMA = "replica-agent-harness/v1"
@@ -92,13 +92,21 @@ def _claim_record(registry: dict[str, Any], claim_id: str) -> dict[str, Any]:
     raise ValueError(f"unknown claim identity: {claim_id}")
 
 
-def _builder_context(claim_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _builder_context(
+    claim_id: str,
+    payload: dict[str, Any],
+    model_runtime: str,
+) -> dict[str, Any]:
     if payload.get("schema_version") != "replica-agent-claim/v2":
         public_contract = deepcopy(payload)
         public_contract.pop("tests", None)
         return {
             "schema_version": BUILDER_CONTEXT_SCHEMA,
             "claim_id": claim_id,
+            "model_runtime": {
+                "provider": model_runtime,
+                "transport": "local_cli",
+            },
             "contract": public_contract,
         }
 
@@ -114,6 +122,7 @@ def _builder_context(claim_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": BUILDER_CONTEXT_SCHEMA,
         "claim_id": claim_id,
+        "model_runtime": deepcopy(payload["model_runtime"]),
         "company": deepcopy(payload["company"]),
         "first_pass": deepcopy(payload.get("first_pass")),
         "workflow": deepcopy(second_pass.get("workflow")),
@@ -141,6 +150,7 @@ def prepare_agent_harness(
     replica_agent_model: str = SOL_MODEL,
     operator_model: str = SOL_MODEL,
     builder_model: str = TERRA_MODEL,
+    model_runtime: str = "codex",
 ) -> dict[str, Any]:
     """Prepare deterministic state for real Agent orchestration."""
     if not _is_nonempty_text(replica_agent_id) or not _is_nonempty_text(
@@ -152,7 +162,9 @@ def prepare_agent_harness(
         for model in (replica_agent_model, operator_model, builder_model)
     ):
         raise ValueError("invalid Agent model policy")
-    canonical = parse_second_pass(second_pass)
+    if model_runtime not in MODEL_RUNTIMES:
+        raise ValueError("invalid Replica model runtime")
+    canonical = parse_second_pass(second_pass, model_runtime=model_runtime)
     run_dir.mkdir(parents=True, exist_ok=False)
     claims_root = run_dir / "claims"
     claims_root.mkdir()
@@ -173,7 +185,11 @@ def prepare_agent_harness(
         )
         _write_new_json(
             run_dir / builder_context_path,
-            _builder_context(claim_id, canonical_claim["payload"]),
+            _builder_context(
+                claim_id,
+                canonical_claim["payload"],
+                model_runtime,
+            ),
         )
         claims.append(
             {
@@ -230,6 +246,10 @@ def prepare_agent_harness(
         "status": "RUNNING",
         "claim_collection_schema": canonical["schema_version"],
         "claim_count": canonical["claim_count"],
+        "model_runtime": {
+            "provider": model_runtime,
+            "transport": "local_cli",
+        },
         "replica_agent": {
             "agent_id": replica_agent_id,
             "parent_agent_id": parent_agent_id,
@@ -264,6 +284,7 @@ def prepare_agent_harness_from_path(
     replica_agent_model: str = SOL_MODEL,
     operator_model: str = SOL_MODEL,
     builder_model: str = TERRA_MODEL,
+    model_runtime: str = "codex",
 ) -> dict[str, Any]:
     """Read immutable Second JSON and prepare a real-Agent harness registry."""
     try:
@@ -281,6 +302,7 @@ def prepare_agent_harness_from_path(
         replica_agent_model=replica_agent_model,
         operator_model=operator_model,
         builder_model=builder_model,
+        model_runtime=model_runtime,
     )
 
 

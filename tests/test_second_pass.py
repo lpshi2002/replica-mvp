@@ -91,6 +91,20 @@ class SecondPassParserTest(unittest.TestCase):
             payload["acceptance_criteria"],
         )
 
+    def test_model_runtime_selects_the_commercial_scenario(self):
+        parsed = parse_second_pass(_research(), model_runtime="claude")
+
+        payload = parsed["claims"][0]["payload"]
+        self.assertEqual("s-commercial", payload["selected_scenario_id"])
+        self.assertEqual(
+            {"provider": "claude", "transport": "local_cli"},
+            payload["model_runtime"],
+        )
+
+    def test_unknown_model_runtime_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "model runtime"):
+            parse_second_pass(_research(), model_runtime="other")
+
     def test_legacy_single_claim_normalizes_to_canonical_collection(self):
         claim = _legacy_claim()
 

@@ -659,10 +659,10 @@ class AgentContinuityTest(unittest.TestCase):
                         "command": ["python3", "replica.py"],
                         "dependencies": [
                             {
-                                "name": "example-retriever",
-                                "version": "1.0.0",
-                                "source": "https://example.com/retriever",
-                                "license": "MIT",
+                                "name": "codex-cli",
+                                "version": "0.149.0",
+                                "source": "https://developers.openai.com/codex/cli",
+                                "license": "OpenAI service terms",
                             }
                         ],
                         "environment_variables": [],
@@ -692,7 +692,7 @@ class AgentContinuityTest(unittest.TestCase):
             result = finalized["claims"][0]["implementation_result"]
             self.assertEqual("IMPLEMENTATION_READY", finalized["claims"][0]["status"])
             self.assertEqual("hybrid", result["implementation_type"])
-            self.assertEqual("oss_only", result["dependency_level"])
+            self.assertEqual("commercial_api", result["dependency_level"])
             self.assertEqual(
                 candidate_relative_path,
                 result["candidate_path"],

@@ -57,7 +57,11 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
             self.assertEqual("replica-agent-claim/v2", sol_claim["schema_version"])
             self.assertIn("tests", sol_claim["second_pass"]["replication_contract"][0])
             self.assertEqual("replica-builder-context/v1", terra_context["schema_version"])
-            self.assertEqual("s-oss", terra_context["selected_scenario"]["id"])
+            self.assertEqual("s-commercial", terra_context["selected_scenario"]["id"])
+            self.assertEqual(
+                {"provider": "codex", "transport": "local_cli"},
+                terra_context["model_runtime"],
+            )
             self.assertEqual(
                 "Use a local retriever.",
                 terra_context["findings"]["impl_path"]["note"],
@@ -173,11 +177,16 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                 replica_agent_model="claude-opus-5",
                 operator_model="claude-opus-5",
                 builder_model="claude-sonnet-5",
+                model_runtime="claude",
             )
 
             self.assertEqual(
                 "claude-opus-5",
                 registry["replica_agent"]["requested_model"],
+            )
+            self.assertEqual(
+                {"provider": "claude", "transport": "local_cli"},
+                registry["model_runtime"],
             )
             claim = registry["claims"][0]
             self.assertEqual("claude-opus-5", claim["operator"]["requested_model"])
@@ -216,6 +225,19 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                     parent_agent_id="/root",
                     builder_model="",
                 )
+
+    def test_unknown_model_runtime_is_rejected(self):
+        with TemporaryDirectory() as tmp, self.assertRaisesRegex(
+            ValueError,
+            "model runtime",
+        ):
+            prepare_agent_harness(
+                _legacy_claim(),
+                Path(tmp) / "run",
+                replica_agent_id="/root/replica_agent",
+                parent_agent_id="/root",
+                model_runtime="other",
+            )
 
     def test_spawned_agents_are_same_parent_siblings_and_exact_peers(self):
         with TemporaryDirectory() as tmp:
@@ -416,6 +438,8 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                     "/root/replica_agent",
                     "--parent-agent-id",
                     "/root",
+                    "--model-runtime",
+                    "claude",
                 ],
                 ["agent-harness-start", str(registry_path), claim_id],
                 [
@@ -484,6 +508,7 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                     )
             final = json.loads(registry_path.read_text(encoding="utf-8"))
             self.assertEqual("READY_FOR_PROTOCOL", final["status"])
+            self.assertEqual("claude", final["model_runtime"]["provider"])
             self.assertEqual(
                 "READY_FOR_PROTOCOL",
                 final["replica_agent"]["status"],

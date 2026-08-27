@@ -28,7 +28,8 @@ replica-mvp agent-harness-init SECOND_JSON RUN_DIR \
   --parent-agent-id PARENT_AGENT_ID \
   --replica-agent-model claude-opus-5 \
   --operator-model claude-opus-5 \
-  --builder-model claude-sonnet-5
+  --builder-model claude-sonnet-5 \
+  --model-runtime claude
 ```
 
 The model flags are required on the Claude route. They default to the Codex
@@ -39,7 +40,10 @@ This command calls `parse_second_pass()`, writes `agent-harness.json`, and
 creates `claims/<claim-id>/claim.json`, `builder-context.json`, `operator/`, and
 `builder/`. For a company research input it selects only `ready` + `build`
 claims, preserves the complete Second-pass workflow, findings, and scenario
-contracts in `claim.json`, and chooses the most self-sufficient scenario first.
+contracts in `claim.json`, and chooses the first `commercial_api` scenario when
+one exists. Supported language and vision model steps in that scenario use
+Claude; explicit modality-specific APIs remain unchanged. If there is no
+commercial scenario, the harness keeps the existing self-sufficiency order.
 `builder-context.json` contains the public implementation context with test
 expectations and reference facts removed. Treat the source, `claim.json`, and
 `builder-context.json` as immutable. The Replica Agent alone owns registry
@@ -75,7 +79,8 @@ Spawn the Operator with the `Agent` tool using all of:
 - a `prompt` containing only the claim ID, that claim's `claim.json` path, its
   operator artifact namespace, its mailbox paths, the resolved CLI invocation,
   the repository root, this Replica Agent's ID, and an instruction to read
-  `.claude/skills/replica-operator-agent/SKILL.md`
+  `.claude/skills/replica-operator-agent/SKILL.md`; include model runtime
+  `claude`
 
 Record the returned Agent ID with:
 
@@ -96,7 +101,8 @@ using all of:
 - a `prompt` containing only the same claim ID, its `builder-context.json` path,
   its builder artifact namespace, its mailbox paths, the resolved CLI
   invocation, the repository root, the Operator's Agent ID, the claim nonce, and
-  an instruction to read `.claude/skills/replica-builder-agent/SKILL.md`
+  an instruction to read `.claude/skills/replica-builder-agent/SKILL.md`; include
+  model runtime `claude`
 
 Record it the same way with `--role builder --requested-model claude-sonnet-5`.
 The registry links peers only after both spawns have succeeded and proves the
