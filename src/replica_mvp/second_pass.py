@@ -299,15 +299,7 @@ def _research_agent_claims(
         scenario_ids = [scenario["id"] for scenario in scenarios]
         if len(set(scenario_ids)) != len(scenario_ids):
             raise ValueError("duplicate research scenario identity")
-        selected = next(
-            (
-                scenario
-                for scenario in scenarios
-                if model_runtime
-                and scenario["self_sufficiency"] == "commercial_api"
-            ),
-            None,
-        ) or min(
+        selected = min(
             enumerate(scenarios),
             key=lambda item: (
                 DEPENDENCY_ORDER[item[1]["self_sufficiency"]],

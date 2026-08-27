@@ -40,15 +40,16 @@ the registry's exact canonical IDs. Give both only this identity envelope:
   "replica_execution_loop": true,
   "maximum_corrections": 3,
   "repo_root": "<absolute repository root>",
-  "python_module_invocation": ["py", "-3", "-m", "replica_mvp"]
+  "python_module_invocation": ["python3", "-m", "replica_mvp"]
 }
 ```
 
 Tell each sibling to follow its existing claim Skill. Do not include strategy,
 instructions, code, execution observations, or feedback in either activation.
 The repository path and Python module invocation are execution controls, not a
-semantic relay. Require Python 3.12 or newer, not exactly 3.12, and set
-`PYTHONPATH` to `<repo-root>/src` when the console script is unavailable.
+semantic relay. Use `["py", "-3", "-m", "replica_mvp"]` on Windows. Require
+Python 3.12 or newer, not exactly 3.12, and set `PYTHONPATH` to
+`<repo-root>/src` when the console script is unavailable.
 Run `agent-continuity-start` with the exact pair IDs and nonce. The Sol
 Operator sends `replica-operator-execution-instruction/v1` directly to the
 Terra Builder. The Builder sends
@@ -77,7 +78,10 @@ the harness verify the immutable claim hash, pair binding, PASS/FAIL decision,
 criterion results, failed-check count, suite hash, Judge metadata, and
 correction count instead of trusting a terminal label. If either child returns
 final before terminal, run `agent-continuity-premature`, interrupt the
-remaining peer, and stop without respawn.
+remaining peer, and do not respawn or reactivate that claim. This abort is
+claim-scoped: continue with the next `READY_FOR_PROTOCOL` claim and preserve
+its existing sibling pair. A failed, aborted, or blocked claim must never stop
+unrelated claims from reaching their own terminal and candidate finalization.
 
 After a `SUCCESS` execution terminal, read the exact `candidate_path` bound in
 the execution result and finalize that path:

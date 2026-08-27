@@ -126,6 +126,13 @@ the exit status and structured JSON output, and surface stderr without leaking
 credentials. Never give the model tools or access to the Replica workspace.
 Declare the installed `codex-cli` or `claude-code` version and official source
 in `dependencies`; do not add an SDK or download a separate generative model.
+Do not require `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` solely for the local CLI
+runtime; it uses the CLI's existing authentication. Preserve the selected
+scenario ID, input, output, retrieval, storage, and side effects. When an
+`oss_only` scenario actually declares the selected model CLI, set the manifest
+dependency level to `commercial_api`; otherwise keep the selected level.
+Copy the selected scenario ID, input contract, and output contract byte-for-byte
+from `builder-context.json`; do not paraphrase them in the manifest.
 Run at least one real production-path model check. A missing executable, missing
 authentication, timeout, or malformed response is `blocked` or failed evidence,
 not permission to use a deterministic substitute.
@@ -162,6 +169,11 @@ The entrypoint must be one of the declared files. Use a local Builder-only test
 environment for dependency installation. Do not include a virtual environment,
 download cache, generated secret, or unrelated repository file in the bundle.
 Do not write a self-declared `replica-result.json`.
+
+Set `PYTHONDONTWRITEBYTECODE=1` for every Python development and production-path
+check. Before hashing the manifest, remove only generated `__pycache__` and
+`.pyc` files inside this Builder namespace, then enumerate the exact remaining
+regular file set. Never let runtime cache files invalidate finalization.
 
 Run public development checks derived from `builder-context.json` and relevant
 claim-scoped repository checks. Do not search for the immutable Sol claim,
@@ -238,7 +250,9 @@ success. Never send or summarize the semantic instruction or feedback through
 the Replica Agent. Return a final control report only after the direct terminal
 ack.
 
-After nonterminal feedback, remain in the same active turn and wait for the
+Every `blocked` feedback is nonterminal. Never return final merely because a
+credential, asset, or dependency is missing. After nonterminal feedback, remain
+in the same active turn and wait for the
 same Operator with bounded `wait_agent`. Accept the next correction directly;
 do not require a Replica follow-up and do not return final between rounds. On
 direct terminal control, send a direct ack and only then return final. If the

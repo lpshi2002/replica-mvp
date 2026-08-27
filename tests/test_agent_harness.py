@@ -57,7 +57,7 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
             self.assertEqual("replica-agent-claim/v2", sol_claim["schema_version"])
             self.assertIn("tests", sol_claim["second_pass"]["replication_contract"][0])
             self.assertEqual("replica-builder-context/v1", terra_context["schema_version"])
-            self.assertEqual("s-commercial", terra_context["selected_scenario"]["id"])
+            self.assertEqual("s-oss", terra_context["selected_scenario"]["id"])
             self.assertEqual(
                 {"provider": "codex", "transport": "local_cli"},
                 terra_context["model_runtime"],

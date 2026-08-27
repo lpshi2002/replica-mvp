@@ -123,10 +123,15 @@ subprocess adapter for exactly that provider:
 Require an argv invocation without a shell, a bounded timeout, exit-code and
 stderr handling, JSON decoding, and output-schema validation. Do not expose the
 Replica workspace or grant model tools. This runtime does not replace required
-embedding, OCR, speech, audio, video, or side-effect dependencies. If using it
-would contradict a non-`commercial_api` selected scenario, or the executable or
-authentication is unavailable, return `blocked` instead of changing the frozen
-dependency level or falling back to rules.
+embedding, OCR, speech, audio, video, or side-effect dependencies. It is an
+explicit execution overlay and may be used with an `oss_only` base scenario
+without changing that scenario's ID, input, output, retrieval, storage, or
+side-effect path. In that case declare the bundle `commercial_api` and include
+the exact selected CLI dependency. Do not require `OPENAI_API_KEY` or
+`ANTHROPIC_API_KEY` solely for the local CLI runtime; it uses the CLI's existing
+authentication. A separate scenario API may still require its own credential.
+If the executable or CLI authentication is unavailable, return `blocked`
+instead of falling back to rules.
 
 Give the Builder a complete execution plan. Identify the selected scenario,
 implementation type, exact method, files, pinned dependencies and sources,
@@ -151,8 +156,12 @@ Choose one candidate boundary:
   state, or an external side effect. The manifest is
   `replica-implementation-bundle/v1` and its declared files are the candidate.
 
-Copy the selected scenario's input, output, and dependency level exactly. Do not
-ask for a self-declared `replica-result.json`. A bundle is structurally bound as
+Copy the selected scenario's ID, input, and output byte-for-byte; never
+summarize or normalize those manifest values. Keep its dependency level unless
+the implementation actually declares the selected model CLI: that
+promotes `oss_only` to `commercial_api`, while `commercial_api` and
+`proprietary_data` remain unchanged. Do not ask for a self-declared
+`replica-result.json`. A bundle is structurally bound as
 `IMPLEMENTATION_READY`; later evaluator expansion, not Agent feedback,
 determines whether it is reproduced.
 

@@ -40,10 +40,10 @@ This command calls `parse_second_pass()`, writes `agent-harness.json`, and
 creates `claims/<claim-id>/claim.json`, `builder-context.json`, `operator/`, and
 `builder/`. For a company research input it selects only `ready` + `build`
 claims, preserves the complete Second-pass workflow, findings, and scenario
-contracts in `claim.json`, and chooses the first `commercial_api` scenario when
-one exists. Supported language and vision model steps in that scenario use
-Claude; explicit modality-specific APIs remain unchanged. If there is no
-commercial scenario, the harness keeps the existing self-sufficiency order.
+contracts in `claim.json`, and chooses the most self-sufficient scenario first.
+Claude is recorded as a narrow model-runtime overlay and does not cause an
+unrelated commercial retrieval, storage, or side-effect scenario to be chosen.
+Explicit modality-specific dependencies remain unchanged.
 `builder-context.json` contains the public implementation context with test
 expectations and reference facts removed. Treat the source, `claim.json`, and
 `builder-context.json` as immutable. The Replica Agent alone owns registry

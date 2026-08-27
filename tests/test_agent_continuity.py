@@ -644,6 +644,7 @@ class AgentContinuityTest(unittest.TestCase):
                 for scenario in claim["second_pass"]["replication_contract"]
                 if scenario["id"] == claim["selected_scenario_id"]
             )
+            self.assertEqual("s-oss", selected["id"])
             manifest_path = implementation_dir / "manifest.json"
             manifest_path.write_text(
                 json.dumps(
@@ -652,7 +653,7 @@ class AgentContinuityTest(unittest.TestCase):
                         "claim_id": "claim-001",
                         "scenario_id": selected["id"],
                         "implementation_type": "hybrid",
-                        "dependency_level": selected["self_sufficiency"],
+                        "dependency_level": "commercial_api",
                         "input_contract": selected["input"],
                         "output_contract": selected["output"],
                         "entrypoint": "replica.py",
@@ -680,6 +681,24 @@ class AgentContinuityTest(unittest.TestCase):
                     sort_keys=True,
                 )
                 + "\n",
+                encoding="utf-8",
+            )
+
+            wrong_runtime = json.loads(manifest_path.read_text(encoding="utf-8"))
+            wrong_runtime["dependencies"][0]["name"] = "claude-code"
+            manifest_path.write_text(
+                json.dumps(wrong_runtime, ensure_ascii=False, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "selected scenario"):
+                finalize_agent_candidate(
+                    registry_path,
+                    binding["claim_id"],
+                    manifest_path,
+                )
+            wrong_runtime["dependencies"][0]["name"] = "codex-cli"
+            manifest_path.write_text(
+                json.dumps(wrong_runtime, ensure_ascii=False, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
 
@@ -926,6 +945,26 @@ class AgentContinuityTest(unittest.TestCase):
                     operator_to_builder_direct=True,
                     builder_to_operator_direct=True,
                 )
+
+    def test_premature_completion_does_not_abort_another_claim(self):
+        with TemporaryDirectory() as tmp:
+            registry_path, bindings = _prepare_two_active_continuity_pairs(
+                Path(tmp) / "run"
+            )
+
+            aborted = record_agent_premature_completion(
+                registry_path,
+                bindings[0]["claim_id"],
+                completed_agent_id=bindings[0]["builder_agent_id"],
+                reason="Builder returned final before terminal",
+            )
+
+            self.assertEqual("EXECUTION_ABORTED", aborted["claims"][0]["status"])
+            self.assertEqual("READY_FOR_PROTOCOL", aborted["claims"][1]["status"])
+            self.assertEqual(
+                "PAIR_ACTIVE",
+                aborted["claims"][1]["continuity"]["phase"],
+            )
 
     def test_cli_records_a_four_round_session_and_terminal(self):
         with TemporaryDirectory() as tmp:

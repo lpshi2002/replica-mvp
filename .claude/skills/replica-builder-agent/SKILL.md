@@ -131,6 +131,13 @@ the exit status and structured JSON output, and surface stderr without leaking
 credentials. Never give the model tools or access to the Replica workspace.
 Declare the installed `codex-cli` or `claude-code` version and official source
 in `dependencies`; do not add an SDK or download a separate generative model.
+Do not require `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` solely for the local CLI
+runtime; it uses the CLI's existing authentication. Preserve the selected
+scenario ID, input, output, retrieval, storage, and side effects. When an
+`oss_only` scenario actually declares the selected model CLI, set the manifest
+dependency level to `commercial_api`; otherwise keep the selected level.
+Copy the selected scenario ID, input contract, and output contract byte-for-byte
+from `builder-context.json`; do not paraphrase them in the manifest.
 Run at least one real production-path model check. A missing executable, missing
 authentication, timeout, or malformed response is `blocked` or failed evidence,
 not permission to use a deterministic substitute.
@@ -167,6 +174,11 @@ entrypoint must be one of the declared files. Use a local Builder-only test
 environment for dependency installation. Do not include a virtual environment,
 download cache, generated secret, or unrelated repository file in the bundle. Do
 not write a self-declared `replica-result.json`.
+
+Set `PYTHONDONTWRITEBYTECODE=1` for every Python development and production-path
+check. Before hashing the manifest, remove only generated `__pycache__` and
+`.pyc` files inside this Builder namespace, then enumerate the exact remaining
+regular file set. Never let runtime cache files invalidate finalization.
 
 Run public development checks derived from `builder-context.json` and relevant
 claim-scoped repository checks. Do not search for the immutable Operator claim,
@@ -242,7 +254,9 @@ correction number, mailbox read/write booleans, message hashes, and validation
 success. Never send or summarize the semantic instruction or feedback through
 the Replica Agent, and never include any part of either in the control report.
 
-End the turn after writing feedback. On the next activation, read
+Every `blocked` feedback is nonterminal. Ending this Claude activation after
+writing it is not a terminal completion of the claim. On the next activation,
+read
 `mailbox/to-builder/` again: a correction arrives as the next
 `instruction-NNN.json` and is handled the same way, and a terminal control
 arrives as `terminal.json`. On terminal, write

@@ -108,11 +108,12 @@ Collect enough public evidence to decide and prepare replication:
   limitations, and open questions. Do not present a rule-based shortcut or
   test double as the implementation path unless the public scenario explicitly
   defines it as production behavior.
-- when a text or supported-vision model is required, a `commercial_api` scenario that can
-  use the harness-selected `codex` or `claude` local CLI runtime instead of
-  requiring a separately downloaded generative model. Keep embeddings, OCR,
-  speech, audio, video, and other modality-specific dependencies explicit when
-  the selected runtime cannot perform them.
+- when a text or supported-vision model is required, mark that step so the
+  harness-selected `codex` or `claude` local CLI runtime can replace only the
+  generative model. Do not switch the whole claim to an unrelated commercial
+  retrieval or storage scenario merely to obtain a model. Keep embeddings,
+  OCR, speech, audio, video, and other modality-specific dependencies explicit
+  when the selected runtime cannot perform them.
 
 Attach the result to that claim's `second_pass` field in the same
 `research.json`. Use `confirmed`, `refined`, `merged`, or `rejected` for its
@@ -188,10 +189,11 @@ immutable Second-pass claim, and gives Terra a public `builder-context.json`
 without test expectations or reference facts.
 
 Set `--model-runtime codex` on the Codex route and `--model-runtime claude` on
-the Claude route. When a claim has a `commercial_api` scenario, the harness
-selects it so the generated Replica can use that runtime for text or supported-vision
-model work. If no such scenario exists, keep the researched scenario unchanged;
-the Agents must block rather than silently relabel an OSS path as commercial.
+the Claude route. The harness still selects the most self-sufficient researched
+scenario. The model runtime is a narrow execution overlay for supported model
+steps, not a reason to select a different scenario. A bundle that actually
+declares the selected CLI promotes an `oss_only` dependency level to
+`commercial_api` while preserving the selected scenario ID, input, and output.
 
 When producing the standalone `replica-second-pass-result/v1` build input for
 a question-answer capability, copy the frozen public `experience` object to

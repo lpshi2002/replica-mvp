@@ -110,7 +110,10 @@ This lets the harness verify the immutable claim hash, pair binding, PASS/FAIL
 decision, criterion results, failed-check count, suite hash, Judge metadata, and
 correction count instead of trusting a terminal label. If either child returns
 final before terminal, run `agent-continuity-premature`, stop the remaining peer
-with `TaskStop`, and stop without respawn.
+with `TaskStop`, and do not respawn or reactivate that claim. This abort is
+claim-scoped: continue with the next `READY_FOR_PROTOCOL` claim and preserve
+its existing sibling pair. A failed, aborted, or blocked claim must never stop
+unrelated claims from reaching their own terminal and candidate finalization.
 
 After a `SUCCESS` execution terminal, read the exact `candidate_path` bound in
 the execution result and finalize that path:

@@ -91,11 +91,11 @@ class SecondPassParserTest(unittest.TestCase):
             payload["acceptance_criteria"],
         )
 
-    def test_model_runtime_selects_the_commercial_scenario(self):
+    def test_model_runtime_does_not_replace_the_self_sufficient_scenario(self):
         parsed = parse_second_pass(_research(), model_runtime="claude")
 
         payload = parsed["claims"][0]["payload"]
-        self.assertEqual("s-commercial", payload["selected_scenario_id"])
+        self.assertEqual("s-oss", payload["selected_scenario_id"])
         self.assertEqual(
             {"provider": "claude", "transport": "local_cli"},
             payload["model_runtime"],

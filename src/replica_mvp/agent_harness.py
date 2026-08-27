@@ -38,6 +38,10 @@ FAILED_RESULT_STATUSES = {
     "RUNTIME_FAILED",
     "EVALUATION_FAILED",
 }
+MODEL_RUNTIME_DEPENDENCIES = {
+    "codex": "codex-cli",
+    "claude": "claude-code",
+}
 
 
 def _is_nonempty_text(value: Any) -> bool:
@@ -759,6 +763,30 @@ def _selected_scenario(payload: dict[str, Any]) -> dict[str, Any] | None:
     )
 
 
+def _bundle_dependency_level(
+    claim_payload: dict[str, Any],
+    selected: dict[str, Any],
+    dependencies: list[dict[str, str]],
+) -> str | None:
+    runtime = claim_payload.get("model_runtime")
+    expected_runtime = (
+        MODEL_RUNTIME_DEPENDENCIES.get(runtime.get("provider"))
+        if isinstance(runtime, dict)
+        else None
+    )
+    declared_runtimes = {
+        dependency["name"]
+        for dependency in dependencies
+        if dependency["name"] in MODEL_RUNTIME_DEPENDENCIES.values()
+    }
+    if declared_runtimes and declared_runtimes != {expected_runtime}:
+        return None
+    dependency_level = selected["self_sufficiency"]
+    if expected_runtime in declared_runtimes and dependency_level == "oss_only":
+        return "commercial_api"
+    return dependency_level
+
+
 def _validate_implementation_bundle(
     run_dir: Path,
     claim_id: str,
@@ -867,7 +895,8 @@ def _validate_implementation_bundle(
     if selected is not None:
         if (
             manifest["scenario_id"] != selected["id"]
-            or manifest["dependency_level"] != selected["self_sufficiency"]
+            or manifest["dependency_level"]
+            != _bundle_dependency_level(claim_payload, selected, dependencies)
             or manifest["input_contract"] != selected["input"]
             or manifest["output_contract"] != selected["output"]
         ):
