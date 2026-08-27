@@ -71,6 +71,14 @@ claim-session start. The Replica Agent may activate this Agent but may not
 supply, summarize, rewrite, or relay the Operator's semantic instruction.
 After activation, do not depend on another follow-up for ordinary rounds.
 
+An identity-bound reactivation may include
+`"protocol_repair": "feedback"` at the current correction number. It means the
+previous feedback contract did not validate. Do not repeat the old report or
+change the implementation solely for this control. Rebuild the feedback from
+the evidence already owned by this Builder, run `agent-protocol-validate`, and
+send the valid same-round JSON directly to the same Operator. Accept at most
+two such repairs for one correction number.
+
 Wait for a direct message from the exact Operator. Save the exact received JSON
 as `instruction-NNN.json` inside the Builder namespace and validate it with:
 

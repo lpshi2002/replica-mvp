@@ -60,12 +60,16 @@ rounds. It may also yield a control-only round report after its required direct
 send or receive. In that case, reactivate the same canonical Agent ID for the
 next round; this is a round pause, not premature claim completion.
 
-Do not wait forever for a round action. Allow at most two consecutive
-60-second waits without new control metadata or Operator execution-state
-progress. After the first timeout, request control-only status from the bound
-child. After the second, interrupt that stalled child, record a claim-scoped
-abort with `agent-continuity-premature` and a timeout reason, interrupt its
-peer, and continue with the next ready claim.
+Do not wait forever for a round action. Track a control fingerprint from the
+registry and Operator execution state plus only the existence, size, and mtime
+of instruction/feedback artifacts; never inspect their semantic bodies. Reset
+the stall count on any change. Request control-only status after 60 seconds.
+Abort only after five consecutive 60-second waits with the same fingerprint
+and two unanswered status requests. Immediately recompute the fingerprint
+before mutation and cancel the abort if anything changed. Otherwise interrupt
+the stalled child, record a claim-scoped abort with
+`agent-continuity-premature` and a timeout reason, interrupt its peer, and
+continue with the next ready claim.
 
 ## Preserve the non-relay path
 
@@ -77,6 +81,14 @@ each sequential round with `agent-continuity-round`. Reject a report containing
 or summarizing a semantic payload. Validate that success has every criterion
 passed and zero failed checks. Treat any contradictory aggregate PASS as a
 false success and fail closed.
+
+If feedback contract validation fails before execution-state advance, allow at
+most two protocol-envelope repairs at the same correction number. Reactivate
+the exact same Builder ID with the identity envelope plus
+`"protocol_repair": "feedback"`; do not relay the invalid body or validator
+diagnostics. The Builder reruns its local validator and resends a valid
+same-round feedback. This does not consume an implementation correction. Abort
+the claim only after two unchanged invalid repairs.
 
 For `CORRECTION_REQUIRED`, require the next number only; do not write or
 suggest correction content. `SUCCESS` may terminal after correction 0, 1, 2,
