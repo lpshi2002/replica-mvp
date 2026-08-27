@@ -24,10 +24,12 @@ evaluation/publication pipeline; an implementation bundle is hash-bound as
 For each ready claim, reuse its recorded Operator and Builder. Process claims
 independently; a terminal failure does not change another claim. Never spawn a
 protocol or correction replacement. A plain `send_message` does not start a
-new turn for a completed Agent. Start each round by activating any completed
-participant with `followup_task`, Builder first and then Operator. Reuse the
-registry's exact canonical IDs; never spawn a replacement. Both follow-ups
-contain only this identity envelope:
+new turn for a completed Agent. Start each round by activating the Operator
+first. Wait for control metadata confirming that its validated instruction was
+sent directly, then activate the Builder to receive that queued message. After
+the Builder confirms its validated feedback was sent directly, reactivate the
+Operator if it yielded. Reuse the registry's exact canonical IDs; never spawn
+a replacement. Every follow-up contains only this identity envelope:
 
 ```json
 {
@@ -44,6 +46,8 @@ contain only this identity envelope:
   "python_module_invocation": ["python3", "-m", "replica_mvp"]
 }
 ```
+
+Replace `correction_number: 0` with the current round number on later rounds.
 
 Tell each sibling to follow its existing claim Skill. Do not include strategy,
 instructions, code, execution observations, or feedback in either activation.
