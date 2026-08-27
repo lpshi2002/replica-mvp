@@ -111,8 +111,8 @@ subprocess adapter for exactly that provider:
 
 - `codex`: run `codex exec` non-interactively with `--ephemeral`,
   `--ignore-user-config`, `--ignore-rules`, `--sandbox read-only`, an isolated
-  temporary `--cd`, stdin prompt input, `--output-schema`, and
-  `--output-last-message`.
+  temporary `--cd`, `--skip-git-repo-check`, stdin prompt input,
+  `--output-schema`, and `--output-last-message`.
 - `claude`: run `claude -p` with `--safe-mode`, `--no-session-persistence`,
   `--permission-mode dontAsk`, `--tools ""`, `--output-format json`, and
   `--json-schema` from an isolated temporary working directory.
