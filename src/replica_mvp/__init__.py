@@ -32,7 +32,7 @@ from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .evaluation import evaluate_frozen_suite, freeze_test_suite
 from .intake import receive_second_pass
 from .plan_safety import assess_plan_safety
-from .project import build_project, evaluate_project, init_project, write_report
+from .project import build_project, evaluate_project, finalize_first_pass, init_project, write_report
 from .reporting import write_final_report
 from .second_pass import parse_second_pass
 
@@ -71,4 +71,5 @@ __all__ = [
     "assess_replica_completion",
     "write_final_report",
     "write_report",
+    "finalize_first_pass",
 ]

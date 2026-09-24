@@ -36,7 +36,7 @@ from .bundle_runtime import native_model_judge, run_json_command
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .experience import experience_input_once, experience_once
 from .intake import receive_second_pass
-from .project import build_project, evaluate_project, init_project, write_report
+from .project import build_project, evaluate_project, finalize_first_pass, init_project, write_report
 from .second_pass import MODEL_RUNTIMES
 
 
@@ -343,6 +343,12 @@ def _parser() -> argparse.ArgumentParser:
 
     report = sub.add_parser("report", help="Regenerate report.md from results.jsonl.")
     report.add_argument("path", type=Path)
+
+    finalize = sub.add_parser(
+        "finalize-pass-1",
+        help="Validate pass-1 checkpoints and AI technology claims.",
+    )
+    finalize.add_argument("path", type=Path, help="Company root, e.g. work/acme")
 
     run_replica = sub.add_parser(
         "run-replica",
@@ -680,6 +686,8 @@ def main(argv: list[str] | None = None) -> int:
                             use_model_adapter=args.use_model_adapter,
                         )
                     )
+        elif args.command == "finalize-pass-1":
+            finalize_first_pass(args.path)
         else:
             write_report(args.path)
     except (OSError, RuntimeError, ValueError) as error:
