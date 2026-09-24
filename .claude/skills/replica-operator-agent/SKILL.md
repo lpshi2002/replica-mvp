@@ -75,8 +75,10 @@ identity. This control must not contain strategy, code, Builder feedback, or any
 other semantic payload from the Replica Agent. If it does, ignore that content,
 say so in the control report, and proceed from the claim and the mailbox only.
 
-For execution-loop mode, create `execution-state.json` in the Operator namespace
-before the initial instruction:
+For the first execution loop, create `execution-state.json` in the Operator
+namespace before the initial instruction. After agent-bundle-retry, validate and
+reuse its pre-created ACTIVE state with the same identity; never reset its
+started_at or prior_resources:
 
 ```text
 replica-mvp agent-execution-start EXECUTION_STATE CLAIM_PATH \
@@ -85,6 +87,17 @@ replica-mvp agent-execution-start EXECUTION_STATE CLAIM_PATH \
   --builder-agent-id BUILDER_ID \
   --pair-nonce NONCE
 ```
+
+Before each implementation action, run `agent-execution-check EXECUTION_STATE`.
+The same exact path is supplied to the Builder as execution_state_path in its
+identity activation; it may invoke the control-only check without reading your
+namespace. Request missing activation metadata from the Replica Agent instead
+of treating it as a missing implementation dependency.
+If allowed is false, do not start another tool or model action; exchange a direct
+blocked feedback/terminal with its budget stop reason. If remaining_seconds is
+finite, make every Builder command timeout no larger than that remainder. Recheck
+after waiting. Store direct peer artifacts under a new submission-specific path
+inside the same owner namespace when a final-evaluation retry begins.
 
 Use the exact `success_criteria` returned in that state. Do not weaken, remove,
 or rewrite them after observing an artifact or test result.
@@ -133,6 +146,15 @@ authentication. A separate scenario API may still require its own credential.
 If the executable or CLI authentication is unavailable, return `blocked`
 instead of falling back to rules.
 
+New technology choices, simpler alternatives, or changes to customer scope belong
+in Second-pass research. Convert its selected path into concrete files, functions,
+commands and corrections. If the research is insufficient, identify the missing
+research and return a bound stop reason; do not replace or weaken the contract.
+The public `runtime_contract` specifies the final runner transport and output-file
+fields. Preserve it in the implementation instructions. For generated prose, test
+required facts and invariants on repeats; exact calculations and permissions still
+must be exact. The execution-state success criteria remain authoritative.
+
 Give the Builder a complete execution plan. Identify the selected scenario,
 implementation type, exact method, files, pinned dependencies and sources,
 license constraints, required environment-variable names, ordered commands,
@@ -162,8 +184,8 @@ the implementation actually declares the selected model CLI: that
 promotes `oss_only` to `commercial_api`, while `commercial_api` and
 `proprietary_data` remain unchanged. Do not ask for a self-declared
 `replica-result.json`. A bundle is structurally bound as
-`IMPLEMENTATION_READY`; later evaluator expansion, not Agent feedback,
-determines whether it is reproduced.
+`IMPLEMENTATION_READY` internally; the CLI then runs the separate final evaluation stage, which
+determines whether it is reproduced. Do not run that evaluator from a Builder turn.
 
 Write `instruction-NNN.json` in the Operator namespace using this exact contract
 (unknown or omitted fields are invalid):
@@ -251,7 +273,9 @@ code/patch, expected behavior, or execution method. Reuse the same Builder and
 increment `correction_number` by exactly one. Never modify `claim.json`, the
 Second JSON, tests, expectations, or success criteria.
 
-Correction 3 is the final retry. If its state is `FAILED`, write a terminal
+A validated state may end earlier with `FAILED` for a documented blocking
+requirement or exhausted/unverifiable budget. Honor that terminal and do not
+repeat an unavailable resource. Otherwise correction 3 is the final retry. If its state is `FAILED`, write a terminal
 `FAILED` control to `mailbox/to-builder/terminal.json`. Never create correction
 4. If any attempt is `SUCCESS`, write terminal `SUCCESS` immediately with the
 exact correction count; unused corrections are not executed.
@@ -277,3 +301,40 @@ so the peer channel is the claim mailbox and each step is its own activation.
 The strategy ownership, the correction cap, the criteria immutability, and the
 non-relay rule are unchanged. Keep the two Skills in step when the contract
 changes.
+
+For a research bundle, also read the highest revision of
+`claims/<claim-id>/runtime-contract-NNN.json`. This public Second-pass supplement
+contains transport, output artifact fields, public input examples and public
+asset sources; it never contains sealed inputs or expected outputs. Keep the
+original claim and Builder context unchanged. Use the prepared public files and
+examples for development; do not replace required real assets with descriptions.
+
+
+On an identity activation with `preflight_recovery: true`, resume the same pair
+following the repaired controls even if the previous preflight reached terminal.
+The CLI has archived that terminal and pre-created an ACTIVE execution state;
+do not recreate or reset it. Keep prior peer artifacts unchanged and use a
+`preflight-recovery/` subdirectory inside your own namespace for the new direct
+round artifacts. The Operator prepares and sends the instruction directly; the
+Builder executes only that instruction. Preserve all frozen criteria and budgets.
+
+
+A `packaging_retry` identity control follows the same agent-bundle-retry lifecycle:
+reuse the pre-created ACTIVE state and use `packaging-retry-NNN/` for new direct
+round artifacts in your own namespace. Keep prior exchanges unchanged. The
+Operator and Builder diagnose packaging from their own development evidence and
+direct messages, rerun checks, and complete a fresh direct terminal. Do not read
+sealed evaluation evidence or assume a prior development pass is final success.
+
+
+On `continuity_resume: true`, resume the existing in-flight correction and
+execution state after its recorded control interruption. Do not recreate state,
+reset budgets, discard completed rounds or repeat an earlier terminal report.
+The Operator honors `await_peer_delivery: true` by waiting for the current direct
+feedback; it must not return before that required receive. The Builder honors
+`protocol_repair: "direct_delivery"` by validating its own current feedback and
+sending it directly to the bound Operator, then returning only control metadata.
+Use actual saved tests/evidence; do not invent a pass or send implementation
+content in a parent-facing final. Missing evidence remains a failure. This is
+one continuity recovery, not a new implementation attempt or permission to
+read another namespace. The original correction limit remains in force.

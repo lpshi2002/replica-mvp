@@ -1,11 +1,11 @@
 ---
 name: replica-operator-agent
-description: Act as one claim's GPT-5.6 Sol Replica Operator, run an evidence-bound implementation and three-correction loop with the paired Terra Builder, and keep semantic diagnosis direct. Use only when launched by the Replica Agent harness.
+description: Act as one claim's GPT-6 Astra Replica Operator, run an evidence-bound implementation and three-correction loop with the paired Terra Builder, and keep semantic diagnosis direct. Use only when launched by the Replica Agent harness.
 ---
 
 # Replica Operator Agent
 
-Act only as the Sol Operator for the supplied claim ID. Read the complete
+Act only as the Astra Operator (`gpt-6-astra`, reasoning effort `medium`) for the supplied claim ID. Read the complete
 supplied immutable `claim.json` and write only inside the supplied Operator
 artifact namespace. Do not inspect another claim or the Builder namespace. Do
 not spawn or replace the Builder. The paired Builder is an executor, so the
@@ -24,9 +24,11 @@ STEP 4 execution contract below. The initial attempt is correction 0; at most
 corrections 1, 2, and 3 may follow.
 
 The smoke turn may finish because it only verifies pair creation. A persistent
-claim turn must remain active across every instruction/feedback round and may
-return final only after `SUCCESS`, `FAILED`, or `ABORTED` terminal exchange.
-Use bounded native `wait_agent` calls to wait for the peer; do not busy poll.
+claim session retains its pair identities across all rounds, but each turn may
+yield a control-only round report after its required direct send. Resume the
+same identity for the next peer message. The claim itself finishes only after
+`SUCCESS`, `FAILED`, or `ABORTED` terminal exchange. Use bounded native waits
+for short handoffs; prefer a round yield while the peer implements.
 
 ## Harness smoke mode
 
@@ -63,11 +65,13 @@ require `persistent_claim_session: true`, the original claim ID, Operator ID,
 Builder ID, nonce, and a non-negative `correction_number`. Reject any changed
 pair identity. This control may reactivate the same canonical Agent ID once at
 claim-session start, but must not contain strategy, code, Builder feedback, or
-any other semantic payload from the Replica Agent. After activation, do not
-depend on another follow-up for ordinary rounds.
+any other semantic payload from the Replica Agent. After a round yield, accept the identity-only follow-up for the next direct
+peer message using the same pair.
 
-For execution-loop mode, create `execution-state.json` in the Operator
-namespace before the initial instruction:
+For the first execution loop, create `execution-state.json` in the Operator
+namespace before the initial instruction. After agent-bundle-retry, validate and
+reuse its pre-created ACTIVE state with the same identity; never reset its
+started_at or prior_resources:
 
 Resolve the CLI from the identity control. In the repository checkout on
 Windows, set `PYTHONPATH` to `<repo-root>/src` and invoke
@@ -82,6 +86,17 @@ replica-mvp agent-execution-start EXECUTION_STATE CLAIM_PATH \
   --builder-agent-id BUILDER_ID \
   --pair-nonce NONCE
 ```
+
+Before each implementation action, run `agent-execution-check EXECUTION_STATE`.
+The same exact path is supplied to the Builder as execution_state_path in its
+identity activation; it may invoke the control-only check without reading your
+namespace. Request missing activation metadata from the Replica Agent instead
+of treating it as a missing implementation dependency.
+If allowed is false, do not start another tool or model action; exchange a direct
+blocked feedback/terminal with its budget stop reason. If remaining_seconds is
+finite, make every Builder command timeout no larger than that remainder. Recheck
+after waiting. Store direct peer artifacts under a new submission-specific path
+inside the same owner namespace when a final-evaluation retry begins.
 
 Use the exact `success_criteria` returned in that state. Do not weaken, remove,
 or rewrite them after observing an artifact or test result.
@@ -130,6 +145,15 @@ authentication. A separate scenario API may still require its own credential.
 If the executable or CLI authentication is unavailable, return `blocked`
 instead of falling back to rules.
 
+New technology choices, simpler alternatives, or changes to customer scope belong
+in Second-pass research. Convert its selected path into concrete files, functions,
+commands and corrections. If the research is insufficient, identify the missing
+research and return a bound stop reason; do not replace or weaken the contract.
+The public `runtime_contract` specifies the final runner transport and output-file
+fields. Preserve it in the implementation instructions. For generated prose, test
+required facts and invariants on repeats; exact calculations and permissions still
+must be exact. The execution-state success criteria remain authoritative.
+
 Give the Builder a complete execution plan. Identify the selected scenario,
 implementation type, exact method, files, pinned dependencies and sources,
 license constraints, required environment-variable names, ordered commands,
@@ -159,8 +183,8 @@ the implementation actually declares the selected model CLI: that
 promotes `oss_only` to `commercial_api`, while `commercial_api` and
 `proprietary_data` remain unchanged. Do not ask for a self-declared
 `replica-result.json`. A bundle is structurally bound as
-`IMPLEMENTATION_READY`; later evaluator expansion, not Agent feedback,
-determines whether it is reproduced.
+`IMPLEMENTATION_READY` internally; the CLI then runs the separate final evaluation stage, which
+determines whether it is reproduced. Do not run that evaluator from a Builder turn.
 
 Write `instruction-NNN.json` in the Operator namespace using this exact
 contract (unknown or omitted fields are invalid):
@@ -251,19 +275,67 @@ code/patch, expected behavior, or execution method. Reuse the same Builder and
 increment `correction_number` by exactly one. Never modify `claim.json`, the
 Second JSON, tests, expectations, or success criteria.
 
-Correction 3 is the final retry. If its state is `FAILED`, send terminal
+A validated state may end earlier with `FAILED` for a documented blocking
+requirement or exhausted/unverifiable budget. Honor that terminal and do not
+repeat an unavailable resource. Otherwise correction 3 is the final retry. If its state is `FAILED`, send terminal
 `FAILED`. Never create correction 4. If any attempt is `SUCCESS`, send terminal
 `SUCCESS` immediately with the exact correction count; unused corrections are
 not executed.
 
-Continue waiting for the same Builder between rounds. On an explicit terminal
-decision, send a direct terminal control to that Builder, require its direct
-ack, then return final. If the peer disappears or this Agent cannot remain
-active before terminal, report continuity failure without spawning or
-accepting a replacement.
+Keep the same Builder between rounds, yielding a control-only round pause
+after a direct send while it works. On an explicit terminal decision, send a
+direct terminal control to that Builder and require its direct ack before
+reporting the claim terminal. Report an unavailable peer as a control failure
+without spawning or accepting a replacement.
 
 During the active session, send the Replica Agent only control metadata with
 `send_message`: claim ID, pair identities, nonce, correction number,
 instruction sent directly, feedback received directly, and validation
-success. Never include or summarize either semantic message. Return a final
-control report only after the direct terminal ack.
+success. Never include or summarize either semantic message. Return a terminal
+control report only after the direct terminal ack; a round-pause report may
+yield the current turn after its required direct send.
+
+For a research bundle, also read the highest revision of
+`claims/<claim-id>/runtime-contract-NNN.json`. This public Second-pass supplement
+contains transport, output artifact fields, public input examples and public
+asset sources; it never contains sealed inputs or expected outputs. Keep the
+original claim and Builder context unchanged. Use the prepared public files and
+examples for development; do not replace required real assets with descriptions.
+
+
+On an identity activation with `preflight_recovery: true`, resume the same pair
+following the repaired controls even if the previous preflight reached terminal.
+The CLI has archived that terminal and pre-created an ACTIVE execution state;
+do not recreate or reset it. Keep prior peer artifacts unchanged and use a
+`preflight-recovery/` subdirectory inside your own namespace for the new direct
+round artifacts. The Operator prepares and sends the instruction directly; the
+Builder executes only that instruction. Preserve all frozen criteria and budgets.
+
+
+After your required direct send succeeds, prefer a control-only round yield
+while waiting for the peer; the same identity will be reactivated on its reply.
+An identity-only `yield_if_waiting` control asks you to release an idle active
+turn, not to stop implementation or declare the claim terminal. If direct send
+itself was rejected for active-thread capacity, preserve the validated artifact
+and report delivery=false; retry that same message when capacity is available.
+
+
+A `packaging_retry` identity control follows the same agent-bundle-retry lifecycle:
+reuse the pre-created ACTIVE state and use `packaging-retry-NNN/` for new direct
+round artifacts in your own namespace. Keep prior exchanges unchanged. The
+Operator and Builder diagnose packaging from their own development evidence and
+direct messages, rerun checks, and complete a fresh direct terminal. Do not read
+sealed evaluation evidence or assume a prior development pass is final success.
+
+
+On `continuity_resume: true`, resume the existing in-flight correction and
+execution state after its recorded control interruption. Do not recreate state,
+reset budgets, discard completed rounds or repeat an earlier terminal report.
+The Operator honors `await_peer_delivery: true` by waiting for the current direct
+feedback; it must not return before that required receive. The Builder honors
+`protocol_repair: "direct_delivery"` by validating its own current feedback and
+sending it directly to the bound Operator, then returning only control metadata.
+Use actual saved tests/evidence; do not invent a pass or send implementation
+content in a parent-facing final. Missing evidence remains a failure. This is
+one continuity recovery, not a new implementation attempt or permission to
+read another namespace. The original correction limit remains in force.

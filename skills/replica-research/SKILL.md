@@ -174,6 +174,18 @@ examples distinct from every robustness case and expected output.
 Pass 2 is complete when every selected claim has a readiness decision and
 every ready contract is complete.
 
+For the Sol/Terra bundle route, also prepare the executable evaluation data described
+in `../../docs/replica-bundle-execution.md`. Reuse existing findings and cases. Add
+only genuinely missing transport details, criterion/check mappings, materially new
+inputs, invariant/changed-fact relations, separate public examples, and input/output
+asset records. Research any new technical alternative here, not in Sol or Terra.
+The selected scenario may include `evaluation`; `handoff.experiment_budget` holds
+development time/cost limits and stopping policy. Freeze them before implementation.
+Generated wording may vary under a `contract` repeat policy; required deterministic
+fields still use exact assertions. Missing data is a research gap, not permission
+to lower acceptance criteria. Preserve old contracts and runs when supplementing.
+
+
 ## Execute only on request
 
 When the user asks to start actual replication, expand one ready contract into
@@ -189,8 +201,9 @@ immutable Second-pass claim, and gives Terra a public `builder-context.json`
 without test expectations or reference facts.
 
 Set `--model-runtime codex` on the Codex route and `--model-runtime claude` on
-the Claude route. The harness still selects the most self-sufficient researched
-scenario. The model runtime is a narrow execution overlay for supported model
+the Claude route. The harness follows the researched `handoff.selected_scenario_id` or
+`handoff.scenario_priority`; without either it preserves the original scenario
+order and records that selection basis. The model runtime is a narrow execution overlay for supported model
 steps, not a reason to select a different scenario. A bundle that actually
 declares the selected CLI promotes an `oss_only` dependency level to
 `commercial_api` while preserving the selected scenario ID, input, and output.

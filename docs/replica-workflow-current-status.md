@@ -1,7 +1,7 @@
 # Replica 워크플로우 현재 상태
 
-작성일: 2026-08-22
-현재 종료 지점: 제한 Component는 공개 산출물, 실제 2차 bundle은 구현 준비 완료
+갱신일: 2026-09-07
+현재 종료 지점: 제한 Component는 기존 공개 산출물, 실제 2차 bundle은 별도 실행·평가와 기술 결과 공개
 
 ## 전체 흐름
 
@@ -59,13 +59,20 @@ Vault를 분리한다. Operator는 공개 계약만 읽고 `replicate(runtime_in
   제거된 Builder context와 Sol 지시를 받아 다중 파일 `implementation/` bundle,
   dependency record, 환경변수 이름과 실행 명령을 만든다.
 
-Implementation bundle은 파일 경계와 해시까지 검증한 `IMPLEMENTATION_READY`다.
-아직 dependency 설치, 격리 실행, 봉인 평가와 공개 결과 처리가 연결되지 않았으므로
-`reproduced`나 `RESULT_SUCCESS`로 기록하지 않는다.
+Implementation bundle의 구조 검증은 `IMPLEMENTATION_READY`다. CLI의 최종화는 이어서
+기본 모델 CLI 평가기를 호출해 같은 파일의 복사본을 실제 실행하고 봉인 평가·반복 검사·
+구현 검토를 수행한다. 필요한 평가 자료나 Judge가 없으면 `reproduced`가 되지 않는다.
+평가를 명시적으로 보류한 번들은 `agent-bundle-evaluate`로 이어서 평가해야 종료된다.
+실패한 평가는 같은 쌍으로 재개하며 예산·제출 한도와 이전 증거를 유지한다.
+공개 코드와 기술 결과 JSON은 생성하지만 결과 보고서 개편은 이번 작업에서 제외했다.
+의존성 설치는 준비된 실행 환경의 책임이다. 임시 작업 디렉터리는 악성 코드용 OS
+sandbox를 의미하지 않는다. [실행 계약과 명령](./replica-bundle-execution.md)을 참고한다.
 
 ## 현재 결론
 
 제한 Component 경로는 비공개 동결 테스트, Completion Standard 판정과 공개 파일
-묶음까지 구현되어 있다. 실제 research 기반 bundle 경로는 Sol/Terra 구현 handoff와
-구조 검증까지 구현되어 있으며 평가·공개 연결은 다음 단계다. UI 생성은 두 흐름에
-포함하지 않는다.
+묶음까지 구현되어 있다. 실제 research 기반 bundle 경로는 조사 순서와 명시적 선택을
+보존하는 인계, 다중 파일 실행, 평가 전용 영역, 공개 재실행 경로가 연결됐다.
+초기 생성형 반복 평가는 문장 동일성 대신 계약 불변 조건을 검사한다.
+투자 판단용 결과 보고서와 회사 전체 미평가 claim 보고는 남은 작업이다.
+별도 UI 생성은 추가하지 않았다.

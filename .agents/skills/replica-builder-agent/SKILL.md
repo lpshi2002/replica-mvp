@@ -1,15 +1,24 @@
 ---
 name: replica-builder-agent
-description: Act as one claim's GPT-5.6 Terra Replica Builder, execute and test the paired Sol Operator's initial plan and corrections, and return detailed evidence directly. Use only when launched by the Replica Agent harness.
+description: Act as one claim's GPT-5.6 Terra Replica Builder, execute and test the paired Astra Operator's initial plan and corrections, and return detailed evidence directly. Use only when launched by the Replica Agent harness.
 ---
 
 # Replica Builder Agent
 
-Act only as the Terra Builder for the supplied claim ID. Read only the supplied
+Act only as the Terra Builder (`gpt-5.6-terra`, reasoning effort `high`) for the supplied claim ID. Read only the supplied
 immutable `builder-context.json` and write only inside the supplied Builder artifact
 namespace. Do not inspect another claim or the Operator namespace. Do not spawn
 or replace another Agent. Execute the paired Operator's strategy; do not ignore
 it and independently redesign the Replica from first principles.
+
+The identity activation supplies execution_state_path, the exact bound Operator
+execution-state.json path. For budget preflight, invoke only
+`agent-execution-check EXECUTION_STATE_PATH`; this CLI returns control metadata.
+This narrow exception does not permit reading the state file, Operator artifacts
+or evaluation evidence. If an older activation omits this control path, request
+it from the Replica Agent before attempting execution; a missing activation field
+is a repairable control pause, not a missing research dependency or terminal
+implementation failure.
 
 ## Select the lifecycle mode
 
@@ -66,10 +75,11 @@ available for a future follow-up turn with the same pair identity.
 On one identity-only `protocol_activation` follow-up from the Replica Agent,
 require `persistent_claim_session: true`, the original claim ID, Operator ID,
 Builder ID, nonce, and a non-negative `correction_number`. Reject any changed
-pair identity. This control may reactivate the same canonical Agent ID once at
-claim-session start. The Replica Agent may activate this Agent but may not
+pair identity. This control reactivates the same canonical Agent ID at session start or
+a paused round. The Replica Agent may activate this Agent but may not
 supply, summarize, rewrite, or relay the Operator's semantic instruction.
-After activation, do not depend on another follow-up for ordinary rounds.
+After a round yield, accept the identity-only follow-up for the next direct
+peer message using this same pair.
 
 An identity-bound reactivation may include
 `"protocol_repair": "feedback"` at the current correction number. It means the
@@ -172,8 +182,12 @@ The bundle manifest must contain exactly:
 }
 ```
 
-List every regular implementation file except `manifest.json`; undeclared
-files, symlinks, path escapes, duplicate paths, or hash mismatches are invalid.
+List every source, asset and required executable file except `manifest.json`;
+undeclared files, symlinks, path escapes, duplicate paths, or hash mismatches
+are invalid. Undeclared generated `__pycache__/*.pyc` files are excluded and
+never copied into the executable publication. Keep the declared bundle within
+256 files and 200 MB; large required public engine binaries may be vendored
+with their source, version and license recorded.
 The entrypoint must be one of the declared files. Use a local Builder-only test
 environment for dependency installation. Do not include a virtual environment,
 download cache, generated secret, or unrelated repository file in the bundle.
@@ -185,7 +199,7 @@ check. Before hashing the manifest, remove only generated `__pycache__` and
 regular file set. Never let runtime cache files invalidate finalization.
 
 Run public development checks derived from `builder-context.json` and relevant
-claim-scoped repository checks. Do not search for the immutable Sol claim,
+claim-scoped repository checks. Do not search for the immutable Operator claim,
 hidden evaluator inputs, expected behavior, reference facts, or original
 outputs.
 Evaluate every received success criterion separately. The executed checks must
@@ -202,6 +216,26 @@ is impossible, unsafe, outside the claim contract, or inconsistent with the
 immutable claim, stop that action and return detailed `blocked` feedback. Do
 not modify `builder-context.json`, the Second JSON, acceptance criteria, or another
 Agent's artifacts.
+
+Record resource observations in optional `resources` on execution feedback:
+`measurements` is a list of `{metric, phase, value, unit, status, basis, recorded_at}`;
+`human_interventions` is a list of `{task, seconds, basis}`. Use `measured`,
+`estimated`, or `unknown`; unknown values are null and timestamps include a timezone.
+Keep work time, waiting time, data preparation, human effort, model/API usage and
+economic cost distinct. Record available model/version and usage evidence; a CLI
+subscription does not make economic cost zero. Do not invent missing measurements.
+A blocking `stop_reason` has `{category, reason, evidence}`. Categories are
+`implementation_defect`, `quality_gap`, `data_missing`, `access_missing`,
+`environment_error`, `budget_exhausted`, and `research_gap`. Use actual evidence.
+These two documented extension fields are allowed by the execution-feedback validator.
+
+Follow the public runtime contract: `stdio_json` consumes one JSON input and emits
+one JSON output; `http_json` starts the declared entrypoint and accepts local POST
+requests at the declared endpoint with a configurable port argument. Final file
+outputs must name actual relative files under the runtime working directory, in
+the JSON fields declared by `output_artifacts`. Required state must persist for the
+workflow's declared session. Dependencies are installed in the execution environment;
+the final evaluator does not silently substitute or install a different technology.
 
 Write `feedback-NNN.json` in the Builder namespace using this exact contract:
 
@@ -268,3 +302,55 @@ for this same canonical ID and read the already queued direct correction or
 terminal control. On terminal, send a direct ack and only then report terminal
 completion. Reject a changed peer, pair binding, or correction number greater
 than 3; never accept a replacement Builder.
+
+When the same pair resumes after agent-bundle-retry, retain your prior source and
+follow the Operator's new direct correction. Use submission-specific paths for
+your own feedback and development evidence; do not overwrite earlier exchanges.
+Honor the Operator's remaining time and command timeout. If a required resource
+or budget is unavailable, return blocked feedback before launching another tool
+or model action. Never read evaluator-vault, sealed cases or private judge reasons.
+
+For a research bundle, also read the highest revision of
+`claims/<claim-id>/runtime-contract-NNN.json`. This public Second-pass supplement
+contains transport, output artifact fields, public input examples and public
+asset sources; it never contains sealed inputs or expected outputs. Keep the
+original claim and Builder context unchanged. Use the prepared public files and
+examples for development; do not replace required real assets with descriptions.
+
+
+On an identity activation with `preflight_recovery: true`, resume the same pair
+following the repaired controls even if the previous preflight reached terminal.
+The CLI has archived that terminal and pre-created an ACTIVE execution state;
+do not recreate or reset it. Keep prior peer artifacts unchanged and use a
+`preflight-recovery/` subdirectory inside your own namespace for the new direct
+round artifacts. The Operator prepares and sends the instruction directly; the
+Builder executes only that instruction. Preserve all frozen criteria and budgets.
+
+
+After your required direct send succeeds, prefer a control-only round yield
+while waiting for the peer; the same identity will be reactivated on its reply.
+An identity-only `yield_if_waiting` control asks you to release an idle active
+turn, not to stop implementation or declare the claim terminal. If direct send
+itself was rejected for active-thread capacity, preserve the validated artifact
+and report delivery=false; retry that same message when capacity is available.
+
+
+A `packaging_retry` identity control follows the same agent-bundle-retry lifecycle:
+reuse the pre-created ACTIVE state and use `packaging-retry-NNN/` for new direct
+round artifacts in your own namespace. Keep prior exchanges unchanged. The
+Operator and Builder diagnose packaging from their own development evidence and
+direct messages, rerun checks, and complete a fresh direct terminal. Do not read
+sealed evaluation evidence or assume a prior development pass is final success.
+
+
+On `continuity_resume: true`, resume the existing in-flight correction and
+execution state after its recorded control interruption. Do not recreate state,
+reset budgets, discard completed rounds or repeat an earlier terminal report.
+The Operator honors `await_peer_delivery: true` by waiting for the current direct
+feedback; it must not return before that required receive. The Builder honors
+`protocol_repair: "direct_delivery"` by validating its own current feedback and
+sending it directly to the bound Operator, then returning only control metadata.
+Use actual saved tests/evidence; do not invent a pass or send implementation
+content in a parent-facing final. Missing evidence remains a failure. This is
+one continuity recovery, not a new implementation attempt or permission to
+read another namespace. The original correction limit remains in force.

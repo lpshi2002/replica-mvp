@@ -1,6 +1,6 @@
 ---
 name: orchestrate-replica-agents
-description: Orchestrate a completed company research JSON or standalone Second JSON with real Claude Operator and Builder child Agents, sequential claim scheduling, a claim-scoped filesystem peer mailbox, and a lifecycle registry. Use for the production Replica Agent harness, not for implementing or correcting Replica behavior.
+description: Orchestrate a completed company research JSON or standalone Second JSON with real Claude Operator and Builder child Agents, concurrent sessions for all selected claims, a claim-scoped filesystem peer mailbox, and a lifecycle registry. Use for the production Replica Agent harness, not for implementing or correcting Replica behavior.
 ---
 
 # Orchestrate Replica Agents
@@ -40,7 +40,9 @@ This command calls `parse_second_pass()`, writes `agent-harness.json`, and
 creates `claims/<claim-id>/claim.json`, `builder-context.json`, `operator/`, and
 `builder/`. For a company research input it selects only `ready` + `build`
 claims, preserves the complete Second-pass workflow, findings, and scenario
-contracts in `claim.json`, and chooses the most self-sufficient scenario first.
+contracts in `claim.json`, and follows the Second-pass `handoff.selected_scenario_id`
+or `handoff.scenario_priority`. Without either, preserve the researched scenario
+order and record that fallback; never reorder by dependency cost or convenience.
 Claude is recorded as a narrow model-runtime overlay and does not cause an
 unrelated commercial retrieval, storage, or side-effect scenario to be chosen.
 Explicit modality-specific dependencies remain unchanged.
@@ -64,9 +66,11 @@ other's directory. This is the Claude substitute for Codex sibling messaging,
 which is unavailable because a Claude subagent can address only agents it
 spawned itself.
 
-Process registry claims in order, one active pair at a time. Never activate an
-unbounded set of pairs. For each claim run `agent-harness-start` before any
-spawn. Generate one unique nonce for that claim before spawning either child.
+Prepare pairs in research order using `agent-harness-start` before spawning.
+The registry's active_claim_id serializes pair creation and peer binding only;
+it is not an execution concurrency limit. Every selected claim gets its own
+concurrent pair: max_concurrent_pairs equals claim_count. Generate a unique nonce for
+each claim. A failure in one claim must not stop the other active claim.
 
 ## Spawn the pair
 
@@ -155,14 +159,21 @@ replica-mvp agent-harness-message REGISTRY CLAIM_ID \
 ```
 
 The second record makes the pair `READY_FOR_PROTOCOL` and releases the
-sequential scheduling slot. Keep both Agent IDs; later work must reuse this same
+pair-creation slot. Keep both Agent IDs; later work must reuse this same
 pair through `SendMessage` follow-ups instead of spawning correction Agents.
 
-Stop after every claim is `READY_FOR_PROTOCOL` or `CREATION_FAILED`. Return the
+In prepare-only mode, stop after every claim is `READY_FOR_PROTOCOL` or `CREATION_FAILED`. Return the
 registry path and exact runtime spawn/message results. Before returning, run
 `replica-mvp agent-harness-finish REGISTRY`; it must reject any nonterminal
 claim.
 
+For an authorized full implementation run, follow the sibling
+`run-replica-agent-protocol/SKILL.md` in this same Replica Agent. Create and
+link every selected pair first, then start all ready pair sessions before
+activating Operators without waiting for another claim to finish;
+N functions require N concurrent pair sessions. Serialize registry mutations,
+not feature completion. Fill pending pairs before blocking final evaluations.
+Report a real runtime capacity rejection instead of silently switching to waves.
 Do not implement Replica strategy, Builder execution, judging, correction,
 aggregation, or Final Replica JSON in this Skill.
 

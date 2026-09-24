@@ -13,6 +13,15 @@ Operator. Do not spawn or replace another Agent. Execute the paired Operator's
 strategy; do not ignore it and independently redesign the Replica from first
 principles.
 
+The identity activation supplies execution_state_path, the exact bound Operator
+execution-state.json path. For budget preflight, invoke only
+`agent-execution-check EXECUTION_STATE_PATH`; this CLI returns control metadata.
+This narrow exception does not permit reading the state file, Operator artifacts
+or evaluation evidence. If an older activation omits this control path, request
+it from the Replica Agent before attempting execution; a missing activation field
+is a repairable control pause, not a missing research dependency or terminal
+implementation failure.
+
 ## Select the lifecycle mode
 
 Choose exactly one mode from the current control before reading the mailbox. A
@@ -200,6 +209,26 @@ immutable claim, stop that action and return detailed `blocked` feedback. Do not
 modify `builder-context.json`, the Second JSON, acceptance criteria, or another
 Agent's artifacts.
 
+Record resource observations in optional `resources` on execution feedback:
+`measurements` is a list of `{metric, phase, value, unit, status, basis, recorded_at}`;
+`human_interventions` is a list of `{task, seconds, basis}`. Use `measured`,
+`estimated`, or `unknown`; unknown values are null and timestamps include a timezone.
+Keep work time, waiting time, data preparation, human effort, model/API usage and
+economic cost distinct. Record available model/version and usage evidence; a CLI
+subscription does not make economic cost zero. Do not invent missing measurements.
+A blocking `stop_reason` has `{category, reason, evidence}`. Categories are
+`implementation_defect`, `quality_gap`, `data_missing`, `access_missing`,
+`environment_error`, `budget_exhausted`, and `research_gap`. Use actual evidence.
+These two documented extension fields are allowed by the execution-feedback validator.
+
+Follow the public runtime contract: `stdio_json` consumes one JSON input and emits
+one JSON output; `http_json` starts the declared entrypoint and accepts local POST
+requests at the declared endpoint with a configurable port argument. Final file
+outputs must name actual relative files under the runtime working directory, in
+the JSON fields declared by `output_artifacts`. Required state must persist for the
+workflow's declared session. Dependencies are installed in the execution environment;
+the final evaluator does not silently substitute or install a different technology.
+
 Write `feedback-NNN.json` in the Builder namespace using this exact contract:
 
 ```json
@@ -274,3 +303,47 @@ so the peer channel is the claim mailbox and each round is its own activation.
 The executor role, the evidence requirements, the bundle contract, and the
 non-relay rule are unchanged. Keep the two Skills in step when the contract
 changes.
+
+When the same pair resumes after agent-bundle-retry, retain your prior source and
+follow the Operator's new direct correction. Use submission-specific paths for
+your own feedback and development evidence; do not overwrite earlier exchanges.
+Honor the Operator's remaining time and command timeout. If a required resource
+or budget is unavailable, return blocked feedback before launching another tool
+or model action. Never read evaluator-vault, sealed cases or private judge reasons.
+
+For a research bundle, also read the highest revision of
+`claims/<claim-id>/runtime-contract-NNN.json`. This public Second-pass supplement
+contains transport, output artifact fields, public input examples and public
+asset sources; it never contains sealed inputs or expected outputs. Keep the
+original claim and Builder context unchanged. Use the prepared public files and
+examples for development; do not replace required real assets with descriptions.
+
+
+On an identity activation with `preflight_recovery: true`, resume the same pair
+following the repaired controls even if the previous preflight reached terminal.
+The CLI has archived that terminal and pre-created an ACTIVE execution state;
+do not recreate or reset it. Keep prior peer artifacts unchanged and use a
+`preflight-recovery/` subdirectory inside your own namespace for the new direct
+round artifacts. The Operator prepares and sends the instruction directly; the
+Builder executes only that instruction. Preserve all frozen criteria and budgets.
+
+
+A `packaging_retry` identity control follows the same agent-bundle-retry lifecycle:
+reuse the pre-created ACTIVE state and use `packaging-retry-NNN/` for new direct
+round artifacts in your own namespace. Keep prior exchanges unchanged. The
+Operator and Builder diagnose packaging from their own development evidence and
+direct messages, rerun checks, and complete a fresh direct terminal. Do not read
+sealed evaluation evidence or assume a prior development pass is final success.
+
+
+On `continuity_resume: true`, resume the existing in-flight correction and
+execution state after its recorded control interruption. Do not recreate state,
+reset budgets, discard completed rounds or repeat an earlier terminal report.
+The Operator honors `await_peer_delivery: true` by waiting for the current direct
+feedback; it must not return before that required receive. The Builder honors
+`protocol_repair: "direct_delivery"` by validating its own current feedback and
+sending it directly to the bound Operator, then returning only control metadata.
+Use actual saved tests/evidence; do not invent a pass or send implementation
+content in a parent-facing final. Missing evidence remains a failure. This is
+one continuity recovery, not a new implementation attempt or permission to
+read another namespace. The original correction limit remains in force.

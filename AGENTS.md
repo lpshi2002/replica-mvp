@@ -7,13 +7,17 @@ as the authoritative workflow instead of loading the same rules through
 team-ai.
 
 When the user asks to create or run the multi-claim Replica Agent harness,
-spawn one dedicated Replica Agent with `model=gpt-5.6-sol` and
-`fork_turns=none`. Give it only the Second JSON path, run directory, canonical
+spawn one dedicated Replica Agent with `model=gpt-6-astra`,
+`reasoning_effort=medium`, and `fork_turns=none`. Give it only the Second JSON path, run directory, canonical
 parent identity, and an instruction to follow
 `.agents/skills/orchestrate-replica-agents/SKILL.md`. The root may wait for and
 report lifecycle results but must not relay Operator/Builder semantic
 messages. The Replica Agent itself creates each claim's sibling children with
-explicit `gpt-5.6-sol` Operator and `gpt-5.6-terra` Builder model requests.
+explicit `gpt-6-astra` Operator (`reasoning_effort=medium`) and `gpt-5.6-terra`
+Builder (`reasoning_effort=high`) model requests. Specify both efforts explicitly
+when spawning the pair. For actual implementation, create one pair for every
+selected function and activate all pairs concurrently: N functions mean N pairs.
+Do not wait for another feature to finish before activating the next pair.
 
 When the user explicitly asks to run the direct Operator/Builder protocol on a
 ready harness, resume the same dedicated Replica Agent and existing child
