@@ -87,6 +87,11 @@ class PythonComponentTest(unittest.TestCase):
         ):
             execute_python_component(source, {})
 
+    def test_stops_large_temporary_allocation_even_when_output_is_small(self):
+        source = "def replicate(runtime_input):\n    return len('x' * runtime_input['size'])\n"
+        with self.assertRaisesRegex(RuntimeError, "execution failed"):
+            execute_python_component(source, {"size": 200_000_000})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -40,7 +40,33 @@ def _fail() -> None:
     raise SystemExit(1)
 
 
+def _darwin_memory_limit() -> None:
+    """Bound new mappings after dyld has established the macOS runtime mappings."""
+    import ctypes
+    import os
+    import resource
+
+    # Apple's vm_map_set_size_limit rejects a limit below the current map size.
+    # proc_taskinfo: six uint64_t values followed by twelve int32_t values.
+    info = ctypes.create_string_buffer(96)
+    proc = ctypes.CDLL("/usr/lib/libproc.dylib")
+    proc.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int]
+    proc.proc_pidinfo.restype = ctypes.c_int
+    if proc.proc_pidinfo(os.getpid(), 4, 0, info, ctypes.sizeof(info)) != ctypes.sizeof(info):
+        raise RuntimeError("cannot establish macOS memory limit")
+    baseline = int.from_bytes(info.raw[:8], sys.byteorder)
+    ceiling = baseline + 128 * 1024 * 1024
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    ceiling = min(ceiling, soft, hard)
+    resource.setrlimit(resource.RLIMIT_AS, (ceiling, ceiling))
+
+
 def main() -> None:
+    if sys.platform == "darwin":
+        try:
+            _darwin_memory_limit()
+        except (OSError, ValueError, RuntimeError):
+            _fail()
     envelope_bytes = sys.stdin.buffer.read(MAX_ENVELOPE_BYTES + 1)
     if len(envelope_bytes) > MAX_ENVELOPE_BYTES:
         _fail()

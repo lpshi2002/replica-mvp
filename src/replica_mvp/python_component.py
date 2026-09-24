@@ -310,6 +310,9 @@ def python_language_contract() -> dict[str, Any]:
             "max_output_bytes": MAX_PYTHON_OUTPUT_BYTES,
             "timeout_seconds": PYTHON_TIMEOUT_SECONDS,
             "max_process_memory_bytes": MAX_PYTHON_PROCESS_MEMORY_BYTES,
+            "memory_limit_basis": (
+                "post_startup_address_space_growth" if sys.platform == "darwin" else "process_address_space_or_job"
+            ),
         },
         "forbidden": [
             "imports",
@@ -429,7 +432,7 @@ def _run_restricted_python(
     runner: Path,
     input_bytes: bytes,
 ) -> tuple[int, bytes]:
-    preexec_fn = _unix_memory_limit if os.name != "nt" else None
+    preexec_fn = _unix_memory_limit if os.name != "nt" and sys.platform != "darwin" else None
     process = subprocess.Popen(
         [
             sys.executable,
@@ -441,6 +444,8 @@ def _run_restricted_python(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         preexec_fn=preexec_fn,
+        # A pre-reserved nano allocator arena would undermine a VM-growth limit.
+        env={**os.environ, "MallocNanoZone": "0"} if sys.platform == "darwin" else None,
     )
     job = None
     try:
