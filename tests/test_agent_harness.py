@@ -37,6 +37,28 @@ def _multi_claim_input():
 
 
 class ReplicaAgentHarnessTest(unittest.TestCase):
+    def test_astra_and_terra_spawns_require_their_explicit_efforts(self):
+        with TemporaryDirectory() as tmp:
+            run_dir = Path(tmp) / "run"
+            registry = prepare_agent_harness(_legacy_claim(), run_dir,
+                                             replica_agent_id="/root/replica_agent", parent_agent_id="/root")
+            registry_path = run_dir / "agent-harness.json"
+            claim_id = registry["claims"][0]["claim_id"]
+            start_agent_claim(registry_path, claim_id)
+            arguments = {"role": "operator", "agent_id": "/root/replica_agent/operator_001",
+                         "parent_agent_id": "/root/replica_agent", "requested_model": "gpt-6-astra"}
+            for effort in (None, "high"):
+                with self.subTest(effort=effort), self.assertRaisesRegex(ValueError, "reasoning effort"):
+                    record_agent_spawn(registry_path, claim_id, **arguments, requested_reasoning_effort=effort)
+            recorded = record_agent_spawn(registry_path, claim_id, **arguments, requested_reasoning_effort="medium")
+            self.assertEqual("SPAWNED", recorded["claims"][0]["operator"]["status"])
+            arguments.update(role="builder", agent_id="/root/replica_agent/builder_001", requested_model="gpt-5.6-terra")
+            for effort in (None, "medium"):
+                with self.subTest(builder_effort=effort), self.assertRaisesRegex(ValueError, "reasoning effort"):
+                    record_agent_spawn(registry_path, claim_id, **arguments, requested_reasoning_effort=effort)
+            recorded = record_agent_spawn(registry_path, claim_id, **arguments, requested_reasoning_effort="high")
+            self.assertEqual("PEER_LINKED", recorded["claims"][0]["builder"]["status"])
+
     def test_research_claim_gives_sol_full_context_and_terra_a_public_build_context(self):
         with TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "run"
@@ -86,7 +108,7 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
             self.assertEqual("replica-agent-harness/v1", registry["schema_version"])
             self.assertEqual(1, registry["claim_count"])
             self.assertEqual(
-                "gpt-5.6-sol",
+                "gpt-6-astra",
                 registry["replica_agent"]["requested_model"],
             )
             claim = registry["claims"][0]
@@ -95,7 +117,10 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                 claim["claim_id"],
             )
             self.assertEqual("operator", claim["operator"]["role"])
-            self.assertEqual("gpt-5.6-sol", claim["operator"]["requested_model"])
+            self.assertEqual("gpt-6-astra", claim["operator"]["requested_model"])
+            self.assertEqual("medium", registry["replica_agent"]["requested_reasoning_effort"])
+            self.assertEqual("medium", claim["operator"]["requested_reasoning_effort"])
+            self.assertEqual("high", claim["builder"]["requested_reasoning_effort"])
             self.assertEqual("builder", claim["builder"]["role"])
             self.assertEqual("gpt-5.6-terra", claim["builder"]["requested_model"])
             self.assertTrue((run_dir / "claims" / claim["claim_id"] / "operator").is_dir())
@@ -127,7 +152,7 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                 ),
             )
 
-    def test_multi_claims_are_scheduled_one_pair_at_a_time(self):
+    def test_pair_creation_is_serialized_separately_from_execution(self):
         with TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "run"
             registry = prepare_agent_harness(
@@ -151,7 +176,7 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                 [claim["claim_id"] for claim in registry["claims"]],
             )
             self.assertEqual(
-                "sequential_claim_pairs",
+                "parallel_claim_pairs",
                 started["scheduling"]["policy"],
             )
             self.assertEqual(
@@ -200,7 +225,8 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                     role="operator",
                     agent_id="/root/replica_agent/operator_001",
                     parent_agent_id="/root/replica_agent",
-                    requested_model="gpt-5.6-sol",
+                    requested_model="gpt-6-astra",
+                    requested_reasoning_effort="medium",
                 )
             linked = record_agent_spawn(
                 registry_path,
@@ -258,7 +284,8 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                 role="operator",
                 agent_id="/root/replica_agent/operator_001",
                 parent_agent_id="/root/replica_agent",
-                requested_model="gpt-5.6-sol",
+                requested_model="gpt-6-astra",
+                requested_reasoning_effort="medium",
             )
             linked = record_agent_spawn(
                 registry_path,
@@ -267,6 +294,7 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                 agent_id="/root/replica_agent/builder_001",
                 parent_agent_id="/root/replica_agent",
                 requested_model="gpt-5.6-terra",
+                requested_reasoning_effort="high",
             )
 
             claim = linked["claims"][0]
@@ -297,7 +325,8 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                 role="operator",
                 agent_id="/root/replica_agent/operator_001",
                 parent_agent_id="/root/replica_agent",
-                requested_model="gpt-5.6-sol",
+                requested_model="gpt-6-astra",
+                requested_reasoning_effort="medium",
             )
 
             failed = record_agent_spawn_failure(
@@ -337,6 +366,7 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                     agent_id="/root/replica_agent/builder_001",
                     parent_agent_id="/root/replica_agent",
                     requested_model="gpt-5.6-terra",
+                    requested_reasoning_effort="high",
                 )
 
     def test_direct_ping_pong_is_pair_scoped_and_preserves_agent_continuity(self):
@@ -359,7 +389,8 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                 role="operator",
                 agent_id=operator_id,
                 parent_agent_id="/root/replica_agent",
-                requested_model="gpt-5.6-sol",
+                requested_model="gpt-6-astra",
+                requested_reasoning_effort="medium",
             )
             record_agent_spawn(
                 registry_path,
@@ -368,6 +399,7 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                 agent_id=builder_id,
                 parent_agent_id="/root/replica_agent",
                 requested_model="gpt-5.6-terra",
+                requested_reasoning_effort="high",
             )
 
             pinged = record_direct_agent_message(
@@ -453,7 +485,9 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                     "--parent-agent-id",
                     "/root/replica_agent",
                     "--requested-model",
-                    "gpt-5.6-sol",
+                    "gpt-6-astra",
+                    "--requested-reasoning-effort",
+                    "medium",
                 ],
                 [
                     "agent-harness-spawned",
@@ -467,6 +501,8 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
                     "/root/replica_agent",
                     "--requested-model",
                     "gpt-5.6-terra",
+                    "--requested-reasoning-effort",
+                    "high",
                 ],
                 [
                     "agent-harness-message",

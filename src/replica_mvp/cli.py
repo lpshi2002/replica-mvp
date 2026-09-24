@@ -7,11 +7,13 @@ from pathlib import Path
 
 from .agent_execution import (
     advance_agent_execution_from_paths,
+    check_agent_execution_budget,
     create_agent_execution_state_file,
 )
 from .agent_harness import (
-    SOL_MODEL,
+    ASTRA_MODEL,
     TERRA_MODEL,
+    _read_registry,
     finalize_agent_candidate,
     finish_agent_continuity,
     finish_agent_harness,
@@ -22,11 +24,15 @@ from .agent_harness import (
     record_agent_spawn_failure,
     record_direct_agent_message,
     record_released_agent,
+    resume_agent_continuity,
+    retry_agent_preflight,
     start_agent_claim,
     start_agent_continuity,
 )
 from .agent_protocol import validate_agent_protocol_message_from_path
 from .builder import run_built_replica
+from .bundle_evaluation import evaluate_agent_bundle, prepare_bundle_evaluation, retry_agent_bundle
+from .bundle_runtime import native_model_judge, run_json_command
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .experience import experience_input_once, experience_once
 from .intake import receive_second_pass
@@ -102,8 +108,8 @@ def _parser() -> argparse.ArgumentParser:
     harness_init.add_argument("run_dir", type=Path)
     harness_init.add_argument("--replica-agent-id", required=True)
     harness_init.add_argument("--parent-agent-id", required=True)
-    harness_init.add_argument("--replica-agent-model", default=SOL_MODEL)
-    harness_init.add_argument("--operator-model", default=SOL_MODEL)
+    harness_init.add_argument("--replica-agent-model", default=ASTRA_MODEL)
+    harness_init.add_argument("--operator-model", default=ASTRA_MODEL)
     harness_init.add_argument("--builder-model", default=TERRA_MODEL)
     harness_init.add_argument(
         "--model-runtime",
@@ -113,7 +119,7 @@ def _parser() -> argparse.ArgumentParser:
 
     harness_start = sub.add_parser(
         "agent-harness-start",
-        help="Activate the next sequential claim pair.",
+        help="Register the next claim pair without waiting for active executions.",
     )
     harness_start.add_argument("registry", type=Path)
     harness_start.add_argument("claim_id")
@@ -128,6 +134,7 @@ def _parser() -> argparse.ArgumentParser:
     harness_spawned.add_argument("--agent-id", required=True)
     harness_spawned.add_argument("--parent-agent-id", required=True)
     harness_spawned.add_argument("--requested-model", required=True)
+    harness_spawned.add_argument("--requested-reasoning-effort", help="Explicit effort sent to the Agent spawn tool; omit when inherited.")
 
     harness_failed = sub.add_parser(
         "agent-harness-failed",
@@ -232,6 +239,19 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
     )
 
+    preflight_retry = sub.add_parser(
+        "agent-continuity-retry-preflight",
+        help="Recover once from a recorded environment stop before any implementation action.",
+    )
+    preflight_retry.add_argument("registry", type=Path)
+    preflight_retry.add_argument("claim_id")
+
+    continuity_resume = sub.add_parser(
+        "agent-continuity-resume", help="Resume one direct-delivery interruption with the original state and peers.",
+    )
+    continuity_resume.add_argument("registry", type=Path)
+    continuity_resume.add_argument("claim_id")
+
     continuity_terminal = sub.add_parser(
         "agent-continuity-terminal",
         help="Complete a sibling pair after an explicit direct terminal.",
@@ -262,6 +282,24 @@ def _parser() -> argparse.ArgumentParser:
     candidate_finalize.add_argument("registry", type=Path)
     candidate_finalize.add_argument("claim_id")
     candidate_finalize.add_argument("candidate", type=Path)
+    candidate_finalize.add_argument("--bind-only", action="store_true", help="Leave a bundle ready for a separately scheduled final evaluator.")
+    execution_check = sub.add_parser("agent-execution-check", help="Check the frozen development budget before the next action.")
+    execution_check.add_argument("state", type=Path)
+
+    bundle_prepare = sub.add_parser("agent-bundle-prepare", help="Freeze an additive second-pass evaluation supplement.")
+    bundle_prepare.add_argument("registry", type=Path)
+    bundle_prepare.add_argument("claim_id")
+    bundle_prepare.add_argument("--supplement", type=Path)
+
+    bundle_evaluate = sub.add_parser("agent-bundle-evaluate", help="Execute and evaluate the bound bundle outside Builder development tests.")
+    bundle_evaluate.add_argument("registry", type=Path)
+    bundle_evaluate.add_argument("claim_id")
+    bundle_evaluate.add_argument("--judge-command", type=_command_arguments)
+    bundle_evaluate.add_argument("--judge-identity")
+    bundle_evaluate.add_argument("--judge-mode", choices=("independent", "same_session"), default="same_session")
+    bundle_retry = sub.add_parser("agent-bundle-retry", help="Reopen the same pair after a failed final evaluation, preserving history and budgets.")
+    bundle_retry.add_argument("registry", type=Path)
+    bundle_retry.add_argument("claim_id")
 
     continuity_premature = sub.add_parser(
         "agent-continuity-premature",
@@ -311,6 +349,8 @@ def _parser() -> argparse.ArgumentParser:
         help="Run a built Replica with a JSON object read from stdin.",
     )
     run_replica.add_argument("path", type=Path)
+    run_replica.add_argument("--input-assets", type=Path, help="JSON map of runtime-relative asset names to local source paths.")
+    run_replica.add_argument("--session", action="store_true", help="Run a JSON array of inputs in one bundle session.")
     run_replica.add_argument(
         "--use-model-adapter",
         action="store_true",
@@ -354,6 +394,30 @@ def _parser() -> argparse.ArgumentParser:
     )
 
     return parser
+
+
+def _evaluate_bundle_cli(registry_path: Path, claim_id: str, *, judge_command: list[str] | None = None,
+                         judge_identity: str | None = None, judge_mode: str = "same_session") -> dict:
+    if judge_command is None:
+        registry = _read_registry(registry_path)
+        provider = registry.get("model_runtime", {}).get("provider")
+        if provider not in MODEL_RUNTIMES:
+            raise ValueError("final evaluation requires the harness-selected model runtime")
+        if judge_mode != "same_session":
+            raise ValueError("the harness runtime alone does not establish an independent judge")
+        return evaluate_agent_bundle(
+            registry_path, claim_id, semantic_judge=lambda request: native_model_judge(provider, request),
+            judge_identity=judge_identity or f"{provider}-cli-final-evaluator", judge_mode="same_session",
+        )
+    if not judge_identity:
+        raise ValueError("a custom evaluator requires --judge-identity")
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="replica-final-judge-") as directory:
+        return evaluate_agent_bundle(
+            registry_path, claim_id,
+            semantic_judge=lambda request: run_json_command(judge_command, request, Path(directory), request["timeout_seconds"]),
+            judge_identity=judge_identity, judge_mode=judge_mode,
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -400,6 +464,7 @@ def main(argv: list[str] | None = None) -> int:
                 agent_id=args.agent_id,
                 parent_agent_id=args.parent_agent_id,
                 requested_model=args.requested_model,
+                requested_reasoning_effort=args.requested_reasoning_effort,
             )
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-harness-failed":
@@ -440,6 +505,8 @@ def main(argv: list[str] | None = None) -> int:
                 expected_correction_number=args.expected_correction_number,
             )
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-execution-check":
+            print(json.dumps(check_agent_execution_budget(args.state), ensure_ascii=False, allow_nan=False))
         elif args.command == "agent-execution-start":
             result = create_agent_execution_state_file(
                 args.state,
@@ -478,6 +545,12 @@ def main(argv: list[str] | None = None) -> int:
                 builder_to_operator_direct=args.builder_to_operator_direct,
             )
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-continuity-resume":
+            result = resume_agent_continuity(args.registry, args.claim_id)
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-continuity-retry-preflight":
+            result = retry_agent_preflight(args.registry, args.claim_id)
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-continuity-terminal":
             result = finish_agent_continuity(
                 args.registry,
@@ -498,6 +571,21 @@ def main(argv: list[str] | None = None) -> int:
                 args.claim_id,
                 args.candidate,
             )
+            claim = next(c for c in result["claims"] if c["claim_id"] == args.claim_id)
+            if claim["status"] == "IMPLEMENTATION_READY" and not args.bind_only:
+                result = _evaluate_bundle_cli(args.registry, args.claim_id)
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-bundle-prepare":
+            result = prepare_bundle_evaluation(args.registry, args.claim_id, args.supplement)
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-bundle-evaluate":
+            result = _evaluate_bundle_cli(args.registry, args.claim_id, judge_command=args.judge_command,
+                                         judge_identity=args.judge_identity, judge_mode=args.judge_mode)
+            # Per-case outputs and diagnostic reasons stay in the evaluator vault.
+            print(json.dumps(next(c["final_result"] for c in result["claims"] if c["claim_id"] == args.claim_id),
+                             ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-bundle-retry":
+            result = retry_agent_bundle(args.registry, args.claim_id)
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-continuity-premature":
             result = record_agent_premature_completion(
@@ -531,6 +619,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.path,
                 replica_input,
                 allow_model_adapter=args.use_model_adapter,
+                input_assets=json.loads(args.input_assets.read_text()) if args.input_assets else None,
+                session=args.session,
             )
             print(json.dumps(output, ensure_ascii=False, allow_nan=False))
         elif args.command == "experience":

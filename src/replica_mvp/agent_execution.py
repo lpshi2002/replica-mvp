@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime, timezone
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
@@ -11,6 +12,7 @@ from .agent_protocol import (
     OPERATOR_EXECUTION_INSTRUCTION,
     validate_agent_protocol_message,
 )
+from .resources import budget_stop, timestamp, utc_now, unknown_resources, validate_budget, validate_resources
 
 
 EXECUTION_SCHEMA = "replica-agent-execution/v1"
@@ -94,7 +96,14 @@ def replica_success_criteria(claim: Mapping[str, Any]) -> list[dict[str, str]]:
                 ),
             }
         )
-    return deepcopy(list(_BASE_SUCCESS_CRITERIA) + derived)
+    criteria = deepcopy(list(_BASE_SUCCESS_CRITERIA) + derived)
+    if claim.get("execution_policy", {}).get("repeat_policy") == "contract":
+        criteria[1].update({
+            "why": "Required facts, structure and deterministic fields must survive repeated execution.",
+            "pass_condition": "Schema and contract invariants pass on every repeat; prose may vary.",
+            "fail_condition": "A required fact, citation, permission, calculation or side-effect invariant fails.",
+        })
+    return criteria
 
 
 def _is_text(value: Any) -> bool:
@@ -177,7 +186,7 @@ def create_agent_execution_state(
     claim_identity = claim.get("claim_id", claim.get("replica_id"))
     if claim_identity != claim_id:
         raise ValueError("execution loop claim identity mismatch")
-    return {
+    state = {
         "schema_version": EXECUTION_SCHEMA,
         "claim_id": claim_id,
         "operator_agent_id": operator_agent_id,
@@ -191,6 +200,14 @@ def create_agent_execution_state(
         "correction_count": 0,
         "terminal_state": None,
     }
+    state.update({
+        "started_at": utc_now(),
+        "budget": deepcopy(validate_budget(claim.get("execution_policy", {}).get("budget", {
+            "time_limit_seconds": None, "cost_limit": None, "stop_on_blocked": True,
+        }))),
+        "stop_reason": None,
+    })
+    return state
 
 
 def _validate_state(state: Any) -> dict[str, Any]:
@@ -210,7 +227,8 @@ def _validate_state(state: Any) -> dict[str, Any]:
     }
     if (
         not isinstance(state, dict)
-        or set(state) != fields
+        or set(state) not in (fields, fields | {"started_at", "budget", "stop_reason"},
+                             fields | {"started_at", "budget", "stop_reason", "prior_resources"})
         or state.get("schema_version") != EXECUTION_SCHEMA
         or not _criteria_are_documented(state.get("success_criteria"))
         or not _is_sha256(state.get("claim_sha256"))
@@ -229,6 +247,13 @@ def _validate_state(state: Any) -> dict[str, Any]:
     ):
         raise ValueError("invalid Agent execution state")
     status = state.get("status")
+    if "budget" in state:
+        validate_budget(state["budget"])
+        timestamp(state["started_at"])
+    if not isinstance(state.get("prior_resources", []), list):
+        raise ValueError("invalid prior development resources")
+    for resources in state.get("prior_resources", []):
+        validate_resources(resources)
     attempts = state["attempts"]
     next_number = state["next_correction_number"]
     correction_count = state["correction_count"]
@@ -258,11 +283,12 @@ def _validate_state(state: Any) -> dict[str, Any]:
         )
     elif status == "FAILED":
         valid_lifecycle = (
-            next_number == MAX_CORRECTIONS
-            and correction_count == MAX_CORRECTIONS
-            and len(attempts) == MAX_CORRECTIONS + 1
+            next_number == correction_count
+            and 0 <= correction_count <= MAX_CORRECTIONS
+            and len(attempts) == correction_count + 1
             and terminal_state == "FAILED"
             and attempts[-1].get("decision") == "FAIL"
+            and (correction_count == MAX_CORRECTIONS or bool(state.get("stop_reason")))
         )
     else:
         valid_lifecycle = False
@@ -288,7 +314,7 @@ def _validate_state(state: Any) -> dict[str, Any]:
     for index, attempt in enumerate(attempts):
         valid_attempt = (
             isinstance(attempt, dict)
-            and frozenset(attempt)
+            and frozenset(set(attempt) - {"resources", "stop_reason", "recorded_at"})
             in {frozenset(attempt_fields), frozenset(legacy_attempt_fields)}
             and attempt.get("correction_number") == index
             and _is_text(
@@ -332,6 +358,9 @@ def _validate_state(state: Any) -> dict[str, Any]:
         if not valid_attempt:
             valid_attempts = False
             break
+        if "resources" in attempt:
+            validate_resources(attempt["resources"])
+            timestamp(attempt.get("recorded_at"))
     if not valid_lifecycle or not valid_attempts:
         raise ValueError("invalid Agent execution state")
     return deepcopy(state)
@@ -423,7 +452,26 @@ def advance_agent_execution(
         current["success_criteria"],
     )
     passed = _attempt_passed(validated_feedback, criteria_passed)
-    if passed:
+    resources = deepcopy(validated_feedback.get("resources", unknown_resources()))
+    stop_reason = validated_feedback.get("stop_reason")
+    if "budget" in current:
+        stop = budget_stop(current["budget"], current["started_at"],
+                           current.get("prior_resources", []) +
+                           [a.get("resources", unknown_resources()) for a in current["attempts"]] + [resources])
+        if stop:
+            stop_reason = {"category": "budget_exhausted", "reason": stop,
+                           "evidence": ["Frozen budget and recorded resource observations."]}
+        elif validated_feedback["execution_status"] == "blocked" and current["budget"]["stop_on_blocked"]:
+            stop_reason = stop_reason or {
+                "category": "environment_error", "reason": "Builder reported a blocking requirement.",
+                "evidence": ["Bound Builder feedback; see its diagnostics."],
+            }
+    if stop_reason and "budget" in current:
+        passed = False
+        decision = "FAIL"
+        current["status"] = current["terminal_state"] = "FAILED"
+        current["stop_reason"] = deepcopy(stop_reason)
+    elif passed:
         decision = "PASS"
         current["status"] = "SUCCESS"
         current["terminal_state"] = "SUCCESS"
@@ -460,6 +508,9 @@ def advance_agent_execution(
             ),
             "total_criteria": len(validated_feedback["validation_results"]),
             "decision": decision,
+            "resources": resources,
+            "stop_reason": deepcopy(stop_reason),
+            "recorded_at": utc_now(),
         }
     )
     return current
@@ -531,6 +582,19 @@ def advance_agent_execution_from_paths(
     return advanced
 
 
+def check_agent_execution_budget(state_path: Path) -> dict[str, Any]:
+    """Control-only preflight before the Operator starts another bounded action."""
+    state = _validate_state(_read_json_object(state_path, "Agent execution state"))
+    if "budget" not in state:
+        return {"allowed": state["status"] in {"ACTIVE", "CORRECTION_REQUIRED"}, "stop_reason": None, "remaining_seconds": None}
+    resources = state.get("prior_resources", []) + [a.get("resources", unknown_resources()) for a in state["attempts"]]
+    reason = budget_stop(state["budget"], state["started_at"], resources)
+    limit = state["budget"]["time_limit_seconds"]
+    remaining = max(0, limit - (datetime.now(timezone.utc) - timestamp(state["started_at"])).total_seconds()) if limit is not None else None
+    return {"allowed": reason is None and state["status"] in {"ACTIVE", "CORRECTION_REQUIRED"},
+            "stop_reason": reason, "remaining_seconds": remaining}
+
+
 def load_agent_execution_state_file(
     state_path: Path,
     claim: Mapping[str, Any],
@@ -544,6 +608,7 @@ def load_agent_execution_state_file(
     if (
         state["claim_sha256"] != _canonical_sha256(claim)
         or state["success_criteria"] != replica_success_criteria(claim)
+        or ("execution_policy" in claim and state.get("budget") != claim["execution_policy"]["budget"])
     ):
         raise ValueError("Agent execution state does not match immutable claim")
     return state, hashlib.sha256(raw).hexdigest()

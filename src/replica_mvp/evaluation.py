@@ -41,7 +41,7 @@ def _write_jsonl(path: Path, values: list[dict[str, Any]]) -> None:
 
 def _read_json(path: Path) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"), parse_constant=_reject_nonstandard_constant)
     except FileNotFoundError:
         raise ValueError(f"missing file: {path}") from None
     except json.JSONDecodeError as error:
@@ -107,7 +107,7 @@ def freeze_test_suite(source: Path, run_dir: Path) -> dict[str, Any]:
         ):
             raise ValueError(f"invalid test case: {case.get('id', '')}")
         for assertion in assertions:
-            if assertion.get("type") not in {"equals", "contains"}:
+            if assertion.get("type") not in {"equals", "contains", "json_type"}:
                 raise ValueError(
                     f"unsupported assertion in test case {case['id']}"
                 )
@@ -116,6 +116,15 @@ def freeze_test_suite(source: Path, run_dir: Path) -> dict[str, Any]:
                 and not isinstance(assertion["value"], str)
             ):
                 raise ValueError(f"invalid assertion in test case {case['id']}")
+            if "path" in assertion and (
+                not isinstance(assertion["path"], list)
+                or not all(type(part) in {str, int} for part in assertion["path"])
+            ):
+                raise ValueError("assertion path must be a list of keys or indexes")
+            if assertion["type"] == "json_type" and assertion["value"] not in {
+                "object", "array", "string", "number", "integer", "boolean", "null",
+            }:
+                raise ValueError("invalid JSON type assertion")
 
     digest = hashlib.sha256(source_bytes).hexdigest()
     frozen = {
@@ -170,16 +179,33 @@ def _require_standard_json(value: Any) -> None:
 def _check_assertion(assertion: dict[str, Any], output: Any) -> dict[str, Any]:
     assertion_type = assertion.get("type")
     expected = assertion.get("value")
+    try:
+        output = _path_value(output, assertion.get("path", []))
+    except (KeyError, IndexError, TypeError):
+        return {"type": assertion_type, "pass": False}
     if assertion_type == "equals":
         passed = _json_equal(output, expected)
     elif assertion_type == "contains":
         passed = isinstance(output, str) and isinstance(expected, str) and expected in output
+    elif assertion_type == "json_type":
+        passed = {
+            "object": type(output) is dict, "array": type(output) is list,
+            "string": type(output) is str, "number": type(output) in {int, float},
+            "integer": type(output) is int, "boolean": type(output) is bool,
+            "null": output is None,
+        }.get(expected, False)
     else:
         passed = False
     return {
         "type": assertion_type,
         "pass": passed,
     }
+
+
+def _path_value(value: Any, path: list[Any]) -> Any:
+    for part in path:
+        value = value[part]
+    return value
 
 
 def evaluate_frozen_suite(

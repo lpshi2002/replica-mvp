@@ -5,6 +5,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from replica_mvp import (
     advance_agent_execution,
@@ -21,6 +22,7 @@ from replica_mvp import (
     start_agent_continuity,
 )
 from replica_mvp.cli import main
+from replica_mvp.agent_harness import resume_agent_continuity, retry_agent_preflight
 from tests.test_agent_execution import _feedback, _instruction
 from tests.test_second_pass import _research
 
@@ -49,7 +51,8 @@ def _prepare_ready_pair(run_dir: Path) -> Path:
         role="operator",
         agent_id=OPERATOR_ID,
         parent_agent_id="/root/replica_agent",
-        requested_model="gpt-5.6-sol",
+        requested_model="gpt-6-astra",
+        requested_reasoning_effort="medium",
     )
     record_agent_spawn(
         registry_path,
@@ -58,6 +61,7 @@ def _prepare_ready_pair(run_dir: Path) -> Path:
         agent_id=BUILDER_ID,
         parent_agent_id="/root/replica_agent",
         requested_model="gpt-5.6-terra",
+        requested_reasoning_effort="high",
     )
     record_direct_agent_message(
         registry_path,
@@ -97,7 +101,8 @@ def _prepare_rich_ready_pair(run_dir: Path) -> tuple[Path, dict]:
         role="operator",
         agent_id=operator_id,
         parent_agent_id="/root/replica_agent",
-        requested_model="gpt-5.6-sol",
+        requested_model="gpt-6-astra",
+        requested_reasoning_effort="medium",
     )
     record_agent_spawn(
         registry_path,
@@ -106,6 +111,7 @@ def _prepare_rich_ready_pair(run_dir: Path) -> tuple[Path, dict]:
         agent_id=builder_id,
         parent_agent_id="/root/replica_agent",
         requested_model="gpt-5.6-terra",
+        requested_reasoning_effort="high",
     )
     for direction, sender, recipient in (
         ("operator_to_builder", operator_id, builder_id),
@@ -127,15 +133,18 @@ def _prepare_rich_ready_pair(run_dir: Path) -> tuple[Path, dict]:
     }
 
 
-def _prepare_two_active_continuity_pairs(run_dir: Path) -> tuple[Path, list[dict]]:
+def _prepare_active_continuity_pairs(run_dir: Path, *, claim_count: int = 2) -> tuple[Path, list[dict]]:
     first = json.loads(LEGACY_EXAMPLE.read_text(encoding="utf-8"))
     second = dict(first)
     second["replica_id"] = "growth-labs-seat-guidance"
+    claims = [first, second]
+    for index in range(3, claim_count + 1):
+        claims.append({**first, "replica_id": f"growth-labs-feature-{index}"})
     registry_path = run_dir / "agent-harness.json"
     prepare_agent_harness(
         {
             "schema_version": "replica-second-pass-claim-collection/v1",
-            "claims": [first, second],
+            "claims": claims,
         },
         run_dir,
         replica_agent_id="/root/replica_agent",
@@ -143,7 +152,7 @@ def _prepare_two_active_continuity_pairs(run_dir: Path) -> tuple[Path, list[dict
     )
     bindings = []
     for index, claim_id in enumerate(
-        (CLAIM_ID, "growth-labs-seat-guidance"),
+        (claim["replica_id"] for claim in claims),
         start=1,
     ):
         operator_id = f"/root/replica_agent/operator_{index:03d}"
@@ -156,7 +165,8 @@ def _prepare_two_active_continuity_pairs(run_dir: Path) -> tuple[Path, list[dict
             role="operator",
             agent_id=operator_id,
             parent_agent_id="/root/replica_agent",
-            requested_model="gpt-5.6-sol",
+            requested_model="gpt-6-astra",
+            requested_reasoning_effort="medium",
         )
         record_agent_spawn(
             registry_path,
@@ -165,6 +175,7 @@ def _prepare_two_active_continuity_pairs(run_dir: Path) -> tuple[Path, list[dict
             agent_id=builder_id,
             parent_agent_id="/root/replica_agent",
             requested_model="gpt-5.6-terra",
+            requested_reasoning_effort="high",
         )
         for direction, sender, recipient in (
             ("operator_to_builder", operator_id, builder_id),
@@ -350,6 +361,110 @@ def _write_candidate(registry_path: Path, claim_id: str = CLAIM_ID) -> Path:
 
 
 class AgentContinuityTest(unittest.TestCase):
+    def test_delivery_resume_allows_received_feedback_awaiting_operator_decision(self):
+        with TemporaryDirectory() as tmp:
+            registry, binding = _prepare_rich_ready_pair(Path(tmp) / "run")
+            start_agent_continuity(registry, **binding)
+            payload = json.loads((registry.parent / "claims" / binding["claim_id"] / "claim.json").read_text())
+            state = create_agent_execution_state(claim=payload, claim_id=binding["claim_id"],
+                                                 operator_agent_id=binding["operator_agent_id"],
+                                                 builder_agent_id=binding["builder_agent_id"], pair_nonce=binding["nonce"])
+            state_path = registry.parent / "claims" / binding["claim_id"] / "operator/execution-state.json"
+            state_path.write_text(json.dumps(state))
+            record_agent_continuity_round(registry, **binding, round_number=0,
+                                         operator_to_builder_direct=True, builder_to_operator_direct=True)
+            record_agent_premature_completion(registry, binding["claim_id"],
+                                              completed_agent_id=binding["builder_agent_id"], reason="Terminal delivery interrupted.")
+            resumed = resume_agent_continuity(registry, binding["claim_id"])["claims"][0]
+            self.assertEqual(1, resumed["continuity"]["next_round"])
+            self.assertEqual(state, json.loads(state_path.read_text()))
+
+    def test_delivery_resume_keeps_round_state_budget_and_one_abort_record(self):
+        with TemporaryDirectory() as tmp:
+            registry_path, binding = _prepare_rich_ready_pair(Path(tmp) / "run")
+            start_agent_continuity(registry_path, **binding)
+            record_agent_continuity_round(registry_path, **binding, round_number=0,
+                                         operator_to_builder_direct=True, builder_to_operator_direct=True)
+            state_path = _write_execution_state(registry_path, binding, terminal_state=None, correction_count=0)
+            before = state_path.read_bytes()
+            record_agent_premature_completion(registry_path, binding["claim_id"],
+                                              completed_agent_id=binding["builder_agent_id"], reason="Required direct delivery missing.")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(0, main(["agent-continuity-resume", str(registry_path), binding["claim_id"]]))
+            resumed = json.loads(registry_path.read_text())["claims"][0]
+            self.assertEqual(before, state_path.read_bytes())
+            self.assertEqual("PAIR_ACTIVE", resumed["continuity"]["phase"])
+            self.assertEqual([0], resumed["continuity"]["completed_rounds"])
+            self.assertEqual(1, resumed["continuity"]["next_round"])
+            self.assertEqual("ABORTED", resumed["continuity"]["recovered_aborts"][0]["continuity"]["phase"])
+            self.assertNotIn("execution_result", resumed)
+            record_agent_premature_completion(registry_path, binding["claim_id"],
+                                              completed_agent_id=binding["builder_agent_id"], reason="Delivery still missing.")
+            with self.assertRaisesRegex(ValueError, "one recorded abort"):
+                resume_agent_continuity(registry_path, binding["claim_id"])
+
+    def test_preflight_recovery_preserves_evidence_identity_and_budget(self):
+        original_feedback = _feedback
+        def blocked_feedback(*args, **kwargs):
+            feedback = original_feedback(*args, **kwargs)
+            feedback.update(execution_status="blocked", test_status="not_run",
+                            stop_reason={"category": "environment_error", "reason": "Missing runtime control.",
+                                         "evidence": ["Control preflight stopped before implementation."]},
+                            resources={"human_interventions": [], "measurements": [{
+                                "metric": "implementation_actions_started", "phase": "preflight", "value": 0,
+                                "unit": "actions", "status": "measured", "basis": "Control-only stop.",
+                                "recorded_at": "2026-09-08T00:00:00+00:00"}]})
+            return feedback
+        with TemporaryDirectory() as tmp:
+            registry_path, binding = _prepare_rich_ready_pair(Path(tmp) / "run")
+            claim_id = binding["claim_id"]
+            start_agent_continuity(registry_path, **binding)
+            record_agent_continuity_round(registry_path, **binding, round_number=0,
+                                         operator_to_builder_direct=True, builder_to_operator_direct=True)
+            with patch(f"{__name__}._feedback", side_effect=blocked_feedback):
+                state_path = _write_execution_state(registry_path, binding, terminal_state=None, correction_count=0)
+            previous = json.loads(state_path.read_text())
+            finish_agent_continuity(registry_path, **binding, terminal_state="FAILED",
+                                    terminal_acknowledged_directly=True, execution_state_path=state_path)
+            candidate = registry_path.parent / previous["attempts"][0]["candidate_path"]
+            candidate.write_text("{}")
+            with self.assertRaisesRegex(ValueError, "no candidate"):
+                retry_agent_preflight(registry_path, claim_id)
+            candidate.unlink()
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(0, main(["agent-continuity-retry-preflight", str(registry_path), claim_id]))
+            registry = json.loads(registry_path.read_text())
+            claim = registry["claims"][0]
+            recovery = claim["preflight_recovery"]
+            archive = registry_path.parent / recovery["archive_path"]
+            self.assertEqual(previous, json.loads(archive.read_text())["execution_state"])
+            self.assertEqual(hashlib.sha256(archive.read_bytes()).hexdigest(), recovery["sha256"])
+            resumed = json.loads(state_path.read_text())
+            for field in ("started_at", "budget", "operator_agent_id", "builder_agent_id", "pair_nonce", "claim_sha256"):
+                self.assertEqual(previous[field], resumed[field])
+            self.assertEqual([previous["attempts"][0]["resources"]], resumed["prior_resources"])
+            self.assertEqual("ACTIVE", resumed["status"])
+            self.assertEqual("READY", claim["continuity"]["phase"])
+            self.assertNotIn("finished_at", claim["continuity"])
+            with self.assertRaisesRegex(ValueError, "unrecovered"):
+                retry_agent_preflight(registry_path, claim_id)
+
+    def test_all_selected_pairs_overlap_without_waiting_for_completion(self):
+        for claim_count in (3, 10):
+            with self.subTest(claim_count=claim_count), TemporaryDirectory() as tmp:
+                registry_path, _ = _prepare_active_continuity_pairs(
+                    Path(tmp) / "run", claim_count=claim_count
+                )
+                registry = json.loads(registry_path.read_text())
+                self.assertEqual(claim_count, registry["scheduling"]["max_concurrent_pairs"])
+                self.assertEqual(claim_count, registry["scheduling"]["peak_active_pairs"])
+                for claim in registry["claims"]:
+                    self.assertEqual("PAIR_ACTIVE", claim["continuity"]["phase"])
+                    self.assertTrue(claim["continuity"]["started_at"])
+                    self.assertNotIn("finished_at", claim["continuity"])
+                with self.assertRaisesRegex(ValueError, "active execution pairs"):
+                    finish_agent_harness(registry_path)
+
     def test_ready_pair_starts_one_long_lived_claim_session(self):
         with TemporaryDirectory() as tmp:
             registry_path = _prepare_ready_pair(Path(tmp) / "run")
@@ -721,8 +836,8 @@ class AgentContinuityTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "hash mismatch"):
                 finish_agent_harness(registry_path)
             source_path.write_bytes(source_bytes)
-            aggregate = finish_agent_harness(registry_path)
-            self.assertEqual("IMPLEMENTATION_READY", aggregate["status"])
+            with self.assertRaisesRegex(ValueError, "before final bundle evaluation"):
+                finish_agent_harness(registry_path)
 
     def test_invalid_terra_candidate_fails_the_final_result(self):
         with TemporaryDirectory() as tmp:
@@ -838,7 +953,7 @@ class AgentContinuityTest(unittest.TestCase):
 
     def test_failed_claim_does_not_change_a_successful_claim(self):
         with TemporaryDirectory() as tmp:
-            registry_path, bindings = _prepare_two_active_continuity_pairs(
+            registry_path, bindings = _prepare_active_continuity_pairs(
                 Path(tmp) / "run"
             )
             terminal_states = ("SUCCESS", "FAILED")
@@ -948,7 +1063,7 @@ class AgentContinuityTest(unittest.TestCase):
 
     def test_premature_completion_does_not_abort_another_claim(self):
         with TemporaryDirectory() as tmp:
-            registry_path, bindings = _prepare_two_active_continuity_pairs(
+            registry_path, bindings = _prepare_active_continuity_pairs(
                 Path(tmp) / "run"
             )
 

@@ -141,6 +141,41 @@ def _feedback(
 
 
 class AgentExecutionTest(unittest.TestCase):
+    def test_blocking_feedback_ends_before_three_identical_corrections(self):
+        state = create_agent_execution_state(claim=_claim(), claim_id=CLAIM_ID,
+                                             operator_agent_id=OPERATOR_ID, builder_agent_id=BUILDER_ID, pair_nonce=NONCE)
+        feedback = _feedback(passed=False)
+        feedback["execution_status"] = "blocked"
+        feedback["stop_reason"] = {"category": "access_missing", "reason": "Required dataset access is unavailable.",
+                                   "evidence": ["Access probe returned denied."]}
+        result = advance_agent_execution(state, _instruction(), feedback)
+        self.assertEqual("FAILED", result["status"])
+        self.assertEqual(0, result["correction_count"])
+        self.assertEqual("access_missing", result["stop_reason"]["category"])
+        self.assertTrue(all(m["value"] is None for m in result["attempts"][0]["resources"]["measurements"]))
+
+    def test_elapsed_budget_stops_a_retry_and_unknown_cost_is_not_zero(self):
+        from replica_mvp.agent_execution import check_agent_execution_budget
+        claim = _claim()
+        claim["execution_policy"] = {"budget": {"time_limit_seconds": 1, "cost_limit": None, "stop_on_blocked": True}}
+        state = create_agent_execution_state(claim=claim, claim_id=CLAIM_ID,
+                                             operator_agent_id=OPERATOR_ID, builder_agent_id=BUILDER_ID, pair_nonce=NONCE)
+        state["started_at"] = "2000-01-01T00:00:00+00:00"
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "state.json"
+            path.write_text(json.dumps(state))
+            check = check_agent_execution_budget(path)
+            self.assertFalse(check["allowed"])
+            self.assertEqual(0, check["remaining_seconds"])
+            state["budget"]["time_limit_seconds"] = None
+            state["budget"]["cost_limit"] = {"amount": 2, "currency": "USD"}
+            path.write_text(json.dumps(state))
+            self.assertEqual("budget_unverifiable", check_agent_execution_budget(path)["stop_reason"])
+            state["budget"] = claim["execution_policy"]["budget"].copy()
+        result = advance_agent_execution(state, _instruction(claim=claim), _feedback(claim=claim, passed=False))
+        self.assertEqual("budget_exhausted", result["stop_reason"]["reason"])
+        self.assertEqual("FAILED", result["status"])
+
     def test_execution_requires_the_standard_terra_candidate_path(self):
         state = create_agent_execution_state(
             claim=_claim(),

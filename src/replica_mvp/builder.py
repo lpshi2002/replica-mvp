@@ -255,14 +255,26 @@ def _require_standard_json(value: Any) -> None:
 
 def run_built_replica(
     run_dir: Path,
-    runtime_input: dict[str, Any],
+    runtime_input: dict[str, Any] | list[dict[str, Any]],
     *,
     allow_model_adapter: bool = False,
+    input_assets: dict[str, str] | None = None,
+    session: bool = False,
 ) -> Any:
-    if not isinstance(runtime_input, dict):
+    if session and (not isinstance(runtime_input, list) or not runtime_input
+                    or not all(isinstance(value, dict) for value in runtime_input)):
+        raise ValueError("Replica session input must be a non-empty array of JSON objects")
+    if not session and not isinstance(runtime_input, dict):
         raise ValueError("Replica input must be a JSON object")
     _require_standard_json(runtime_input)
-    replica = _validate_replica(_read_json(run_dir / "replica.json"))
+    raw_replica = _read_json(run_dir / "replica.json")
+    if isinstance(raw_replica, dict) and raw_replica.get("schema_version") == "replica-bundle/v1":
+        from .bundle_evaluation import run_published_bundle
+        return run_published_bundle(run_dir, runtime_input, allow_model_adapter=allow_model_adapter,
+                                    input_assets=input_assets, session=session)
+    if input_assets is not None or session:
+        raise ValueError("input assets and sessions require an implementation bundle")
+    replica = _validate_replica(raw_replica)
     replica_spec = replica["replica_spec"]
     if (
         replica_spec.get("output_contract", {}).get("format")

@@ -7,6 +7,7 @@ from typing import Any
 
 from .completion import _valid_completion_contract
 from .experience import validate_experience_profile
+from .resources import validate_budget
 
 
 LEGACY_SECOND_PASS_SCHEMA = "replica-second-pass-result/v1"
@@ -299,13 +300,20 @@ def _research_agent_claims(
         scenario_ids = [scenario["id"] for scenario in scenarios]
         if len(set(scenario_ids)) != len(scenario_ids):
             raise ValueError("duplicate research scenario identity")
-        selected = min(
-            enumerate(scenarios),
-            key=lambda item: (
-                DEPENDENCY_ORDER[item[1]["self_sufficiency"]],
-                item[0],
-            ),
-        )[1]
+        selected_id = handoff.get("selected_scenario_id")
+        priority = handoff.get("scenario_priority")
+        if priority is not None and (
+            not _is_text_list(priority, allow_empty=False)
+            or len(set(priority)) != len(priority)
+            or not set(priority) <= set(scenario_ids)
+        ):
+            raise ValueError("invalid researched scenario priority")
+        if selected_id is not None and selected_id not in scenario_ids:
+            raise ValueError("selected scenario is absent from second-pass research")
+        if selected_id is not None and priority and selected_id != priority[0]:
+            raise ValueError("conflicting second-pass scenario selection")
+        selected_id = selected_id or (priority[0] if priority else scenario_ids[0])
+        selected = next(s for s in scenarios if s["id"] == selected_id)
         payload = {
             "schema_version": RESEARCH_AGENT_CLAIM_SCHEMA,
             "claim_id": claim_id,
@@ -313,6 +321,19 @@ def _research_agent_claims(
             "first_pass": copy.deepcopy(claim.get("first_pass")),
             "second_pass": copy.deepcopy(second_pass),
             "selected_scenario_id": selected["id"],
+            "scenario_selection": {
+                "basis": (
+                    "explicit_selection" if handoff.get("selected_scenario_id")
+                    else "research_priority" if priority else "research_order"
+                ),
+                "reason": handoff.get("selection_reason"),
+            },
+            "execution_policy": {
+                "repeat_policy": "contract",
+                "budget": validate_budget(handoff.get("experiment_budget", {
+                    "time_limit_seconds": None, "cost_limit": None, "stop_on_blocked": True,
+                })),
+            },
             "input_contract": selected["input"],
             "output_contract": selected["output"],
             "acceptance_criteria": [

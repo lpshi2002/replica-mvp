@@ -7,14 +7,17 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, NoReturn
 
-from .agent_execution import load_agent_execution_state_file
+from .agent_execution import _write_state, check_agent_execution_budget, create_agent_execution_state, load_agent_execution_state_file
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .second_pass import MODEL_RUNTIMES, parse_second_pass
+from .resources import budget_stop, unknown_resources, utc_now
 
 
 HARNESS_SCHEMA = "replica-agent-harness/v1"
-SOL_MODEL = "gpt-5.6-sol"
+ASTRA_MODEL = "gpt-6-astra"
+ASTRA_REASONING_EFFORT = "medium"
 TERRA_MODEL = "gpt-5.6-terra"
+TERRA_REASONING_EFFORT = "high"
 REGISTRY_NAME = "agent-harness.json"
 FINAL_RESULT_SCHEMA = "replica-agent-final-result/v1"
 IMPLEMENTATION_RESULT_SCHEMA = "replica-agent-implementation-result/v1"
@@ -23,7 +26,7 @@ BUNDLE_MANIFEST_NAME = "implementation/manifest.json"
 IMPLEMENTATION_BUNDLE_SCHEMA = "replica-implementation-bundle/v1"
 BUILDER_CONTEXT_SCHEMA = "replica-builder-context/v1"
 MAX_BUNDLE_FILES = 256
-MAX_BUNDLE_BYTES = 20_000_000
+MAX_BUNDLE_BYTES = 200_000_000
 PUBLIC_RESULTS_ROOT = "final-results"
 EVALUATOR_VAULT_ROOT = "evaluator-vault"
 FINAL_ARTIFACT_NAMES = {
@@ -121,8 +124,20 @@ def _builder_context(
         for scenario in scenarios
         if scenario["id"] == payload["selected_scenario_id"]
     )
-    public_scenario = deepcopy(selected)
-    public_scenario.pop("tests", None)
+    def public_research(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: public_research(item) for key, item in value.items()
+                if key not in {
+                    "tests", "evaluation", "expected_behavior", "reference_facts",
+                    "expected_output", "original_outputs",
+                }
+            }
+        if isinstance(value, list):
+            return [public_research(item) for item in value]
+        return deepcopy(value)
+
+    public_scenario = public_research(selected)
     return {
         "schema_version": BUILDER_CONTEXT_SCHEMA,
         "claim_id": claim_id,
@@ -130,15 +145,18 @@ def _builder_context(
         "company": deepcopy(payload["company"]),
         "first_pass": deepcopy(payload.get("first_pass")),
         "workflow": deepcopy(second_pass.get("workflow")),
-        "findings": deepcopy(second_pass.get("findings")),
+        "findings": public_research(second_pass.get("findings")),
         "selected_scenario": public_scenario,
-        "available_scenarios": [
-            {
-                key: deepcopy(scenario.get(key))
-                for key in ("id", "self_sufficiency", "boundaries")
-            }
-            for scenario in scenarios
-        ],
+        "available_scenarios": public_research(scenarios),
+        "scenario_selection": deepcopy(payload.get("scenario_selection")),
+        "handoff": public_research(second_pass.get("handoff")),
+        "execution_policy": deepcopy(payload.get("execution_policy")),
+        "runtime_contract": {
+            key: deepcopy(value) for key, value in selected.get("evaluation", {}).items()
+            if key in {"runtime", "timeout_seconds", "budget", "output_artifacts", "public_examples"}
+        },
+        "public_assets": [deepcopy(asset) for asset in selected.get("evaluation", {}).get("assets", [])
+                          if asset.get("visibility") == "public"],
         "input_contract": deepcopy(payload["input_contract"]),
         "output_contract": deepcopy(payload["output_contract"]),
         "acceptance_criteria": deepcopy(payload["acceptance_criteria"]),
@@ -151,8 +169,8 @@ def prepare_agent_harness(
     *,
     replica_agent_id: str,
     parent_agent_id: str,
-    replica_agent_model: str = SOL_MODEL,
-    operator_model: str = SOL_MODEL,
+    replica_agent_model: str = ASTRA_MODEL,
+    operator_model: str = ASTRA_MODEL,
     builder_model: str = TERRA_MODEL,
     model_runtime: str = "codex",
 ) -> dict[str, Any]:
@@ -212,6 +230,7 @@ def prepare_agent_harness(
                     "claim_id": claim_id,
                     "parent_agent_id": replica_agent_id,
                     "requested_model": operator_model,
+                    "requested_reasoning_effort": ASTRA_REASONING_EFFORT if operator_model == ASTRA_MODEL else None,
                     "role": "operator",
                     "status": "PENDING",
                 },
@@ -223,6 +242,7 @@ def prepare_agent_harness(
                     "claim_id": claim_id,
                     "parent_agent_id": replica_agent_id,
                     "requested_model": builder_model,
+                    "requested_reasoning_effort": TERRA_REASONING_EFFORT if builder_model == TERRA_MODEL else None,
                     "role": "builder",
                     "status": "PENDING",
                 },
@@ -258,11 +278,14 @@ def prepare_agent_harness(
             "agent_id": replica_agent_id,
             "parent_agent_id": parent_agent_id,
             "requested_model": replica_agent_model,
+            "requested_reasoning_effort": ASTRA_REASONING_EFFORT if replica_agent_model == ASTRA_MODEL else None,
             "role": "replica_agent",
             "status": "RUNNING",
         },
         "scheduling": {
-            "policy": "sequential_claim_pairs",
+            "policy": "parallel_claim_pairs",
+            "max_concurrent_pairs": len(claims),
+            "peak_active_pairs": 0,
             "active_claim_id": None,
             "completed_claim_count": 0,
             "failed_claim_count": 0,
@@ -274,8 +297,13 @@ def prepare_agent_harness(
             "evaluator_vault_root": EVALUATOR_VAULT_ROOT,
         },
         "claims": claims,
+        "require_final_bundle_evaluation": True,
     }
     _write_new_json(run_dir / REGISTRY_NAME, registry)
+    from .bundle_evaluation import prepare_bundle_evaluation
+    for canonical_claim in canonical["claims"]:
+        if canonical_claim["payload"].get("schema_version") == "replica-agent-claim/v2":
+            registry = prepare_bundle_evaluation(run_dir / REGISTRY_NAME, canonical_claim["claim_id"])
     return registry
 
 
@@ -285,8 +313,8 @@ def prepare_agent_harness_from_path(
     *,
     replica_agent_id: str,
     parent_agent_id: str,
-    replica_agent_model: str = SOL_MODEL,
-    operator_model: str = SOL_MODEL,
+    replica_agent_model: str = ASTRA_MODEL,
+    operator_model: str = ASTRA_MODEL,
     builder_model: str = TERRA_MODEL,
     model_runtime: str = "codex",
 ) -> dict[str, Any]:
@@ -310,8 +338,14 @@ def prepare_agent_harness_from_path(
     )
 
 
+def _active_execution_claims(registry: dict[str, Any]) -> list[str]:
+    return [claim["claim_id"] for claim in registry["claims"]
+            if claim.get("continuity", {}).get("phase") in {"PAIR_ACTIVE", "ROUND_TRIP_COMPLETE"}
+            or claim.get("status") in {"EXECUTION_SUCCESS", "IMPLEMENTATION_READY", "EVALUATION_INTERRUPTED"}]
+
+
 def start_agent_claim(registry_path: Path, claim_id: str) -> dict[str, Any]:
-    """Activate the next claim under sequential claim-pair scheduling."""
+    """Serialize pair registration without waiting for other claim executions."""
     registry = _read_registry(registry_path)
     scheduling = registry["scheduling"]
     if scheduling.get("active_claim_id") is not None:
@@ -326,7 +360,7 @@ def start_agent_claim(registry_path: Path, claim_id: str) -> dict[str, Any]:
         None,
     )
     if claim is not next_pending:
-        raise ValueError("claim must follow sequential schedule")
+        raise ValueError("claim registration must follow research order")
     claim["status"] = "ACTIVE"
     scheduling["active_claim_id"] = claim_id
     _replace_registry(registry_path, registry)
@@ -341,6 +375,7 @@ def record_agent_spawn(
     agent_id: str,
     parent_agent_id: str,
     requested_model: str,
+    requested_reasoning_effort: str | None = None,
 ) -> dict[str, Any]:
     """Record one successful real Agent spawn and link a complete pair."""
     if role not in {"operator", "builder"}:
@@ -356,6 +391,9 @@ def record_agent_spawn(
         raise ValueError(f"{role} Agent spawn already recorded")
     if requested_model != agent.get("requested_model"):
         raise ValueError(f"{role} Agent model request does not match policy")
+    if ("requested_reasoning_effort" in agent
+            and requested_reasoning_effort != agent["requested_reasoning_effort"]):
+        raise ValueError(f"{role} Agent reasoning effort request does not match policy")
     if (
         parent_agent_id != registry["replica_agent"].get("agent_id")
         or parent_agent_id != agent.get("parent_agent_id")
@@ -552,6 +590,10 @@ def start_agent_continuity(
         claim["continuity"] = continuity
     if not isinstance(continuity, dict) or continuity.get("phase") != "READY":
         raise ValueError("Agent continuity session already started")
+    # Also upgrade scheduling metadata when resuming an existing harness.
+    registry["scheduling"].update(
+        policy="parallel_claim_pairs", max_concurrent_pairs=len(registry["claims"])
+    )
     continuity.update(
         {
             "phase": "PAIR_ACTIVE",
@@ -559,7 +601,11 @@ def start_agent_continuity(
             "builder_agent_id": builder_agent_id,
             "operator_status": "ACTIVE_FOR_CLAIM",
             "builder_status": "ACTIVE_FOR_CLAIM",
+            "started_at": utc_now(),
         }
+    )
+    registry["scheduling"]["peak_active_pairs"] = max(
+        registry["scheduling"].get("peak_active_pairs", 0), len(_active_execution_claims(registry))
     )
     _replace_registry(registry_path, registry)
     return registry
@@ -683,6 +729,33 @@ def finish_agent_continuity(
             execution_state_path,
             claim_payload,
         )
+        recovery = claim.get("preflight_recovery")
+        if recovery:
+            archive = registry_path.parent / recovery["archive_path"]
+            if _sha256(archive) != recovery["sha256"]:
+                raise ValueError("preflight recovery evidence changed")
+            previous = json.loads(archive.read_text())["execution_state"]
+            prior_resources = previous.get("prior_resources", []) + [a.get("resources", unknown_resources()) for a in previous["attempts"]]
+            if state.get("started_at") != previous["started_at"] or state.get("prior_resources", [])[:len(prior_resources)] != prior_resources:
+                raise ValueError("preflight recovery cannot reset development time or resources")
+        submissions = claim.get("bundle_submissions", [])
+        packaging = claim.get("packaging_retries", [])
+        if packaging:
+            snapshot = packaging[-1]["development_archive"]
+            archive = registry_path.parent / snapshot["path"]
+            for name, checksum in snapshot["artifacts"].items():
+                if _sha256(archive / name) != checksum:
+                    raise ValueError("packaging recovery evidence changed")
+            previous = json.loads((archive / "execution-state.json").read_text())
+            prior_resources = previous.get("prior_resources", []) + [a.get("resources", unknown_resources()) for a in previous["attempts"]]
+            if state.get("started_at") != previous["started_at"] or state.get("prior_resources", [])[:len(prior_resources)] != prior_resources:
+                raise ValueError("packaging retry cannot reset development time or resources")
+        if submissions and submissions[-1].get("development_archive"):
+            archive = registry_path.parent / submissions[-1]["development_archive"]["path"]
+            previous = json.loads((archive / "execution-state.json").read_text())
+            prior_resources = previous.get("prior_resources", []) + [a.get("resources", unknown_resources()) for a in previous["attempts"]]
+            if state.get("started_at") != previous.get("started_at") or state.get("prior_resources") != prior_resources:
+                raise ValueError("a sealed retry cannot reset development time or resource history")
         if (
             state["claim_id"] != claim_id
             or state["operator_agent_id"] != operator_agent_id
@@ -713,9 +786,99 @@ def finish_agent_continuity(
             "judge_mode": final_attempt["judge_mode"],
         }
     continuity["phase"] = f"TERMINAL_{terminal_state}"
+    continuity["finished_at"] = utc_now()
     continuity["terminal_state"] = terminal_state
     continuity["operator_status"] = "COMPLETED"
     continuity["builder_status"] = "COMPLETED"
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def resume_agent_continuity(registry_path: Path, claim_id: str) -> dict[str, Any]:
+    """Resume one interrupted direct delivery without resetting development state."""
+    registry = _read_registry(registry_path)
+    claim = _claim_record(registry, claim_id)
+    continuity = claim["continuity"]
+    if (claim["status"] != "EXECUTION_ABORTED" or continuity["phase"] != "ABORTED"
+            or continuity.get("recovered_aborts")):
+        raise ValueError("continuity recovery permits one recorded abort per claim")
+    if continuity.get("failure", {}).get("agent_id") not in {claim[r]["agent_id"] for r in ("operator", "builder")}:
+        raise ValueError("continuity recovery requires an original peer interruption")
+    root = registry_path.parent
+    state_path = root / claim["operator"]["artifact_namespace"] / "execution-state.json"
+    state, state_hash = load_agent_execution_state_file(
+        state_path, json.loads((root / claim["claim_payload_path"]).read_text()))
+    round_number = state["next_correction_number"]
+    completed = continuity["completed_rounds"]
+    # Delivery may have been recorded before the Operator advances its execution decision.
+    valid_round = any(completed == list(range(end)) and continuity["next_round"] == end
+                      for end in (round_number, round_number + 1))
+    if (state["operator_agent_id"] != claim["operator"]["agent_id"]
+            or state["builder_agent_id"] != claim["builder"]["agent_id"]
+            or state["pair_nonce"] != claim["smoke"]["nonce"]
+            or not check_agent_execution_budget(state_path)["allowed"]
+            or not valid_round):
+        raise ValueError("continuity recovery cannot change identity, round, terminal or exhausted budget")
+    previous = deepcopy(continuity)
+    continuity.update(phase="PAIR_ACTIVE", terminal_state=None, failure=None,
+                      operator_status="ACTIVE_FOR_CLAIM", builder_status="ACTIVE_FOR_CLAIM",
+                      recovered_aborts=[{"continuity": previous, "execution_result": claim.get("execution_result"),
+                                         "execution_state_sha256": state_hash,
+                                         "resumed_at": utc_now()}])
+    continuity.pop("finished_at", None)
+    claim["status"] = "READY_FOR_PROTOCOL"
+    claim.pop("execution_result", None)
+    registry["status"] = registry["replica_agent"]["status"] = "RUNNING"
+    registry["scheduling"]["peak_active_pairs"] = max(
+        registry["scheduling"].get("peak_active_pairs", 0), len(_active_execution_claims(registry)))
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def retry_agent_preflight(registry_path: Path, claim_id: str) -> dict[str, Any]:
+    """Recover once from a control failure before any implementation action."""
+    registry = _read_registry(registry_path)
+    claim = _claim_record(registry, claim_id)
+    if claim.get("status") != "EXECUTION_FAILED" or claim.get("preflight_recovery"):
+        raise ValueError("preflight recovery requires an unrecovered execution failure")
+    root = registry_path.parent
+    payload = json.loads((root / claim["claim_payload_path"]).read_text())
+    state_path = root / claim["operator"]["artifact_namespace"] / "execution-state.json"
+    previous, state_hash = load_agent_execution_state_file(state_path, payload)
+    result = claim["execution_result"]
+    if state_hash != result["execution_state_sha256"]:
+        raise ValueError("preflight terminal state binding changed")
+    attempts = previous["attempts"]
+    actions = [m for a in attempts for m in a.get("resources", {}).get("measurements", [])
+               if m["metric"] == "implementation_actions_started"]
+    if (previous["status"] != "FAILED" or len(attempts) != 1
+            or previous.get("stop_reason", {}).get("category") != "environment_error"
+            or attempts[0]["execution_status"] != "blocked" or attempts[0]["test_status"] != "not_run"
+            or not actions or any(m["status"] != "measured" or m["value"] != 0 for m in actions)
+            or (root / result["candidate_path"]).exists()):
+        raise ValueError("recovery requires measured zero actions and no candidate before an environment stop")
+    resources = previous.get("prior_resources", []) + [a.get("resources", unknown_resources()) for a in attempts]
+    if "budget" not in previous or budget_stop(previous["budget"], previous["started_at"], resources):
+        raise ValueError("the frozen development budget is exhausted or unverifiable")
+    archive = root / EVALUATOR_VAULT_ROOT / claim_id / "preflight-recovery.json"
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    with archive.open("x", encoding="utf-8") as handle:
+        json.dump({"claim_binding": claim, "execution_state": previous}, handle, indent=2)
+    state = create_agent_execution_state(claim=payload, claim_id=claim_id,
+                                        operator_agent_id=previous["operator_agent_id"],
+                                        builder_agent_id=previous["builder_agent_id"], pair_nonce=previous["pair_nonce"])
+    state["started_at"] = previous["started_at"]
+    state["prior_resources"] = resources
+    _write_state(state_path, state, new=False)
+    claim["preflight_recovery"] = {"archive_path": archive.relative_to(root).as_posix(),
+                                  "sha256": _sha256(archive), "recorded_at": utc_now()}
+    claim.pop("execution_result")
+    claim["status"] = "READY_FOR_PROTOCOL"
+    claim["continuity"].update(phase="READY", completed_rounds=[], next_round=0, correction_count=0,
+                               terminal_state=None, failure=None, operator_status="NOT_STARTED",
+                               builder_status="NOT_STARTED")
+    claim["continuity"].pop("finished_at", None)
+    registry["status"] = registry["replica_agent"]["status"] = "RUNNING"
     _replace_registry(registry_path, registry)
     return registry
 
@@ -814,6 +977,8 @@ def _validate_implementation_bundle(
         "environment_variables",
         "files",
     }
+    if not isinstance(manifest, dict):
+        raise ValueError("invalid Terra implementation bundle contract")
     dependencies = manifest.get("dependencies")
     environment_variables = manifest.get("environment_variables")
     files = manifest.get("files")
@@ -830,6 +995,7 @@ def _validate_implementation_bundle(
         or not isinstance(manifest.get("command"), list)
         or not manifest["command"]
         or not all(_is_nonempty_text(item) for item in manifest["command"])
+        or manifest.get("entrypoint") not in manifest.get("command", [])
         or not isinstance(dependencies, list)
         or not all(
             isinstance(dependency, dict)
@@ -839,11 +1005,11 @@ def _validate_implementation_bundle(
             for dependency in dependencies
         )
         or not isinstance(environment_variables, list)
-        or len(set(environment_variables)) != len(environment_variables)
         or not all(
             isinstance(name, str) and re.fullmatch(r"[A-Z][A-Z0-9_]*", name)
             for name in environment_variables
         )
+        or len(set(environment_variables)) != len(environment_variables)
         or not isinstance(files, list)
         or not files
         or len(files) > MAX_BUNDLE_FILES
@@ -853,6 +1019,7 @@ def _validate_implementation_bundle(
     file_paths = [record.get("path") for record in files if isinstance(record, dict)]
     if (
         len(file_paths) != len(files)
+        or not all(_is_nonempty_text(path) for path in file_paths)
         or len(set(file_paths)) != len(file_paths)
         or manifest["entrypoint"] not in file_paths
     ):
@@ -887,7 +1054,11 @@ def _validate_implementation_bundle(
         if path.is_symlink():
             raise ValueError("Terra implementation bundle cannot contain symlinks")
         if path.is_file() and path != manifest_path:
-            present.add(path.relative_to(bundle_root).as_posix())
+            relative = path.relative_to(bundle_root)
+            # Generated Python caches are never copied unless explicitly declared.
+            if relative.as_posix() not in file_paths and "__pycache__" in relative.parts and path.suffix == ".pyc":
+                continue
+            present.add(relative.as_posix())
     if present != set(file_paths):
         raise ValueError("Terra implementation bundle contains undeclared files")
 
@@ -979,6 +1150,8 @@ def finalize_agent_candidate(
             expected_candidate,
             claim_payload_value,
         )
+        if any(attempt["candidate_sha256"] == candidate_sha256 for attempt in claim.get("bundle_submissions", [])):
+            raise ValueError("the same candidate cannot be resubmitted to sealed tests")
         claim["status"] = "IMPLEMENTATION_READY"
         claim["implementation_result"] = {
             "schema_version": IMPLEMENTATION_RESULT_SCHEMA,
@@ -1080,6 +1253,10 @@ def _validate_bound_artifact(
 
 def _validate_final_result(run_dir: Path, claim: dict[str, Any]) -> None:
     final_result = claim.get("final_result")
+    if isinstance(final_result, dict) and final_result.get("schema_version") == "replica-agent-bundle-result/v1":
+        from .bundle_evaluation import validate_bundle_result
+        validate_bundle_result(run_dir, claim)
+        return
     base_fields = {
         "schema_version",
         "status",
@@ -1285,6 +1462,7 @@ def record_agent_premature_completion(
         raise ValueError("premature completion changed sibling identity")
     peer_role = "builder" if completed_role == "operator" else "operator"
     continuity["phase"] = "ABORTED"
+    continuity["finished_at"] = utc_now()
     continuity["terminal_state"] = "ABORTED"
     continuity[f"{completed_role}_status"] = "PREMATURELY_COMPLETED"
     continuity[f"{peer_role}_status"] = "CONTINUITY_FAILED"
@@ -1307,6 +1485,9 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
     registry = _read_registry(registry_path)
     if registry["scheduling"].get("active_claim_id") is not None:
         raise ValueError("cannot finish Agent harness with an active claim")
+    if any(claim.get("continuity", {}).get("phase") in {"PAIR_ACTIVE", "ROUND_TRIP_COMPLETE"}
+           for claim in registry["claims"]):
+        raise ValueError("cannot finish Agent harness with active execution pairs")
     statuses = [claim.get("status") for claim in registry["claims"]]
     protocol_terminal_statuses = {"READY_FOR_PROTOCOL", "CREATION_FAILED"}
     execution_terminal_statuses = {
@@ -1324,6 +1505,8 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
             _validate_final_result(registry_path.parent.resolve(), claim)
         elif claim.get("status") == "IMPLEMENTATION_READY":
             _validate_implementation_result(registry_path.parent.resolve(), claim)
+            if registry.get("require_final_bundle_evaluation"):
+                raise ValueError("cannot finish Agent execution before final bundle evaluation")
     if any(
         isinstance(status, str)
         and (

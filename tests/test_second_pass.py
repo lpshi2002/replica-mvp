@@ -41,7 +41,7 @@ def _research():
             "datasets_apis": {"state": "filled", "note": "Use public text."},
         },
         "readiness": {"status": "ready"},
-        "handoff": {"action": "build"},
+        "handoff": {"action": "build", "selected_scenario_id": "s-oss", "selection_reason": "Local retrieval was selected by second-pass research."},
         "replication_contract": [scenario, oss],
     }
     return {
@@ -104,6 +104,19 @@ class SecondPassParserTest(unittest.TestCase):
     def test_unknown_model_runtime_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "model runtime"):
             parse_second_pass(_research(), model_runtime="other")
+
+    def test_researched_order_and_explicit_priority_do_not_prefer_cheaper_dependencies(self):
+        research = _research()
+        handoff = research["claims"][0]["second_pass"]["handoff"]
+        del handoff["selected_scenario_id"]
+        payload = parse_second_pass(research)["claims"][0]["payload"]
+        self.assertEqual("s-commercial", payload["selected_scenario_id"])
+        self.assertEqual("research_order", payload["scenario_selection"]["basis"])
+        handoff["scenario_priority"] = ["s-commercial", "s-oss"]
+        self.assertEqual("s-commercial", parse_second_pass(research)["claims"][0]["payload"]["selected_scenario_id"])
+        handoff["selected_scenario_id"] = "s-oss"
+        with self.assertRaisesRegex(ValueError, "conflicting"):
+            parse_second_pass(research)
 
     def test_legacy_single_claim_normalizes_to_canonical_collection(self):
         claim = _legacy_claim()

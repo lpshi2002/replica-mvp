@@ -5,6 +5,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, NoReturn
 
+from .resources import FAILURE_CATEGORIES, validate_resources
+
 
 OPERATOR_INSTRUCTION = "replica-operator-instruction/v1"
 BUILDER_FEEDBACK = "replica-builder-feedback/v1"
@@ -250,8 +252,19 @@ def _validate_execution_feedback(
     message: dict[str, Any],
     claim_id: str,
 ) -> None:
-    if set(message) != _EXECUTION_BUILDER_FIELDS:
+    if set(message) - {"resources", "stop_reason"} != _EXECUTION_BUILDER_FIELDS:
         raise ValueError("malformed Builder execution feedback fields")
+    if "resources" in message:
+        validate_resources(message["resources"])
+    if "stop_reason" in message:
+        reason = message["stop_reason"]
+        if (not isinstance(reason, dict) or set(reason) != {"category", "reason", "evidence"}
+                or reason.get("category") not in FAILURE_CATEGORIES):
+            raise ValueError("invalid execution stop reason")
+        _require_text(reason.get("reason"), "stop reason")
+        _require_text_list(reason.get("evidence"), "stop evidence")
+        if message.get("execution_status") == "succeeded" and message.get("test_status") == "passed":
+            raise ValueError("successful feedback cannot request an early stop")
     base = {field: message[field] for field in _BUILDER_FIELDS}
     base["message_type"] = BUILDER_FEEDBACK
     _validate_builder_feedback(base, claim_id)

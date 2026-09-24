@@ -458,3 +458,43 @@ def assess_replica_completion(
         "status": status,
         "checks": checks,
     }
+
+
+def assess_bundle_execution(
+    plan: Mapping[str, Any],
+    evaluation: Mapping[str, Any],
+    review: Mapping[str, Any],
+    *,
+    has_outputs: bool,
+    public_example_passed: bool,
+    public_assets_available: bool,
+) -> dict[str, Any]:
+    """Technical completion only; the narrative reporting workflow is separate."""
+    gaps = list(plan["gaps"])
+    if not plan["prepared_before_implementation"]:
+        gaps.append("Final evaluation was prepared retrospectively; pre-implementation isolation was not established.")
+    if review["status"] != "PASSED":
+        gaps.append("Implementation fidelity and generalization review did not pass.")
+    if not evaluation["source_unchanged"]:
+        gaps.append("The implementation changed its own declared source while executing.")
+    if any(d["status"] == "different" for d in evaluation.get("dependencies", [])):
+        gaps.append("Observed installed dependency versions differ from the declared bundle versions.")
+    if not public_example_passed:
+        gaps.append("A separate reusable public example did not execute successfully.")
+    if not public_assets_available:
+        gaps.append("A required public input asset is unavailable or its hash changed.")
+    if evaluation["status"] == "PASSED" and not gaps:
+        status = "reproduced"
+    elif has_outputs:
+        status = "partially_reproduced"
+    elif evaluation["failure_category"] in {
+        "environment_error", "data_missing", "access_missing", "budget_exhausted", "research_gap",
+    }:
+        status = "execution_blocked"
+    else:
+        status = "not_reproduced_on_this_path"
+    return {
+        "schema_version": "replica-bundle-completion/v1", "reproduction_status": status,
+        "candidate_sha256": evaluation["candidate_sha256"], "plan_sha256": evaluation["plan_sha256"],
+        "evaluation": dict(evaluation), "implementation_review": dict(review), "missing_conditions": gaps,
+    }
