@@ -553,20 +553,59 @@ json.dump({'value': v['x'] * 2, 'calls': count}, sys.stdout)
             self.assertTrue(results["follow-up"]["pass"], results["follow-up"])
 
     def test_output_artifacts_follow_the_frozen_effect_condition(self):
-        from replica_mvp.bundle_evaluation import _capture_artifacts
+        from replica_mvp.bundle_evaluation import _capture_artifacts, _storage_snapshot
         with TemporaryDirectory() as tmp:
             root, destination = Path(tmp) / "runtime", Path(tmp) / "captured"
-            root.mkdir()
-            (root / "done.txt").write_text("sent")
-            spec = [{"path": ["document"], "media_type": "text/plain", "when": {"path": ["status"], "in": ["done"]}}]
-            self.assertEqual([], _capture_artifacts({"status": "needs_clarification"}, spec, root, destination))
+            (root / "outbox").mkdir(parents=True)
+            spec = [{"path": ["document"], "media_type": "text/plain",
+                     "when": {"path": ["status"], "in": ["done"], "unchanged": ["outbox"]}}]
+            before = _storage_snapshot(root, ["outbox"])
+            self.assertEqual([], _capture_artifacts({"status": "needs_clarification"}, spec, root, destination, before))
+            # A response that claims no effect but writes to the declared storage fails even without naming the file.
+            (root / "outbox" / "sent.txt").write_text("sent")
+            with self.assertRaisesRegex(RuntimeError, "changed its declared storage"):
+                _capture_artifacts({"status": "needs_clarification"}, spec, root, destination, before)
             with self.assertRaisesRegex(RuntimeError, "declares no effect"):
-                _capture_artifacts({"status": "needs_clarification", "document": "done.txt"}, spec, root, destination)
+                _capture_artifacts({"status": "needs_clarification", "document": "outbox/sent.txt"}, spec, root, destination, before)
             with self.assertRaisesRegex(RuntimeError, "absent from the output"):
-                _capture_artifacts({"status": "done"}, spec, root, destination)
+                _capture_artifacts({"status": "done"}, spec, root, destination, before)
             with self.assertRaisesRegex(RuntimeError, "condition field is absent"):
-                _capture_artifacts({"document": "done.txt"}, spec, root, destination)
-            self.assertEqual(1, len(_capture_artifacts({"status": "done", "document": "done.txt"}, spec, root, destination)))
+                _capture_artifacts({"document": "outbox/sent.txt"}, spec, root, destination, before)
+            self.assertEqual(1, len(_capture_artifacts({"status": "done", "document": "outbox/sent.txt"}, spec, root, destination, before)))
+
+    def test_hidden_side_effect_of_a_no_effect_response_fails_the_case(self):
+        source = """import json, sys
+from pathlib import Path
+v = json.load(sys.stdin)
+Path('outbox').mkdir(exist_ok=True)
+Path('outbox', f"{v['x']}.txt").write_text('sent')
+done = v['x'] > 0
+out = {'value': v['x'] * 2, 'status': 'done' if done else 'needs_clarification'}
+if done:
+    out['document'] = f"outbox/{v['x']}.txt"
+json.dump(out, sys.stdout)
+"""
+        with TemporaryDirectory() as tmp:
+            research = _evaluation_research()
+            research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]["output_artifacts"] = [
+                {"path": ["document"], "media_type": "text/plain",
+                 "when": {"path": ["status"], "in": ["done"], "unchanged": ["outbox"]}}]
+            registry = _bound_bundle(Path(tmp) / "run", source=source, research=research)
+            result = evaluate_agent_bundle(registry, "claim-001", semantic_judge=_fixture_judge)
+            vault = registry.parent / result["claims"][0]["final_result"]["vault_dir"]
+            results = {json.loads(line)["case_id"]: json.loads(line) for line in (vault / "results.jsonl").read_text().splitlines()}
+            self.assertTrue(results["normal"]["pass"], results["normal"])
+            self.assertFalse(results["boundary"]["pass"])
+            self.assertIn("changed its declared storage", results["boundary"]["error"])
+
+    def test_conditional_artifact_must_name_the_storage_it_protects(self):
+        from replica_mvp.agent_harness import prepare_agent_harness
+        with TemporaryDirectory() as tmp:
+            research = _evaluation_research()
+            research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]["output_artifacts"] = [
+                {"path": ["document"], "media_type": "text/plain", "when": {"path": ["status"], "in": ["done"]}}]
+            with self.assertRaisesRegex(ValueError, "unchanged"):
+                prepare_agent_harness(research, Path(tmp) / "run", replica_agent_id="agent", parent_agent_id="root")
 
     def test_different_relation_on_generated_text_is_a_research_gap(self):
         from replica_mvp.agent_harness import prepare_agent_harness
@@ -608,6 +647,17 @@ json.dump({'value': v['x'] * 2, 'calls': count, 'secret': os.environ.get('REPLIC
             state = Path(tmp) / "state"
             self.assertEqual(1, run_built_replica(public, {"x": 1}, state_dir=state)["calls"])
             self.assertEqual(2, run_built_replica(public, {"x": 1}, state_dir=state)["calls"])
+            # The same or a changed input file can be given again when resuming.
+            upload = Path(tmp) / "upload.txt"
+            upload.write_text("first")
+            assets = {"inputs/upload.txt": str(upload)}
+            self.assertEqual(3, run_built_replica(public, {"x": 1}, state_dir=state, input_assets=assets)["calls"])
+            self.assertEqual(4, run_built_replica(public, {"x": 1}, state_dir=state, input_assets=assets)["calls"])
+            upload.write_text("second")
+            self.assertEqual(5, run_built_replica(public, {"x": 1}, state_dir=state, input_assets=assets)["calls"])
+            self.assertEqual("second", (state / "implementation" / "inputs" / "upload.txt").read_text())
+            with self.assertRaisesRegex(ValueError, "overwrite an implementation file"):
+                run_built_replica(public, {"x": 1}, state_dir=state, input_assets={"entry.py": str(upload)})
             (state / "implementation" / "entry.py").write_text("print('changed')")
             with self.assertRaisesRegex(ValueError, "implementation files changed"):
                 run_built_replica(public, {"x": 1}, state_dir=state)

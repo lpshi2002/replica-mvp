@@ -380,8 +380,12 @@ When every worker has finished, attach each fragment to its claim's
 `workflow.status` to `pass_2_complete`. Implementation refuses research whose
 summary counts disagree with claim readiness.
 
-The fragment under `second_pass/` is the worker's original verdict. Never edit
-readiness or handoff silently: a later change appends a `second_pass.revisions`
+Every pass-1 claim must carry a pass-2 readiness and handoff verdict before
+implementation; a claim without one blocks the whole research as incomplete.
+The fragment under `second_pass/` is the worker's original verdict, and
+`second_pass.run.fragment` must point to it. Keep `second_pass/` next to
+`research.json` whenever the research is copied or moved; implementation refuses
+a claim whose fragment is missing. Never edit readiness or handoff silently: a later change appends a `second_pass.revisions`
 entry with the previous verdict, the reason, `revised_at`, and new sources with
 non-empty excerpts. Implementation compares the fragment and refuses an
 unrecorded change.

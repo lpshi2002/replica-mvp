@@ -271,6 +271,9 @@ class SecondPassParserTest(unittest.TestCase):
                 "handoff": {"action": "evidence_request"},
             }
             (root / "second_pass" / "claim-001.json").write_text(json.dumps(original))
+            claim_002 = research["claims"][1]["second_pass"]
+            claim_002["run"] = {"fragment": "second_pass/claim-002.json"}
+            (root / "second_pass" / "claim-002.json").write_text(json.dumps(claim_002))
             with self.assertRaisesRegex(ValueError, "without a revision that records the original verdict"):
                 parse_second_pass(research, fragment_root=root)
             revision = {
@@ -284,6 +287,35 @@ class SecondPassParserTest(unittest.TestCase):
                 parse_second_pass(research, fragment_root=root)
             revision["sources"][0]["excerpt"] = "The action schema is documented here."
             self.assertEqual(1, parse_second_pass(research, fragment_root=root)["claim_count"])
+
+    def test_claim_without_a_pass_2_verdict_blocks_implementation(self):
+        research = _research()
+        research["claims"][1]["second_pass"] = None
+        research["summary"]["partial_count"] = 0
+        with self.assertRaisesRegex(ValueError, "RESEARCH_INCOMPLETE: claim-002: every pass-1 claim needs a pass-2"):
+            parse_second_pass(research)
+
+    def test_missing_fragment_cannot_verify_the_verdict(self):
+        import tempfile
+
+        research = _research()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with self.assertRaisesRegex(ValueError, "claim-001: the pass-2 fragment .* is missing"):
+                parse_second_pass(research, fragment_root=root)
+            (root / "second_pass").mkdir()
+            for claim in research["claims"]:
+                name = f"second_pass/{claim['id']}.json"
+                claim["second_pass"]["run"] = {"fragment": name}
+                (root / name).write_text(json.dumps(claim["second_pass"]))
+            self.assertEqual(1, parse_second_pass(research, fragment_root=root)["claim_count"])
+            research["claims"][0]["second_pass"]["run"]["fragment"] = "../outside.json"
+            (root.parent / "outside.json").write_text("{}")
+            try:
+                with self.assertRaisesRegex(ValueError, "is missing"):
+                    parse_second_pass(research, fragment_root=root)
+            finally:
+                (root.parent / "outside.json").unlink()
 
     def test_merged_claim_steps_move_to_the_parent_contract(self):
         research = _research()

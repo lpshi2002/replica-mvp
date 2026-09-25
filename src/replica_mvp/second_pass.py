@@ -308,6 +308,30 @@ def _validate_revisions(claim_id: str, second_pass: dict[str, Any], original: An
         )
 
 
+def _read_fragment(claim_id: str, second_pass: dict[str, Any], fragment_root: Path) -> dict[str, Any]:
+    """Read the worker's original verdict; without it a changed verdict cannot be detected."""
+    fragment = (second_pass.get("run") or {}).get("fragment")
+    path = fragment_root / fragment if _is_nonempty_text(fragment) else None
+    if (
+        path is None
+        or path.is_symlink()
+        or not path.resolve().is_relative_to(fragment_root.resolve())
+        or not path.is_file()
+    ):
+        raise ResearchIncomplete(
+            claim_id,
+            "the pass-2 fragment named by second_pass.run.fragment is missing, so the verdict "
+            "cannot be verified; keep second_pass/ next to research.json",
+        )
+    try:
+        original = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise ValueError(f"invalid pass-2 fragment: {path}") from None
+    if not isinstance(original, dict):
+        raise ValueError(f"invalid pass-2 fragment: {path}")
+    return original
+
+
 def _validate_findings(claim_id: str, second_pass: dict[str, Any]) -> None:
     findings = second_pass.get("findings")
     if not isinstance(findings, dict):
@@ -483,23 +507,22 @@ def _research_agent_claims(
     prepared = []
     for claim in claims:
         second_pass = claim.get("second_pass")
-        if second_pass is None:
-            continue
-        if not isinstance(second_pass, dict):
-            raise ValueError("invalid company research second pass")
-        readiness = second_pass.get("readiness")
-        handoff = second_pass.get("handoff")
-        if not isinstance(readiness, dict) or not isinstance(handoff, dict):
-            raise ValueError("invalid company research second pass")
+        readiness = second_pass.get("readiness") if isinstance(second_pass, dict) else None
+        handoff = second_pass.get("handoff") if isinstance(second_pass, dict) else None
+        # Pass 2 is complete only when every pass-1 claim carries its own verdict.
+        if (
+            not isinstance(readiness, dict)
+            or readiness.get("status") not in {"ready", "partial", "blocked"}
+            or not isinstance(handoff, dict)
+            or handoff.get("action") not in {"build", "merge", "evidence_request", "reject"}
+        ):
+            raise ResearchIncomplete(
+                str(claim.get("id")),
+                "every pass-1 claim needs a pass-2 readiness and handoff verdict",
+            )
         original = None
-        fragment = (second_pass.get("run") or {}).get("fragment")
-        if fragment_root is not None and _is_nonempty_text(fragment):
-            fragment_path = fragment_root / fragment
-            if fragment_path.is_file():
-                try:
-                    original = json.loads(fragment_path.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
-                    raise ValueError(f"invalid pass-2 fragment: {fragment_path}") from None
+        if fragment_root is not None:
+            original = _read_fragment(str(claim.get("id")), second_pass, fragment_root)
         _validate_revisions(str(claim.get("id")), second_pass, original)
         if (
             second_pass.get("status") not in {"confirmed", "refined"}
@@ -622,8 +645,10 @@ def parse_second_pass(
 ) -> dict[str, Any]:
     """Normalize a Second-pass input to the canonical claim collection.
 
-    ``fragment_root`` is the company research directory; when a claim's pass-2
-    fragment is present there, a changed verdict must carry a revision.
+    ``fragment_root`` is the company research directory. Every claim's pass-2
+    fragment must be present there, and a changed verdict must carry a
+    revision. In-memory callers without a research directory pass ``None``;
+    the file-based CLI route always verifies.
     """
     if model_runtime is not None and model_runtime not in MODEL_RUNTIMES:
         raise ValueError("invalid Replica model runtime")

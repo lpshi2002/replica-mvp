@@ -263,7 +263,10 @@ Record in the selected scenario an `evaluation` object as described in
 `../../../docs/replica-bundle-execution.md`: `runtime`, `case_checks` linking
 every acceptance criterion to a case, `additional_cases` with a `novel` case
 and `equal` and `different` metamorphic relations, distinct `public_examples`,
-input `assets`, and conditional `output_artifacts`. For a question-answer
+input `assets`, and conditional `output_artifacts`. A conditional artifact's
+`when` names the result states that produce the file (`in`) and the storage a
+no-effect response must leave unchanged (`unchanged`), so a clarification or
+pending-approval response is checked for hidden side effects. For a question-answer
 capability also freeze the public `experience` object described in
 `../SKILL.md`. Missing evaluation data stops the claim as
 `RESEARCH_INCOMPLETE` before any Agent starts; it is never a reason to lower

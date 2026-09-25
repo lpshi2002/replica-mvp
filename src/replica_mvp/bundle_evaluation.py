@@ -251,12 +251,17 @@ def prepare_bundle_evaluation(registry_path: Path, claim_id: str, supplement: Pa
         or not _is_json_path(a["path"])
         or not isinstance(a["media_type"], str) or "/" not in a["media_type"]
         or ("when" in a and (
-            not isinstance(a["when"], dict) or set(a["when"]) != {"path", "in"}
+            not isinstance(a["when"], dict) or set(a["when"]) != {"path", "in", "unchanged"}
             or not _is_json_path(a["when"]["path"]) or not isinstance(a["when"]["in"], list) or not a["when"]["in"]
+            or not isinstance(a["when"]["unchanged"], list) or not a["when"]["unchanged"]
+            or not all(safe_relative(name) for name in a["when"]["unchanged"])
         ))
         for a in output_artifacts
     ):
-        raise ValueError("output artifacts need a JSON path, media type, and an optional when {path, in} condition")
+        raise ValueError(
+            "output artifacts need a JSON path, media type, and an optional when {path, in, unchanged} "
+            "condition naming the storage a no-effect response must leave unchanged"
+        )
     examples = config.get("public_examples", [])
     if not isinstance(examples, list) or any(
         not isinstance(e, dict) or set(e) != {"input", "description"}
@@ -374,8 +379,34 @@ def _copy_assets(assets: list[dict[str, Any]], root: Path) -> list[dict[str, Any
     return receipts
 
 
+def _watched_storage(specifications: list[dict[str, Any]]) -> list[str]:
+    return sorted({name for s in specifications if "when" in s for name in s["when"]["unchanged"]})
+
+
+def _storage_snapshot(runtime_root: Path, names: list[str]) -> dict[str, Any]:
+    """Hash declared storage files and directories so a no-effect response can be checked."""
+    snapshot: dict[str, Any] = {}
+    for name in names:
+        target = runtime_root / name
+        if target.is_symlink():
+            snapshot[name] = {"symlink": str(target.readlink())}
+        elif target.is_file():
+            snapshot[name] = digest(target)
+        elif target.is_dir():
+            snapshot[name] = {
+                path.relative_to(target).as_posix(): (
+                    "symlink" if path.is_symlink() else digest(path) if path.is_file() else "directory"
+                )
+                for path in sorted(target.rglob("*"))
+            }
+        else:
+            snapshot[name] = None
+    return snapshot
+
+
 def _capture_artifacts(output: Any, specifications: list[dict[str, Any]], runtime_root: Path,
-                       destination: Path) -> list[dict[str, Any]]:
+                       destination: Path, before: dict[str, Any]) -> list[dict[str, Any]]:
+    """``before`` is the declared storage snapshot taken before this input ran."""
     receipts = []
     for index, specification in enumerate(specifications):
         condition = specification.get("when")
@@ -385,13 +416,16 @@ def _capture_artifacts(output: Any, specifications: list[dict[str, Any]], runtim
             except (KeyError, IndexError, TypeError):
                 raise RuntimeError("output artifact condition field is absent from the output") from None
             if not any(_json_equal(state, value) for value in condition["in"]):
-                # A response without effects must not leave the effect's file behind either.
                 try:
                     present = _path_value(output, specification["path"])
                 except (KeyError, IndexError, TypeError):
                     present = None
                 if present is not None:
                     raise RuntimeError("output names an artifact for a response that declares no effect")
+                # The response claims no effect, so its declared storage must be exactly as before.
+                watched = condition["unchanged"]
+                if _storage_snapshot(runtime_root, watched) != {name: before[name] for name in watched}:
+                    raise RuntimeError("a response that declares no effect changed its declared storage")
                 continue
         try:
             name = _path_value(output, specification["path"])
@@ -502,13 +536,14 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
                         dependencies = observe_dependencies(_read_json(manifest_path), runtime_root, deadline - time.monotonic())
                     assets = [{k: v for k, v in a.items() if k != "source"} for a in plan["assets"]]
                     for case in group:
+                        before = _storage_snapshot(runtime_root, _watched_storage(plan["output_artifacts"]))
                         output, error = run_input(run, case["input"])
                         recorded[repetition][case["id"]] = output
                         captured = []
                         if not error:
                             try:
                                 captured = _capture_artifacts(output, plan["output_artifacts"], runtime_root,
-                                                              vault / "artifacts" / str(len(executions)))
+                                                              vault / "artifacts" / str(len(executions)), before)
                                 output_artifacts.extend(captured)
                             except (OSError, ValueError, RuntimeError) as failure:
                                 error = str(failure)
@@ -525,12 +560,13 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
         with bundle_session(manifest_path, plan["runtime"], min(timeout, deadline - time.monotonic()),
                             prepare=lambda root: _copy_assets([a for a in plan["assets"] if a["visibility"] == "public"], root)) as (run, runtime_root):
             for example in plan["public_examples"]:
+                before = _storage_snapshot(runtime_root, _watched_storage(plan["output_artifacts"]))
                 output, error = run_input(run, example["input"])
                 captured = []
                 if not error:
                     try:
                         captured = _capture_artifacts(output, plan["output_artifacts"], runtime_root,
-                                                      vault / "public-artifacts" / str(len(public)))
+                                                      vault / "public-artifacts" / str(len(public)), before)
                     except (OSError, ValueError, RuntimeError) as failure:
                         error = str(failure)
                 public.append({**example, "output": output, "error": error, "artifacts": captured})
@@ -1018,15 +1054,34 @@ def run_published_bundle(run_dir: Path, runtime_input: Any, *, allow_model_adapt
     assets = [{**a, "source": str(manifest_path.parent / a["path"])} for a in replica["assets"] if a["path"] not in replacements]
     assets.extend({"path": name, "source": source, "sha256": digest(Path(source))} for name, source in replacements.items())
     outputs = []
-    new_assets = [a for a in assets if a["path"] in replacements]
+    implementation_files = {record["path"] for record in manifest["files"]} | {"manifest.json"}
+
+    def refresh_inputs(root: Path) -> None:
+        # A resumed session keeps identical input files and replaces changed ones; it never
+        # lets an input asset take the place of an implementation file.
+        changed = []
+        for asset in assets:
+            if asset["path"] not in replacements:
+                continue
+            target = root / asset["path"]
+            if asset["path"] in implementation_files or target.is_symlink() or target.is_dir():
+                raise ValueError("input asset would overwrite an implementation file")
+            if target.is_file():
+                if digest(target) == asset["sha256"]:
+                    continue
+                target.unlink()
+            changed.append(asset)
+        _copy_assets(changed, root)
+
     with bundle_session(manifest_path, replica["runtime"], replica["timeout_seconds"],
                         prepare=lambda root: _copy_assets(assets, root), workspace=state_dir,
-                        resume_prepare=lambda root: _copy_assets(new_assets, root)) as (run, root):
+                        resume_prepare=refresh_inputs) as (run, root):
         for value in runtime_input if session else [runtime_input]:
+            before = _storage_snapshot(root, _watched_storage(replica["output_artifacts"]))
             output = run(value)
             if replica["output_artifacts"]:
                 destination = Path(tempfile.mkdtemp(prefix="replica-output-"))
-                for artifact in _capture_artifacts(output, replica["output_artifacts"], root, destination):
+                for artifact in _capture_artifacts(output, replica["output_artifacts"], root, destination, before):
                     output = _replace_output_path(output, artifact["output_path"], artifact["path"])
             outputs.append(output)
     return outputs if session else outputs[0]
