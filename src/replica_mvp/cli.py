@@ -358,6 +358,11 @@ def _parser() -> argparse.ArgumentParser:
     run_replica.add_argument("--input-assets", type=Path, help="JSON map of runtime-relative asset names to local source paths.")
     run_replica.add_argument("--session", action="store_true", help="Run a JSON array of inputs in one bundle session.")
     run_replica.add_argument(
+        "--state-dir",
+        type=Path,
+        help="Keep the bundle's runtime directory here and resume it on later calls.",
+    )
+    run_replica.add_argument(
         "--use-model-adapter",
         action="store_true",
         help="Allow the optional external grounded-model adapter.",
@@ -627,6 +632,7 @@ def main(argv: list[str] | None = None) -> int:
                 allow_model_adapter=args.use_model_adapter,
                 input_assets=json.loads(args.input_assets.read_text()) if args.input_assets else None,
                 session=args.session,
+                state_dir=args.state_dir,
             )
             print(json.dumps(output, ensure_ascii=False, allow_nan=False))
         elif args.command == "experience":

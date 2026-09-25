@@ -1,0 +1,31 @@
+{
+  "claim_id": "claim-001",
+  "public_run": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-001/attempt-002-b5371e5b6207",
+  "input_file": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-inputs/claim-001.json",
+  "input_sha256": "89e7e48167b4b8932d631faa69b3eb0eb958d121a4166d9badc4c0e64f0583f0",
+  "candidate_sha256": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+  "started_at": "2026-09-08T07:49:27.410007+00:00",
+  "command": [
+    "/Users/cho/.pyenv/versions/3.12.12/bin/python3",
+    "-m",
+    "replica_mvp",
+    "run-replica",
+    "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-001/attempt-002-b5371e5b6207",
+    "--use-model-adapter"
+  ],
+  "exit_code": 0,
+  "status": "executed",
+  "output": {
+    "status": "answered",
+    "answer": "You can bring your lamp on Thursday between 2 pm and 5 pm. Reserve a bench in advance and bring the lamp unplugged; repairs are postponed if mains wiring insulation is damaged. Diagnosis costs 7 credits, and replacement parts are charged separately.",
+    "citations": [
+      "repair-library-booking",
+      "repair-library-hours"
+    ],
+    "applied_rules": [
+      "Use plain English and answer in no more than three sentences.",
+      "Write one short paragraph without labels or headings."
+    ]
+  },
+  "elapsed_seconds": 8.803337042001658
+}

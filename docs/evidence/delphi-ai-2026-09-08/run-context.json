@@ -1,0 +1,106 @@
+{
+  "branch": "codex/replica-completion-test",
+  "base_commit": "aee0f19bd36a45362623899aa4cf5fd8b960106d",
+  "research_sha256": "c0a818daf1cd8de4a2802240f0e001121c1edaecd81939588c0fc12bc349224e",
+  "source_hashes": {
+    "src/replica_mvp/intake.py": "e812b208fb52ad961883686491b97b213a7444ae2f7ce84aaabd036cc205b5ea",
+    "src/replica_mvp/bundle_evaluation.py": "1b8c93e016e44d2a88796d8ba1d7cce9b75d9774240e1ee2c22238e5e874684d",
+    "src/replica_mvp/agent_protocol.py": "d7979d94c9217eebc54fe39dbbf566eb15688e61f83040eb142f230c5af3cdda",
+    "src/replica_mvp/grounded_conversation.py": "03a70ffa53b4c20c05026ead82ddebc89ab5c7377755ca442772fffb39250b91",
+    "src/replica_mvp/_python_component_runner.py": "6494ea05f24bf4d032a92f0ab6b64f0a06737567b04bec8bb2e3cbfccad502aa",
+    "src/replica_mvp/completion.py": "5c626a8d5036dad83653b417f7de35656304f5751b6ae56902fed178341c1ac6",
+    "src/replica_mvp/openai_grounded_model.py": "67df7be32e3ecfaddbfe9a1537c599bfd28219b4670734dc2ba53fc3b326db3b",
+    "src/replica_mvp/operation_selection.py": "4530b644a0f91cb882d31fae0dd6880651c4b7d73ea35eebbc370af5f88281dd",
+    "src/replica_mvp/evaluation.py": "e903eda34f3f1cc89abd94be2b183b375f704591d1b2c13f50158b4dbb402687",
+    "src/replica_mvp/agent_harness.py": "a73558017156d2c1dc8925f229afcebc7827294e43af125ab7dd0b849298792b",
+    "src/replica_mvp/codex_operator.py": "ff729a06506ecb19c903f8216a23b9a49b3ce994f6549f771c3173570172906e",
+    "src/replica_mvp/generated_component.py": "9116ea80439205de9f047329ded16369b6346ff738e0931bf98f7698728b020e",
+    "src/replica_mvp/experience.py": "7fd958fea78a37ecf9ba3c43eb9ab9dd71046ea701b32930afbdc675cfb71508",
+    "src/replica_mvp/__init__.py": "3cd23c21ca3e42c50e6e900284e3e84ad4f006dbb7d9d00c72b9de97953f1684",
+    "src/replica_mvp/builder.py": "51d9f4b1e0911f35194e23c59d6b7a4382ac8a309c971ab7d6231db913565402",
+    "src/replica_mvp/bundle_runtime.py": "b97c15a1398e452bc17f9f5baa3370b089599962280aea9b9cb51799617f2120",
+    "src/replica_mvp/python_component.py": "2cd377ea3be315c2241299046f4095127f50e3ed9d92237bbddf00ef8185e913",
+    "src/replica_mvp/cli.py": "5d626d43fdbedcd4c7028abf84db022f786a56cb3ac589651a4f6d2ce684f971",
+    "src/replica_mvp/plan_safety.py": "a7f269a82d775b4c16eb4d79be82c13bbb35a169b602238626b0b82f8faf5758",
+    "src/replica_mvp/resources.py": "5076ba363a3945d43b42486ae0c78dacab1d92bfbd5bc073097594e1beb33cce",
+    "src/replica_mvp/second_pass.py": "9b7823658fbe98ef5409b6139aa10ea6b082f13fef7d406d4a56aa57d775c20e",
+    "src/replica_mvp/agent_execution.py": "6b81c6e57253122c9f4439bfa679c9250bab74feb0541bbebf7922269b046178",
+    "src/replica_mvp/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/replica_mvp/project.py": "30a98eabd64e6d6ca3406f1e753189544dd2ff023cd3796c5edd799c12e69ab6",
+    "src/replica_mvp/reporting.py": "1da4c6ba0c026165c6ab4cd2f2386eeef1faef5bc784333c81a1db2a9cbc9a51"
+  },
+  "guard_log": "/tmp/replica-two-pairs-guard.log",
+  "max_concurrent_pairs": 3,
+  "operator": {
+    "model": "gpt-6-astra",
+    "reasoning_effort": "medium"
+  },
+  "builder": {
+    "model": "gpt-5.6-terra",
+    "reasoning_effort": "high"
+  },
+  "concurrency_update": {
+    "timestamp": "2026-09-08T06:26:00.831519+00:00",
+    "initial_max_concurrent_pairs": 2,
+    "selected_claim_count": 3,
+    "policy": "parallel_claim_pairs",
+    "reason": "User clarified all selected feature pairs must run concurrently: N features require N pairs.",
+    "source_hashes": {
+      "src/replica_mvp/agent_harness.py": "25021a29460ce9245e378ae8f1b0fe80aa9291d7a0003a1221eccf674cb9b975",
+      "src/replica_mvp/cli.py": "11ffd258844e38e0c69a93d5c6c4f190c1b3ae4d9dd04a3f6c9f67a2c88d1c37"
+    }
+  },
+  "latest_guard_log": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/harness-verification.json",
+  "control_recovery": {
+    "command": "agent-continuity-retry-preflight",
+    "claim_id": "claim-001",
+    "preserves": [
+      "original terminal archive",
+      "pair identities",
+      "frozen contract",
+      "original budget start",
+      "resource history"
+    ],
+    "max_recoveries": 1
+  },
+  "latest_source_hashes": {
+    "src/replica_mvp/intake.py": "e812b208fb52ad961883686491b97b213a7444ae2f7ce84aaabd036cc205b5ea",
+    "src/replica_mvp/bundle_evaluation.py": "cebff599aa44ea37dbb5a3eaab0a37106a4a80735a8f292b25d367a1fde50560",
+    "src/replica_mvp/agent_protocol.py": "d7979d94c9217eebc54fe39dbbf566eb15688e61f83040eb142f230c5af3cdda",
+    "src/replica_mvp/grounded_conversation.py": "03a70ffa53b4c20c05026ead82ddebc89ab5c7377755ca442772fffb39250b91",
+    "src/replica_mvp/_python_component_runner.py": "6494ea05f24bf4d032a92f0ab6b64f0a06737567b04bec8bb2e3cbfccad502aa",
+    "src/replica_mvp/completion.py": "5c626a8d5036dad83653b417f7de35656304f5751b6ae56902fed178341c1ac6",
+    "src/replica_mvp/openai_grounded_model.py": "67df7be32e3ecfaddbfe9a1537c599bfd28219b4670734dc2ba53fc3b326db3b",
+    "src/replica_mvp/operation_selection.py": "4530b644a0f91cb882d31fae0dd6880651c4b7d73ea35eebbc370af5f88281dd",
+    "src/replica_mvp/evaluation.py": "e903eda34f3f1cc89abd94be2b183b375f704591d1b2c13f50158b4dbb402687",
+    "src/replica_mvp/agent_harness.py": "9b49e3e82c8b54b1fa5860c6d7fe15dc024f2fc737e7adcf3c112925f997af07",
+    "src/replica_mvp/codex_operator.py": "ff729a06506ecb19c903f8216a23b9a49b3ce994f6549f771c3173570172906e",
+    "src/replica_mvp/generated_component.py": "9116ea80439205de9f047329ded16369b6346ff738e0931bf98f7698728b020e",
+    "src/replica_mvp/experience.py": "7fd958fea78a37ecf9ba3c43eb9ab9dd71046ea701b32930afbdc675cfb71508",
+    "src/replica_mvp/__init__.py": "3cd23c21ca3e42c50e6e900284e3e84ad4f006dbb7d9d00c72b9de97953f1684",
+    "src/replica_mvp/builder.py": "51d9f4b1e0911f35194e23c59d6b7a4382ac8a309c971ab7d6231db913565402",
+    "src/replica_mvp/bundle_runtime.py": "f3cf4bb16290e49bcf14f50716529ea6386f7d5b1f7b1f4ad6dd8517cf8a8d50",
+    "src/replica_mvp/python_component.py": "2cd377ea3be315c2241299046f4095127f50e3ed9d92237bbddf00ef8185e913",
+    "src/replica_mvp/cli.py": "74eb94a1412b8ff2e760b6630f77389fb8ae9cd10b3f609d8a98f0779e971f9d",
+    "src/replica_mvp/plan_safety.py": "a7f269a82d775b4c16eb4d79be82c13bbb35a169b602238626b0b82f8faf5758",
+    "src/replica_mvp/resources.py": "5076ba363a3945d43b42486ae0c78dacab1d92bfbd5bc073097594e1beb33cce",
+    "src/replica_mvp/second_pass.py": "9b7823658fbe98ef5409b6139aa10ea6b082f13fef7d406d4a56aa57d775c20e",
+    "src/replica_mvp/agent_execution.py": "6b81c6e57253122c9f4439bfa679c9250bab74feb0541bbebf7922269b046178",
+    "src/replica_mvp/__main__.py": "935a1c1166b0c1ea35a82256345000bf2c73ded718d77773bc27a71ecce28f7d",
+    "src/replica_mvp/project.py": "30a98eabd64e6d6ca3406f1e753189544dd2ff023cd3796c5edd799c12e69ab6",
+    "src/replica_mvp/reporting.py": "1da4c6ba0c026165c6ab4cd2f2386eeef1faef5bc784333c81a1db2a9cbc9a51"
+  },
+  "control_revision_at": "2026-09-08T07:57:59.001574+00:00",
+  "runtime_compatibility_adjustments": {
+    "max_declared_bundle_bytes": 200000000,
+    "generated_bytecode": "Undeclared __pycache__/*.pyc excluded from source validation and publication; other undeclared files and symlinks rejected.",
+    "dependency_version_probes": [
+      "Python interpreter distribution",
+      "Python sqlite3 stdlib distribution",
+      "linked SQLite engine",
+      "bundled Dagu version subcommand"
+    ],
+    "frozen_research_changed": false
+  },
+  "latest_guard_tests_passed": 237
+}

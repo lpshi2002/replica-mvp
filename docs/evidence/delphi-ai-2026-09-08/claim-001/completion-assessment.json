@@ -1,0 +1,45 @@
+{
+  "candidate_sha256": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+  "evaluation": {
+    "by_kind": {
+      "boundary": {
+        "passed": 1,
+        "total": 1
+      },
+      "insufficient_information": {
+        "passed": 1,
+        "total": 1
+      },
+      "metamorphic": {
+        "passed": 1,
+        "total": 2
+      },
+      "normal": {
+        "passed": 0,
+        "total": 1
+      },
+      "novel": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "candidate_sha256": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+    "judge_identity": "codex-cli-final-evaluator",
+    "judge_mode": "same_session",
+    "passed": 4,
+    "plan_sha256": "9243b221552b3e7f21a7db3974b40ef4cf53a42d31dd5feead507a310fcb077d",
+    "status": "FAILED",
+    "total": 6
+  },
+  "implementation_review": {
+    "judge_identity": "codex-cli-final-evaluator",
+    "judge_mode": "same_session",
+    "status": "FAILED"
+  },
+  "missing_conditions": [
+    "Implementation fidelity and generalization review did not pass."
+  ],
+  "plan_sha256": "9243b221552b3e7f21a7db3974b40ef4cf53a42d31dd5feead507a310fcb077d",
+  "reproduction_status": "partially_reproduced",
+  "schema_version": "replica-bundle-completion/v1"
+}

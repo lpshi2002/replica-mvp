@@ -58,6 +58,7 @@ class PublicCliContractTest(unittest.TestCase):
             allow_model_adapter=True,
             input_assets=None,
             session=False,
+            state_dir=None,
         )
 
     def test_cli_exposes_the_codex_operator_prepare_and_finalize_seam(self):

@@ -163,7 +163,10 @@ implementation type, exact method, files, pinned dependencies and sources,
 license constraints, required environment-variable names, ordered commands,
 expected observations, artifact location, and validation expectations. Mark
 each fidelity-critical dependency or side effect and require an actual runtime
-check of the production path. Test doubles may check an adapter boundary but
+check of the production path. When the workflow keeps user state between
+calls (interview progress, conversation history, pending approvals, duplicate
+suppression), store it under the working directory so `run-replica --state-dir`
+can resume it. Test doubles may check an adapter boundary but
 cannot satisfy a functional or claim criterion. Never include Second-pass test
 expected behavior, reference facts, or original outputs in the instruction. Do
 not delegate high-level strategy selection back to the Builder. For a model

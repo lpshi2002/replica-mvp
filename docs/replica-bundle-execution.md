@@ -22,8 +22,9 @@
 2차의 `handoff.selected_scenario_id`를 우선하며, 없으면 `scenario_priority`의 첫 경로를
 선택한다. 둘 다 없으면 조사에 기록된 순서를 유지하고 `research_order`로 표시한다.
 의존성 등급을 근거로 조사 경로를 다시 정렬하지 않는다. 선택과 우선순위가 충돌하면
-진행하지 않는다. Sol은 전체 2차를 받고, Terra는 전체 workflow·findings·대안 경로와
-공개 실행 계약을 받는다. 테스트·기대값·reference facts는 Terra에 전달하지 않는다.
+진행하지 않는다. Sol은 봉인 테스트·평가 사례를 제외한 전체 2차를 받고, Terra는 전체
+workflow·findings·대안 경로와 공개 실행 계약을 받는다. 테스트·기대값·reference facts는
+Sol과 Terra 모두에 전달하지 않는다.
 
 Sol은 선택된 경로를 구체적인 파일·함수·명령·수정 작업으로 만든다. 새 기술 접근이나
 범위 변경은 2차 보완에 속한다. 필요한 의존성은 실행 환경에 준비하며, 평가기가 다른
@@ -211,6 +212,20 @@ replica-mvp run-replica PUBLIC_RUN_DIR --use-model-adapter < new-input.json
 
 `--session`을 추가하면 stdin의 JSON 객체 배열을 같은 세션에 순서대로 전달하고
 출력 배열을 반환한다. 새 질문을 이어 묻는 대화나 상태 변화 검사에 사용한다.
+
+호출 사이에 사용자 상태(인터뷰 진행, 대화 이력, 승인 대기·중복 억제 기록)를 이어가려면
+`--state-dir DIR`을 준다. 첫 호출은 DIR에 구현과 공개 자산을 복사하고 번들 해시를
+기록한다. 이후 호출은 구현 파일 해시를 확인한 뒤 같은 실행 디렉터리에서 실행하므로,
+구현이 실행 디렉터리 아래에 저장한 상태를 다시 읽는다. 다른 번들의 DIR이거나 구현
+파일이 바뀌었으면 거절한다. 세션 식별자는 DIR 자체다. 상태가 필요한 계약은 상태를
+실행 디렉터리 아래에 저장하도록 구현해야 한다. 봉인 평가는 이 옵션과 무관하게 격리
+세션에서 실행한다.
+
+체험 명령도 공개 번들에서 동작한다. 공개 `replica-spec.json`에는 선택 시나리오의
+`evidence_policy`가 들어가고, 시나리오에 `experience`가 있으면 `experience.json`이 함께
+공개된다. `experience RUN_DIR --input INPUT.json`은 번들 출력을 JSON으로 표시한다.
+생성된 코드에는 PATH·HOME·로케일·TMPDIR 같은 기본 변수와 manifest에 선언한
+`environment_variables`만 전달한다.
 계속 켜 둔 서버가 필요한 경우 공개 manifest의
 command를 implementation 디렉터리에서 실행한다. 필요한 환경변수와 원래의 의존성이
 준비돼 있어야 하며, 공개할 수 없었던 입력 자산은 별도로 준비해야 한다.

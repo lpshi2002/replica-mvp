@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from .bundle_runtime import bundle_session, copy_bundle, observe_dependencies, safe_relative, validate_runtime
 from .completion import EVALUATION_TEST_KINDS, assess_bundle_execution, research_test_kind
+from .experience import validate_experience_profile
 from .evaluation import (
     _check_assertion, _is_valid_lock, _json_equal, _path_value, _read_json,
     _require_standard_json, _write_json, _write_jsonl, freeze_test_suite,
@@ -810,10 +811,20 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
         "output_artifacts": plan["output_artifacts"],
     }
     _write_json(public_dir / "replica.json", replica)
-    _write_json(public_dir / "replica-spec.json", {
+    researched = _selected_scenario(_sealed_claim(root, claim)) or {}
+    spec = {
         "schema_version": "replica-spec/v1", "input_contract": manifest["input_contract"],
         "output_contract": manifest["output_contract"], "acceptance_criteria": plan["acceptance_criteria"],
-    })
+    }
+    # The experience commands read the evidence level and public profile from the published run.
+    if researched.get("evidence_level") in {"direct", "public", "claim_only"}:
+        spec["evidence_policy"] = {"level": researched["evidence_level"]}
+        if "experience" in researched:
+            profile = validate_experience_profile(deepcopy(researched["experience"]))
+            if profile["comparison"]["evidence_level"] != researched["evidence_level"]:
+                raise ValueError("experience evidence level does not match the selected scenario")
+            _write_json(public_dir / "experience.json", profile)
+    _write_json(public_dir / "replica-spec.json", spec)
     public_examples = []
     for index, example in enumerate(evidence["public_examples"]):
         published = {key: deepcopy(value) for key, value in example.items() if key != "artifacts"}
@@ -987,7 +998,8 @@ def validate_bundle_result(root: Path, claim: dict[str, Any]) -> None:
 
 
 def run_published_bundle(run_dir: Path, runtime_input: Any, *, allow_model_adapter: bool = False,
-                         input_assets: dict[str, str] | None = None, session: bool = False) -> Any:
+                         input_assets: dict[str, str] | None = None, session: bool = False,
+                         state_dir: Path | None = None) -> Any:
     replica = _read_json(run_dir / "replica.json")
     result = _read_json(run_dir / "replica-result.json")
     _validate_artifacts(run_dir, result["artifacts"], "published bundle")
@@ -1006,8 +1018,10 @@ def run_published_bundle(run_dir: Path, runtime_input: Any, *, allow_model_adapt
     assets = [{**a, "source": str(manifest_path.parent / a["path"])} for a in replica["assets"] if a["path"] not in replacements]
     assets.extend({"path": name, "source": source, "sha256": digest(Path(source))} for name, source in replacements.items())
     outputs = []
+    new_assets = [a for a in assets if a["path"] in replacements]
     with bundle_session(manifest_path, replica["runtime"], replica["timeout_seconds"],
-                        prepare=lambda root: _copy_assets(assets, root)) as (run, root):
+                        prepare=lambda root: _copy_assets(assets, root), workspace=state_dir,
+                        resume_prepare=lambda root: _copy_assets(new_assets, root)) as (run, root):
         for value in runtime_input if session else [runtime_input]:
             output = run(value)
             if replica["output_artifacts"]:

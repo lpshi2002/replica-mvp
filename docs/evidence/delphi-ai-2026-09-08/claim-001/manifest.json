@@ -1,0 +1,20 @@
+{
+  "schema_version": "replica-implementation-bundle/v1",
+  "claim_id": "claim-001",
+  "scenario_id": "s-01",
+  "implementation_type": "hybrid",
+  "dependency_level": "commercial_api",
+  "input_contract": "UTF-8 JSON with creator_corpus (an array of records containing source_id, text, and optional published_at), style_rules (an array of imperative rules), safety_rules (an array of if/then handoff rules), fallback_text (a non-empty string), conversation_history (an array of user/assistant turns), and user_question (a non-empty string). The frozen tests use a synthetic English corpus and contain no real Delphi customer data.",
+  "output_contract": "UTF-8 JSON with status ('answered', 'handoff', or 'insufficient_information'), answer (customer-visible natural-language text), citations (an array of source_id values supporting each factual assertion; empty only for handoff/fallback text), and applied_rules (an array naming the style or safety rules used). This wrapper is the replica's test interface; Delphi's public sources document answers and citations but not an original JSON response schema.",
+  "entrypoint": "server.py",
+  "command": ["/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/claims/claim-001/builder/.venv/bin/python", "server.py"],
+  "dependencies": [
+    {"name": "haystack-ai", "version": "2.26.1", "source": "https://github.com/deepset-ai/haystack", "license": "Apache-2.0"},
+    {"name": "codex-cli", "version": "0.153.4", "source": "https://github.com/openai/codex", "license": "Apache-2.0"}
+  ],
+  "environment_variables": [],
+  "files": [
+    {"path": "requirements.txt", "sha256": "f1075b8d518c8857f41ea6db38a95ca7bbf938a07270ad6d133b5e81960dbcf3"},
+    {"path": "server.py", "sha256": "5c84eb385f0fb7de7f7baa85848e75e9461349f00497d9a306092d7bd7c8e322"}
+  ]
+}

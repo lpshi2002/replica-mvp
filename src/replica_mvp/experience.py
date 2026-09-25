@@ -344,6 +344,14 @@ def experience_input_once(
     )
     output_contract = replica_spec.get("output_contract")
     if (
+        isinstance(output_contract, str)
+        and output_contract.strip()
+        and (run_dir / "replica.json").is_file()
+        and _read_json_object(run_dir / "replica.json", "Replica").get("schema_version") == "replica-bundle/v1"
+    ):
+        # An implementation bundle always answers in JSON; its contract is a researched description.
+        output_contract = {"type": "json", "format": "application/json"}
+    if (
         not isinstance(output_contract, dict)
         or not isinstance(output_contract.get("type"), str)
         or not isinstance(output_contract.get("format"), str)

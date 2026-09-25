@@ -1,0 +1,22 @@
+{
+  "schema_version": "replica-implementation-bundle/v1",
+  "claim_id": "claim-002",
+  "scenario_id": "s-local-actions",
+  "implementation_type": "hybrid",
+  "dependency_level": "commercial_api",
+  "input_contract": "UTF-8 JSON: creator_instruction (plain-language string), event {id,type,message,user {id,name,email,tags,properties},conversation_history:[]}, observed_at (timezone ISO string), approval (not_required|pending|approved|rejected). Optional request_id identifies a repeat. Inputs are synthetic. Support context alerts and message-count thresholds; immediate or explicit scheduled timing; first/every frequency; local_outbox messages and local tag/property updates. Other channels or unspecified essential fields must return needs_clarification rather than silently dropping intent.",
+  "output_contract": "UTF-8 JSON: status (executed|not_triggered|awaiting_confirmation|needs_clarification|scheduled|already_executed), compiled_plan (validated Replica-owned object or null), trigger_matched (boolean), action_payload (object or null), trigger_occurrences (array), action_occurrences (array), sink_records (array read back from the real local sink), sink_file (relative path to its JSON snapshot), and explanation (string). Preserve event/user IDs. Returned logs are timestamped; no actual email, Slack or external recipient is contacted. sink_records and occurrence arrays in a response are scoped to its event; prior event records remain stored and reusable.",
+  "entrypoint": "server.py",
+  "command": ["python3", "server.py"],
+  "dependencies": [
+    {"name": "codex-cli", "version": "0.153.4", "source": "https://github.com/openai/codex", "license": "Apache-2.0"},
+    {"name": "dagu", "version": "2.16.2", "source": "https://github.com/dagucloud/dagu/releases/tag/v2.16.2", "license": "GPL-3.0"}
+  ],
+  "environment_variables": [],
+  "files": [
+    {"path": "dagu", "sha256": "699e8abe51fcfda4ccb1a0ff252c3b60e47cda093dc5fc5c19e43b3cb1c38ef6"},
+    {"path": "model.py", "sha256": "768d037d90e205286724b982392fe016bbbaf31dcdd767256b0fbbfeae377c9e"},
+    {"path": "server.py", "sha256": "3ffa0014d28d872b6d8e0734e09f560903fcafda9e5f1786c465f353f2e7e3e4"},
+    {"path": "sink_worker.py", "sha256": "c734483b3176bd573379322b316b702db1df80983989f32b419fd5009656ce71"}
+  ]
+}

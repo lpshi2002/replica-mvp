@@ -68,7 +68,7 @@
 
 해당 실행은 약 **8.8초**에 완료됐다. 이 입력에서 자료 검색부터 답변까지 동작한 것은 확인했지만, 동결 평가의 정상 입력 1건과 변형 검사 1건이 미통과이므로 계약 전체의 안정적인 충족은 확인되지 않았다.
 
-근거: [최종 평가 결과](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-001/attempt-002-b5371e5b6207/replica-result.json) · [구현 manifest](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-001/attempt-002-b5371e5b6207/implementation/manifest.json) · [새 입력 실행 결과](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/claim-001/execution.json) · [답변 확인 기록](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/claim-001/spot-check.json)
+근거: [최종 평가 결과](evidence/delphi-ai-2026-09-08/claim-001/replica-result.json) · [구현 manifest](evidence/delphi-ai-2026-09-08/claim-001/manifest.json) · [새 입력 실행 결과](evidence/delphi-ai-2026-09-08/claim-001/fresh-input-execution.json) · [답변 확인 기록](evidence/delphi-ai-2026-09-08/claim-001/fresh-input-spot-check.json)
 
 ### ② 대화 상황에 맞춰 후속 업무를 하는 기능
 
@@ -94,7 +94,7 @@ error: output artifact must be an actual file inside the runtime directory
 
 이 오류는 결과로 제시한 파일이 실제 실행 폴더 안의 파일인지 확인하는 단계에서 실패했다는 뜻이다. 검증된 최종 출력이 반환되지 않아 이 새 입력의 작업 완료는 확인할 수 없다. 기존 동결 평가에서도 정상 입력과 정보 부족 입력이 각각 1건씩 미통과였다. 이번 증거만으로 임의의 새 조건에 안정적으로 자동 작업을 수행한다고 판정할 수 없다.
 
-근거: [최종 평가 결과](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-002/attempt-002-3f0147ff7544/replica-result.json) · [구현 manifest](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-002/attempt-002-3f0147ff7544/implementation/manifest.json) · [새 입력 실패 로그](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/claim-002/stderr.log)
+근거: [최종 평가 결과](evidence/delphi-ai-2026-09-08/claim-002/replica-result.json) · [구현 manifest](evidence/delphi-ai-2026-09-08/claim-002/manifest.json) · [새 입력 실패 로그](evidence/delphi-ai-2026-09-08/claim-002/fresh-input-stderr.log)
 
 ### ③ 인터뷰로 내 노하우를 지식 자료로 만드는 기능
 
@@ -121,13 +121,13 @@ error: output artifact must be an actual file inside the runtime directory
 
 해당 실행은 약 **19.0초**에 완료됐다. 반환된 저장 ID는 `5832cc7c-96a6-4872-9b7f-456a064279e9`다. 생성부터 물리적 저장·재조회까지 확인했지만, 동결 평가의 정보 부족 입력 1건과 구현 검토 미통과가 남아 있다.
 
-근거: [최종 평가 결과](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-003/attempt-002-5ccfd196b74c/replica-result.json) · [구현 manifest](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-003/attempt-002-5ccfd196b74c/implementation/manifest.json) · [새 입력 실행 결과](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/claim-003/execution.json) · [실제 SQLite 파일](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/claim-003/artifact-00-000-interviews.sqlite3) · [저장·재조회 확인 기록](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/claim-003/storage-check.json)
+근거: [최종 평가 결과](evidence/delphi-ai-2026-09-08/claim-003/replica-result.json) · [구현 manifest](evidence/delphi-ai-2026-09-08/claim-003/manifest.json) · [새 입력 실행 결과](evidence/delphi-ai-2026-09-08/claim-003/fresh-input-execution.json) · 실제 SQLite 파일(로컬 `work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/claim-003/artifact-00-000-interviews.sqlite3`, 해시는 [SHA256SUMS](evidence/delphi-ai-2026-09-08/SHA256SUMS)) · [저장·재조회 확인 기록](evidence/delphi-ai-2026-09-08/claim-003/fresh-input-storage-check.json)
 
 ## 구현은 어디에서 멈췄나
 
 두 번째 평가 이후 세 번째 제출을 준비했지만, 세 쌍 모두 검증된 직접 피드백과 종료 절차를 완성하지 못해 `EXECUTION_ABORTED`로 종료됐다. 같은 Agent ID로 제한된 복구를 시도했으며, 자동 작업은 원래 개발 예산도 소진했다. 세 번째 후보의 최종 평가 결과는 없다.
 
-전체 하네스는 `EXECUTION_COMPLETED_WITH_FAILURES`로 종료됐다. 이는 실패를 포함해 실행이 끝났다는 의미이며, 세 복제품이 모두 완성됐다는 의미가 아니다. 두 번째 평가의 부분 결과와 이전 시도 기록은 보존돼 있다. [하네스 종료 기록](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/agent-harness.json)
+전체 하네스는 `EXECUTION_COMPLETED_WITH_FAILURES`로 종료됐다. 이는 실패를 포함해 실행이 끝났다는 의미이며, 세 복제품이 모두 완성됐다는 의미가 아니다. 두 번째 평가의 부분 결과와 이전 시도 기록은 보존돼 있다. [하네스 종료 기록](evidence/delphi-ai-2026-09-08/agent-harness.json)
 
 ## 이번 결과로 확인한 범위
 
@@ -139,11 +139,11 @@ error: output artifact must be an actual file inside the runtime directory
 
 ## 실행 조건과 원본 기록
 
-- 조사 입력: 기존 조사에서 부족한 부분만 구현 전에 보완한 [이번 실행의 2차 조사 JSON](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/research.json). 원본 조사와 구현 전에 정한 평가 기준은 보존했다. 선택한 세 기능 모두 구현·평가했다.
+- 조사 입력: 기존 조사에서 부족한 부분만 구현 전에 보완한 [이번 실행의 2차 조사 JSON](evidence/delphi-ai-2026-09-08/research.json). 원본 조사와 구현 전에 정한 평가 기준은 보존했다. 선택한 세 기능 모두 구현·평가했다.
 - 구현 Agent: 기능마다 **Astra medium Operator + Terra high Builder** 한 쌍, 총 세 쌍.
 - 병렬 실행: 초기 시작 오류를 복구한 뒤 세 쌍의 실행 세션이 겹쳤다(`peak_active_pairs: 3`). 환경의 활성 Agent 한도가 조율자를 포함해 7개여서 대기 턴을 반환하고 같은 ID로 재개했다. 모든 Agent가 계속 동시에 추론한 것은 아니다.
 - 평가: 기능당 두 번, 총 여섯 번 최종 평가했다. 개발과 별도 실행 단계에서 평가했지만 Judge는 `same_session`으로 기록돼 있어 완전히 독립된 평가로 보지 않는다.
 - 근거 수준: 공개 제품 설명을 바탕으로 정한 업무 기준(`public`)을 검사했다. 실제 Delphi 고객 데이터나 같은 입력에 대한 원제품 출력과 직접 비교한 평가가 아니다.
 - 보존한 결과물: 실행 코드, 실행 방법·의존성을 적은 manifest, JSON 입출력, 평가 결과, 생성한 파일.
 
-전체 새 입력의 명령·입출력·처리 시간은 [실행 기록](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/execution-check.json), 실행 브랜치·소스와 조사 해시는 [실행 환경 기록](/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/run-context.json)에 있다.
+전체 새 입력의 명령·입출력·처리 시간은 [실행 기록](evidence/delphi-ai-2026-09-08/fresh-input-execution-check.json), 실행 브랜치·소스와 조사 해시는 [실행 환경 기록](evidence/delphi-ai-2026-09-08/run-context.json)에 있다.

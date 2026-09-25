@@ -1,0 +1,466 @@
+{
+  "artifacts": {
+    "artifacts/0/000-interviews.sqlite3": "e641c8089bc1e4f9e0f66a849d3e6acf905883057c0cc4af5dcf75bf91cfa140",
+    "artifacts/0/001-0fd9ec23-6d32-427c-8584-610adaf667f6.json": "f32e213037e5afd968d00d84d05e0cf8a5a19b44fe99b898d48bfbfcbeed28f7",
+    "completion-assessment.json": "db4dcd224c5b86891a77a28c398bbbf7a13e11a7861beb713c1968caa373e3dc",
+    "implementation/app.py": "015465a2d4a85f760b49b64c298d31e7502c77dc3a3357a287ba31c483c84f39",
+    "implementation/manifest.json": "5ccfd196b74ca8282d119d363f4e8560253f085b2cdee4744a1cb3b4c14021ac",
+    "public-examples.json": "a36b74cfdfc5be9c0003ed510cd4bf21173326fd703dddf0751cf283d3a6c7bf",
+    "replica-spec.json": "f641eccd12352b536d5d7f8bc03b9fa773cbda815a7b5f12e74d573c8f2bbe42",
+    "replica.json": "66ba9d87da8e317eea3a54fbfcce95dffe594e7ae78477b02acbd6f41fc4880d"
+  },
+  "attempt": 2,
+  "candidate_sha256": "5ccfd196b74ca8282d119d363f4e8560253f085b2cdee4744a1cb3b4c14021ac",
+  "claim_id": "claim-003",
+  "dependencies": [
+    {
+      "basis": "Candidate Python interpreter distribution version, including its stdlib modules.",
+      "declared_version": "3.12.12",
+      "name": "Python sqlite3",
+      "observed_version": "3.12.12",
+      "status": "matched"
+    },
+    {
+      "basis": "Installed CLI version command observation.",
+      "declared_version": "0.153.4",
+      "name": "codex-cli",
+      "observed_version": "0.153.4",
+      "status": "matched"
+    }
+  ],
+  "development_attempts": [
+    {
+      "correction_number": 0,
+      "decision": "RETRY",
+      "resources": {
+        "human_interventions": [],
+        "measurements": [
+          {
+            "basis": "bounded command wall time for three live Codex invocations",
+            "metric": "retry_runtime_wall_time",
+            "phase": "production_checks",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "measured",
+            "unit": "seconds",
+            "value": 30.2
+          },
+          {
+            "basis": "CLI subscription did not expose per-call cost",
+            "metric": "economic_cost",
+            "phase": "model_generation",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "unknown",
+            "unit": "unknown",
+            "value": null
+          }
+        ]
+      },
+      "stop_reason": null,
+      "submission": 1
+    },
+    {
+      "correction_number": 1,
+      "decision": "PASS",
+      "resources": {
+        "human_interventions": [],
+        "measurements": [
+          {
+            "basis": "Not measured; subscription billing is not execution cost.",
+            "metric": "active_time",
+            "phase": "development",
+            "recorded_at": "2026-09-08T07:03:29.896731+00:00",
+            "status": "unknown",
+            "unit": "seconds",
+            "value": null
+          },
+          {
+            "basis": "Not measured; subscription billing is not execution cost.",
+            "metric": "waiting_time",
+            "phase": "development",
+            "recorded_at": "2026-09-08T07:03:29.896840+00:00",
+            "status": "unknown",
+            "unit": "seconds",
+            "value": null
+          },
+          {
+            "basis": "Not measured; subscription billing is not execution cost.",
+            "metric": "preparation_time",
+            "phase": "data_preparation",
+            "recorded_at": "2026-09-08T07:03:29.896842+00:00",
+            "status": "unknown",
+            "unit": "seconds",
+            "value": null
+          },
+          {
+            "basis": "Not measured; subscription billing is not execution cost.",
+            "metric": "human_time",
+            "phase": "development",
+            "recorded_at": "2026-09-08T07:03:29.896843+00:00",
+            "status": "unknown",
+            "unit": "seconds",
+            "value": null
+          },
+          {
+            "basis": "Not measured; subscription billing is not execution cost.",
+            "metric": "economic_cost",
+            "phase": "development",
+            "recorded_at": "2026-09-08T07:03:29.896844+00:00",
+            "status": "unknown",
+            "unit": "unknown_currency",
+            "value": null
+          },
+          {
+            "basis": "Not measured; subscription billing is not execution cost.",
+            "metric": "economic_cost",
+            "phase": "execution",
+            "recorded_at": "2026-09-08T07:03:29.896845+00:00",
+            "status": "unknown",
+            "unit": "unknown_currency",
+            "value": null
+          },
+          {
+            "basis": "Not measured; subscription billing is not execution cost.",
+            "metric": "tokens",
+            "phase": "execution",
+            "recorded_at": "2026-09-08T07:03:29.896845+00:00",
+            "status": "unknown",
+            "unit": "tokens",
+            "value": null
+          }
+        ]
+      },
+      "stop_reason": null,
+      "submission": 1
+    },
+    {
+      "correction_number": 0,
+      "decision": "PASS",
+      "resources": {
+        "human_interventions": [],
+        "measurements": [
+          {
+            "basis": "real two-call curl command wall time",
+            "metric": "generation_review_latency",
+            "phase": "multi_condition",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "measured",
+            "unit": "seconds",
+            "value": 17.3
+          },
+          {
+            "basis": "CLI subscription exposes no per-call cost",
+            "metric": "economic_cost",
+            "phase": "model_generation",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "unknown",
+            "unit": "unknown",
+            "value": null
+          }
+        ]
+      },
+      "stop_reason": null,
+      "submission": 2
+    }
+  ],
+  "evaluation": {
+    "by_kind": {
+      "boundary": {
+        "passed": 1,
+        "total": 1
+      },
+      "insufficient_information": {
+        "passed": 0,
+        "total": 1
+      },
+      "metamorphic": {
+        "passed": 2,
+        "total": 2
+      },
+      "normal": {
+        "passed": 1,
+        "total": 1
+      },
+      "novel": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "candidate_sha256": "5ccfd196b74ca8282d119d363f4e8560253f085b2cdee4744a1cb3b4c14021ac",
+    "judge_identity": "codex-cli-final-evaluator",
+    "judge_mode": "same_session",
+    "passed": 5,
+    "plan_sha256": "6cdbfff92b7702918908ef1ac2f5da6db634a0354e9cb812f80f7f9056a263f6",
+    "status": "FAILED",
+    "total": 6
+  },
+  "failure_category": "quality_gap",
+  "max_attempts": 3,
+  "plan_sha256": "6cdbfff92b7702918908ef1ac2f5da6db634a0354e9cb812f80f7f9056a263f6",
+  "private_evidence": {
+    "artifact-receipts.json": "2923ac76294e2ab8f3c68c8b66d40621cfc58ca58c240fe886b57c7ff1eb325b",
+    "artifacts/1/000-interviews.sqlite3": "3c07ba91491f2a45d5e5ae0b3d41ffdfb81a34046c063ef2b109c66cbb1e5d2e",
+    "artifacts/1/001-b7cfe12e-58b0-45a5-9034-8e47ebb69732.json": "a729d84d80f0a92c7a8342665dd474f4b67f594b0b424770c78a682695c3d8bb",
+    "artifacts/10/000-interviews.sqlite3": "c17c9c0b04c879fdcb35220a9977a127f7a675d712d13eb5ae98f1f61e73588e",
+    "artifacts/10/001-0746f2a9-9e09-4929-bda0-12ab732a56e4.json": "c1c8918ec17e0e2a554b4bde9877ef7835396feb64d931f1b8975fa030b0dac3",
+    "artifacts/11/000-interviews.sqlite3": "06f7b38d4f457c0326e5ac8e2ad7a80f01222975c8fc8fc8203221ac974f7944",
+    "artifacts/11/001-90be866c-7fe2-4016-b2ce-f853cb3c4da6.json": "0c4d2094363101d7032b7bf162b1ade2710bf85b22c3c11107a80b27f62f0809",
+    "artifacts/12/000-interviews.sqlite3": "06f7b38d4f457c0326e5ac8e2ad7a80f01222975c8fc8fc8203221ac974f7944",
+    "artifacts/12/001-ea0568c6-5249-4edb-bb42-5e7d97c66eec.json": "0c4d2094363101d7032b7bf162b1ade2710bf85b22c3c11107a80b27f62f0809",
+    "artifacts/2/000-interviews.sqlite3": "c236027d4ce2696f375c66a7e83521024d9338ed9132477b03f295c5cbe68939",
+    "artifacts/2/001-e4438cfb-7e6b-4902-9771-eb8fc2b7c8c9.json": "7f869021f5dc0a694a297b8fcf4738e342b5b4ba544090e350b6a4ce5a038c90",
+    "artifacts/3/000-interviews.sqlite3": "c236027d4ce2696f375c66a7e83521024d9338ed9132477b03f295c5cbe68939",
+    "artifacts/3/001-e781d33e-1cea-4bff-bc75-ba2ad6640e60.json": "7f869021f5dc0a694a297b8fcf4738e342b5b4ba544090e350b6a4ce5a038c90",
+    "artifacts/4/000-interviews.sqlite3": "6c82a8d1be64f2d8ca826b73ba00b52d87f1e532b4df4e565714dfa1a2f4830e",
+    "artifacts/4/001-9b360294-f5ce-46c3-91c1-ada559a7bf95.json": "a48dd2eac4304762254afb8f8d2b3cf21c6d46c875c9d6b02bae817dfbb69e70",
+    "artifacts/5/000-interviews.sqlite3": "8ddf0b19567516236ae16687769bba08eba08f11602a7cd38a0d4906c7f46763",
+    "artifacts/5/001-655a3cec-9c7c-4d1b-9775-e126bf57632f.json": "6a8df62db07d7cb64a5ff2d92a2df4dd050bbedba97efcf6d60a94018229b44e",
+    "artifacts/6/000-interviews.sqlite3": "8ddf0b19567516236ae16687769bba08eba08f11602a7cd38a0d4906c7f46763",
+    "artifacts/6/001-42488c7f-a7b0-4a0c-8faf-490c1f67a47a.json": "6a8df62db07d7cb64a5ff2d92a2df4dd050bbedba97efcf6d60a94018229b44e",
+    "artifacts/7/000-interviews.sqlite3": "669f1d8dc44c6427ed5ead4ce5129c3d80764afb8dfd2d007309557073ccb8a1",
+    "artifacts/7/001-2467c4e7-5e03-427d-9462-2e5ee0dffb93.json": "73c49f367b3a0642b9a890559562bf5f3af8f0bbad50373ecbbf69ab7b630a91",
+    "artifacts/8/000-interviews.sqlite3": "12d1610229bbbfd2514128f58856e5019249c13be6175e36212e32b6091fe8be",
+    "artifacts/8/001-afcaedbd-8fbd-471f-b94d-472d2dcd300d.json": "357d5317c5841d29f757a2c0052f14cb69cdd49f6cbc97937599555f47e06db9",
+    "artifacts/9/000-interviews.sqlite3": "12d1610229bbbfd2514128f58856e5019249c13be6175e36212e32b6091fe8be",
+    "artifacts/9/001-d67277d9-f37c-4fdb-b9aa-af7bfe9f1a50.json": "357d5317c5841d29f757a2c0052f14cb69cdd49f6cbc97937599555f47e06db9",
+    "completion-assessment.json": "8521ff2f2104d44cafd544bc87b5e1bec73a958a69633e8d9b88146472d2a270",
+    "evaluation-summary.json": "aefc40bd0432c3b65cc1ab62e8cab0e909a7f44ba5ce367f5208dd754de52fb4",
+    "execution-records.jsonl": "d6bd26bb78610e625fa71f76f5c51b56d3cb119bb9a916373800b456427bc594",
+    "implementation-review.json": "1ce50aa28bfb9cd05022e0b791afdd121ea1368a9503f46976ba5590667f76d8",
+    "public-artifacts/0/000-interviews.sqlite3": "e641c8089bc1e4f9e0f66a849d3e6acf905883057c0cc4af5dcf75bf91cfa140",
+    "public-artifacts/0/001-0fd9ec23-6d32-427c-8584-610adaf667f6.json": "f32e213037e5afd968d00d84d05e0cf8a5a19b44fe99b898d48bfbfcbeed28f7",
+    "repeated_outputs.jsonl": "ea8a010e75257ff93b74fa527db49a665b80b68e8fd2b3d7d1cb8254a7919e86",
+    "replica_outputs.jsonl": "bab79bf075e0e1644c91cf3fc8759398c336f67636e36983e0a37f67238750b2",
+    "results.jsonl": "05bbaf0768108bd717b2ee7b1fea6b480f46e900fdaa09001ac17af1ef943b1d",
+    "submitted-execution-state.json": "c82336a95e0dbb508709e42dafe2d3e58b5595f7b0cac35695831c118427eff9",
+    "submitted-implementation/app.py": "015465a2d4a85f760b49b64c298d31e7502c77dc3a3357a287ba31c483c84f39",
+    "submitted-implementation/manifest.json": "5ccfd196b74ca8282d119d363f4e8560253f085b2cdee4744a1cb3b4c14021ac",
+    "test-suite-lock.json": "75360f778effbf9047aa566a814e2b3aa7eef625415a52b0e8e2ad0357450446",
+    "tests.json": "28bfc94b7c5ff8e60be9eb10f557f403e5a5de518ab5ca8721198307d7c7a287"
+  },
+  "reproduction_status": "partially_reproduced",
+  "resources": {
+    "human_interventions": [],
+    "measurements": [
+      {
+        "basis": "Not measured; subscription billing is not execution cost.",
+        "metric": "economic_cost",
+        "phase": "execution",
+        "recorded_at": "2026-09-08T07:28:29.100531+00:00",
+        "status": "unknown",
+        "unit": "unknown_currency",
+        "value": null
+      },
+      {
+        "basis": "Not measured; subscription billing is not execution cost.",
+        "metric": "tokens",
+        "phase": "execution",
+        "recorded_at": "2026-09-08T07:28:29.100532+00:00",
+        "status": "unknown",
+        "unit": "tokens",
+        "value": null
+      },
+      {
+        "basis": "Measured with a monotonic clock; includes runtime waiting.",
+        "metric": "elapsed_time",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:28:29.100543+00:00",
+        "status": "measured",
+        "unit": "seconds",
+        "value": 355.63266595901223
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:25:33.165678+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 58777
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:25:33.165779+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 37760
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:25:33.165783+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 689
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:26:08.103681+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 59612
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:26:08.103703+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 37760
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:26:08.103706+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 669
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:26:16.144794+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 18297
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:26:16.144827+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 0
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:26:16.144832+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 80
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:26:58.911246+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 60215
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:26:58.911269+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 52736
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:26:58.911271+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 695
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:27:33.155009+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 60330
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:27:33.155035+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 52480
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:27:33.155039+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 684
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:28:08.492144+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 58435
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:28:08.492156+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 51456
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:28:08.492158+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 629
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:28:29.053753+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 27319
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:28:29.053779+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 0
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:28:29.053783+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 222
+      }
+    ]
+  },
+  "scenario_id": "s-native-sqlite",
+  "schema_version": "replica-bundle-result/v1",
+  "status": "FAILED",
+  "stop_reason": "quality_or_evaluation_gap"
+}

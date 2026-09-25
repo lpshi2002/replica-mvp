@@ -1,0 +1,511 @@
+{
+  "claim_collection_schema": "replica-claim-collection/v1",
+  "claim_count": 3,
+  "claims": [
+    {
+      "builder": {
+        "agent_id": "/root/replica_agent_delphi_three/builder_001",
+        "allowed_peer_agent_id": "/root/replica_agent_delphi_three/operator_001",
+        "artifact_namespace": "claims/claim-001/builder",
+        "artifact_owner": "builder",
+        "claim_id": "claim-001",
+        "parent_agent_id": "/root/replica_agent_delphi_three",
+        "requested_model": "gpt-5.6-terra",
+        "requested_reasoning_effort": "high",
+        "role": "builder",
+        "status": "READY_FOR_PROTOCOL"
+      },
+      "builder_context_owner": "replica_agent",
+      "builder_context_path": "claims/claim-001/builder-context.json",
+      "bundle_evaluation": {
+        "plan_path": "evaluator-vault/claim-001/plan-001/plan.json",
+        "plan_sha256": "9243b221552b3e7f21a7db3974b40ef4cf53a42d31dd5feead507a310fcb077d",
+        "public_runtime_contract_path": "claims/claim-001/runtime-contract-001.json",
+        "public_runtime_contract_sha256": "5f4fc67d3a7f75ae8fd9fbd8ab23948aba13fcdc02b75571a47cee0b48ca8216",
+        "revision": 1
+      },
+      "bundle_submissions": [
+        {
+          "attempt": 1,
+          "candidate_sha256": "dc7c5b9e8098ef66d8ace557a5f9d29f40b8c811914acb67aafd012f06953e9d",
+          "development_archive": {
+            "artifacts": {
+              "claim-binding.json": "4b9f0aa41116637bf236963a397eaec4aa4fa27cb90c5a44265e2e06fac65c6b",
+              "execution-state.json": "a457542d5b647281cf27a4694113a61363f23133cb30cdf435292296b1adcdb4",
+              "implementation/manifest.json": "dc7c5b9e8098ef66d8ace557a5f9d29f40b8c811914acb67aafd012f06953e9d",
+              "implementation/requirements.txt": "f1075b8d518c8857f41ea6db38a95ca7bbf938a07270ad6d133b5e81960dbcf3",
+              "implementation/server.py": "239ea9d898e2443f5235bc0cf774cb770be6ddd2c053635c5422cd52a452aca0"
+            },
+            "path": "evaluator-vault/claim-001/development-001"
+          },
+          "elapsed_seconds": 169.28758041700348,
+          "finished_at": "2026-09-08T07:04:01.392968+00:00",
+          "plan_sha256": "9243b221552b3e7f21a7db3974b40ef4cf53a42d31dd5feead507a310fcb077d",
+          "public_run_dir": "final-results/runs/claim-001/attempt-001-dc7c5b9e8098",
+          "reproduction_status": "partially_reproduced",
+          "result_sha256": "383fd96e03eab5b4864963109cce719ce310d5c759fc78984cf94ad75b4ba1d8",
+          "started_at": "2026-09-08T07:01:12.106391+00:00",
+          "status": "FAILED"
+        },
+        {
+          "attempt": 2,
+          "candidate_sha256": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+          "development_archive": {
+            "artifacts": {
+              "claim-binding.json": "f36f941e7eec3647b8927f1737e569d378f7aefc651b1e6e61ad2469d44dec73",
+              "execution-state.json": "9e207a897ed55297cb1c5b1d26fdc54e0edb475a0db382ee3983436788d646c9",
+              "implementation/manifest.json": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+              "implementation/requirements.txt": "f1075b8d518c8857f41ea6db38a95ca7bbf938a07270ad6d133b5e81960dbcf3",
+              "implementation/server.py": "5c84eb385f0fb7de7f7baa85848e75e9461349f00497d9a306092d7bd7c8e322"
+            },
+            "path": "evaluator-vault/claim-001/development-002"
+          },
+          "elapsed_seconds": 180.4218212079868,
+          "finished_at": "2026-09-08T07:21:06.069726+00:00",
+          "plan_sha256": "9243b221552b3e7f21a7db3974b40ef4cf53a42d31dd5feead507a310fcb077d",
+          "public_run_dir": "final-results/runs/claim-001/attempt-002-b5371e5b6207",
+          "reproduction_status": "partially_reproduced",
+          "result_sha256": "33625a7424f83f7ce506b244c613f23591e3926962b9f565e8384d969544cb0f",
+          "started_at": "2026-09-08T07:18:05.643765+00:00",
+          "status": "FAILED"
+        }
+      ],
+      "claim_id": "claim-001",
+      "claim_payload_owner": "replica_agent",
+      "claim_payload_path": "claims/claim-001/claim.json",
+      "continuity": {
+        "builder_agent_id": "/root/replica_agent_delphi_three/builder_001",
+        "builder_status": "PREMATURELY_COMPLETED",
+        "completed_rounds": [
+          0
+        ],
+        "correction_count": 0,
+        "failure": {
+          "agent_id": "/root/replica_agent_delphi_three/builder_001",
+          "reason": "Repeated non-control parent report after one-time continuity recovery; validated direct feedback not completed"
+        },
+        "finished_at": "2026-09-08T07:44:46.494092+00:00",
+        "next_round": 1,
+        "operator_agent_id": "/root/replica_agent_delphi_three/operator_001",
+        "operator_status": "CONTINUITY_FAILED",
+        "phase": "ABORTED",
+        "recovered_aborts": [
+          {
+            "continuity": {
+              "builder_agent_id": "/root/replica_agent_delphi_three/builder_001",
+              "builder_status": "PREMATURELY_COMPLETED",
+              "completed_rounds": [
+                0
+              ],
+              "correction_count": 0,
+              "failure": {
+                "agent_id": "/root/replica_agent_delphi_three/builder_001",
+                "reason": "Builder returned non-control final before required validated direct feedback and terminal completion"
+              },
+              "next_round": 1,
+              "operator_agent_id": "/root/replica_agent_delphi_three/operator_001",
+              "operator_status": "CONTINUITY_FAILED",
+              "phase": "ABORTED",
+              "started_at": "2026-09-08T07:22:04.950283+00:00",
+              "terminal_state": "ABORTED"
+            },
+            "execution_result": {
+              "completed_rounds": [
+                0
+              ],
+              "correction_count": 0,
+              "status": "ABORTED"
+            },
+            "execution_state_sha256": "4bafbeeb66d411e0e5a2b522e67591ac99fba9eddc85ca45868b9ab2cb16906e",
+            "resumed_at": "2026-09-08T07:43:18.323428+00:00"
+          }
+        ],
+        "started_at": "2026-09-08T07:22:04.950283+00:00",
+        "terminal_state": "ABORTED"
+      },
+      "execution_result": {
+        "completed_rounds": [
+          0
+        ],
+        "correction_count": 0,
+        "status": "ABORTED"
+      },
+      "namespace": "claims/claim-001",
+      "operator": {
+        "agent_id": "/root/replica_agent_delphi_three/operator_001",
+        "allowed_peer_agent_id": "/root/replica_agent_delphi_three/builder_001",
+        "artifact_namespace": "claims/claim-001/operator",
+        "artifact_owner": "operator",
+        "claim_id": "claim-001",
+        "parent_agent_id": "/root/replica_agent_delphi_three",
+        "requested_model": "gpt-6-astra",
+        "requested_reasoning_effort": "medium",
+        "role": "operator",
+        "status": "READY_FOR_PROTOCOL"
+      },
+      "preflight_recovery": {
+        "archive_path": "evaluator-vault/claim-001/preflight-recovery.json",
+        "recorded_at": "2026-09-08T06:35:50.807399+00:00",
+        "sha256": "0eb561935bde6530244f49447982b2a6fd190b6a391e7cb8ac8ce9908cfd766d"
+      },
+      "smoke": {
+        "builder_to_operator": true,
+        "nonce": "delphi-three-001-20260908-a7239",
+        "operator_to_builder": true
+      },
+      "status": "EXECUTION_ABORTED"
+    },
+    {
+      "builder": {
+        "agent_id": "/root/replica_agent_delphi_three/builder_002",
+        "allowed_peer_agent_id": "/root/replica_agent_delphi_three/operator_002",
+        "artifact_namespace": "claims/claim-002/builder",
+        "artifact_owner": "builder",
+        "claim_id": "claim-002",
+        "parent_agent_id": "/root/replica_agent_delphi_three",
+        "requested_model": "gpt-5.6-terra",
+        "requested_reasoning_effort": "high",
+        "role": "builder",
+        "status": "READY_FOR_PROTOCOL"
+      },
+      "builder_context_owner": "replica_agent",
+      "builder_context_path": "claims/claim-002/builder-context.json",
+      "bundle_evaluation": {
+        "plan_path": "evaluator-vault/claim-002/plan-001/plan.json",
+        "plan_sha256": "77b2ee8f093a375c48606cf1ac7ae9cdc283fecbd8c73a9f992dbce5d5b8029b",
+        "public_runtime_contract_path": "claims/claim-002/runtime-contract-001.json",
+        "public_runtime_contract_sha256": "381d5255c69da51bb19bf4f9e888e9c90ae018f526776d2e39028d3ba965ea88",
+        "revision": 1
+      },
+      "bundle_submissions": [
+        {
+          "attempt": 1,
+          "candidate_sha256": "70b7ae28c5e5f40f6b19b0227d0ea2dc42c60b6ff5a43334cd1421265e8a977e",
+          "development_archive": {
+            "artifacts": {
+              "claim-binding.json": "2f93f32773c8a0baa6c341832c77c03af2b395ce11c98897948ce8ff95bd2bb0",
+              "execution-state.json": "6cc6707a446c9915ad3d80690d8f9f63eb26251df2a907615a3c70e2c687c505",
+              "implementation/dagu": "699e8abe51fcfda4ccb1a0ff252c3b60e47cda093dc5fc5c19e43b3cb1c38ef6",
+              "implementation/manifest.json": "70b7ae28c5e5f40f6b19b0227d0ea2dc42c60b6ff5a43334cd1421265e8a977e",
+              "implementation/model.py": "768d037d90e205286724b982392fe016bbbaf31dcdd767256b0fbbfeae377c9e",
+              "implementation/server.py": "e74515bd25ac576c54069a31417079ff007414fe2712d914d657b758a9b15e0d",
+              "implementation/sink_worker.py": "c734483b3176bd573379322b316b702db1df80983989f32b419fd5009656ce71"
+            },
+            "path": "evaluator-vault/claim-002/development-001"
+          },
+          "elapsed_seconds": 374.80389645799005,
+          "finished_at": "2026-09-08T07:16:57.594290+00:00",
+          "plan_sha256": "77b2ee8f093a375c48606cf1ac7ae9cdc283fecbd8c73a9f992dbce5d5b8029b",
+          "public_run_dir": "final-results/runs/claim-002/attempt-001-70b7ae28c5e5",
+          "reproduction_status": "partially_reproduced",
+          "result_sha256": "d9a7f6c77f5ff4b7209a186b51cbb472ba42bef0cc66e14205b1c78b70257b7f",
+          "started_at": "2026-09-08T07:10:42.729411+00:00",
+          "status": "FAILED"
+        },
+        {
+          "attempt": 2,
+          "candidate_sha256": "3f0147ff75445f45d745cdb6eab0480fa2e03df47218d054925687de700aa587",
+          "development_archive": {
+            "artifacts": {
+              "claim-binding.json": "0a254bf1a00f971b34d1c72fa41b7d6533614b49147b8b6474abe67f2aafd09e",
+              "execution-state.json": "5aa5478838ca52e19aa0505c0e53e0a7a7ca7a115a52cb699d4fe86e5f566022",
+              "implementation/dagu": "699e8abe51fcfda4ccb1a0ff252c3b60e47cda093dc5fc5c19e43b3cb1c38ef6",
+              "implementation/manifest.json": "3f0147ff75445f45d745cdb6eab0480fa2e03df47218d054925687de700aa587",
+              "implementation/model.py": "768d037d90e205286724b982392fe016bbbaf31dcdd767256b0fbbfeae377c9e",
+              "implementation/server.py": "3ffa0014d28d872b6d8e0734e09f560903fcafda9e5f1786c465f353f2e7e3e4",
+              "implementation/sink_worker.py": "c734483b3176bd573379322b316b702db1df80983989f32b419fd5009656ce71"
+            },
+            "path": "evaluator-vault/claim-002/development-002"
+          },
+          "elapsed_seconds": 408.9182516239962,
+          "finished_at": "2026-09-08T07:37:21.639171+00:00",
+          "plan_sha256": "77b2ee8f093a375c48606cf1ac7ae9cdc283fecbd8c73a9f992dbce5d5b8029b",
+          "public_run_dir": "final-results/runs/claim-002/attempt-002-3f0147ff7544",
+          "reproduction_status": "partially_reproduced",
+          "result_sha256": "524318ccf8d23d0a3331bb3a26705ef718d021c1d68b5be9e1b75f07d787c832",
+          "started_at": "2026-09-08T07:30:32.714631+00:00",
+          "status": "FAILED"
+        }
+      ],
+      "claim_id": "claim-002",
+      "claim_payload_owner": "replica_agent",
+      "claim_payload_path": "claims/claim-002/claim.json",
+      "continuity": {
+        "builder_agent_id": "/root/replica_agent_delphi_three/builder_002",
+        "builder_status": "PREMATURELY_COMPLETED",
+        "completed_rounds": [
+          0
+        ],
+        "correction_count": 0,
+        "failure": {
+          "agent_id": "/root/replica_agent_delphi_three/builder_002",
+          "reason": "Two same-round feedback repairs did not complete validated direct feedback; repeated non-control final after continuity recovery and exhausted budget"
+        },
+        "finished_at": "2026-09-08T07:58:28.902703+00:00",
+        "next_round": 1,
+        "operator_agent_id": "/root/replica_agent_delphi_three/operator_002",
+        "operator_status": "CONTINUITY_FAILED",
+        "phase": "ABORTED",
+        "recovered_aborts": [
+          {
+            "continuity": {
+              "builder_agent_id": "/root/replica_agent_delphi_three/builder_002",
+              "builder_status": "PREMATURELY_COMPLETED",
+              "completed_rounds": [
+                0
+              ],
+              "correction_count": 0,
+              "failure": {
+                "agent_id": "/root/replica_agent_delphi_three/builder_002",
+                "reason": "Non-control parent-facing final before required complete direct feedback and terminal exchange"
+              },
+              "finished_at": "2026-09-08T07:46:19.846784+00:00",
+              "next_round": 1,
+              "operator_agent_id": "/root/replica_agent_delphi_three/operator_002",
+              "operator_status": "CONTINUITY_FAILED",
+              "phase": "ABORTED",
+              "started_at": "2026-09-08T07:38:23.220294+00:00",
+              "terminal_state": "ABORTED"
+            },
+            "execution_result": {
+              "completed_rounds": [
+                0
+              ],
+              "correction_count": 0,
+              "status": "ABORTED"
+            },
+            "execution_state_sha256": "c95d03230ba31595c41cd4e80ab7ca3d0ae2ba96cbf663e68ee438a1aa9ea4a9",
+            "resumed_at": "2026-09-08T07:52:30.812899+00:00"
+          }
+        ],
+        "started_at": "2026-09-08T07:38:23.220294+00:00",
+        "terminal_state": "ABORTED"
+      },
+      "execution_result": {
+        "completed_rounds": [
+          0
+        ],
+        "correction_count": 0,
+        "status": "ABORTED"
+      },
+      "namespace": "claims/claim-002",
+      "operator": {
+        "agent_id": "/root/replica_agent_delphi_three/operator_002",
+        "allowed_peer_agent_id": "/root/replica_agent_delphi_three/builder_002",
+        "artifact_namespace": "claims/claim-002/operator",
+        "artifact_owner": "operator",
+        "claim_id": "claim-002",
+        "parent_agent_id": "/root/replica_agent_delphi_three",
+        "requested_model": "gpt-6-astra",
+        "requested_reasoning_effort": "medium",
+        "role": "operator",
+        "status": "READY_FOR_PROTOCOL"
+      },
+      "packaging_retries": [
+        {
+          "development_archive": {
+            "artifacts": {
+              "claim-binding.json": "2317cc77cba9b0966a4717b17b72eb60caebb2fd36f66017eb2f6adbc0c44d59",
+              "execution-state.json": "fda759f6a10dc8d357715ea624d7f11ec1767007338227341e058e60bff3da30",
+              "implementation/manifest.json": "468f99bca4038309bfecad4be7ce6c1afaa71414048c793530b45dccb820cfaf",
+              "implementation/model.py": "768d037d90e205286724b982392fe016bbbaf31dcdd767256b0fbbfeae377c9e",
+              "implementation/server.py": "b38cf9f66bdf7c3de22bb4e3bb8cffe8e8493676a49a31b1f884b3ca27f99397",
+              "implementation/sink_worker.py": "c734483b3176bd573379322b316b702db1df80983989f32b419fd5009656ce71"
+            },
+            "path": "evaluator-vault/claim-002/packaging-001"
+          },
+          "recorded_at": "2026-09-08T06:46:14.240629+00:00",
+          "rejection": "undeclared_files"
+        }
+      ],
+      "smoke": {
+        "builder_to_operator": true,
+        "nonce": "delphi-three-002-20260908-c9472",
+        "operator_to_builder": true
+      },
+      "status": "EXECUTION_ABORTED"
+    },
+    {
+      "builder": {
+        "agent_id": "/root/replica_agent_delphi_three/builder_003",
+        "allowed_peer_agent_id": "/root/replica_agent_delphi_three/operator_003",
+        "artifact_namespace": "claims/claim-003/builder",
+        "artifact_owner": "builder",
+        "claim_id": "claim-003",
+        "parent_agent_id": "/root/replica_agent_delphi_three",
+        "requested_model": "gpt-5.6-terra",
+        "requested_reasoning_effort": "high",
+        "role": "builder",
+        "status": "READY_FOR_PROTOCOL"
+      },
+      "builder_context_owner": "replica_agent",
+      "builder_context_path": "claims/claim-003/builder-context.json",
+      "bundle_evaluation": {
+        "plan_path": "evaluator-vault/claim-003/plan-001/plan.json",
+        "plan_sha256": "6cdbfff92b7702918908ef1ac2f5da6db634a0354e9cb812f80f7f9056a263f6",
+        "public_runtime_contract_path": "claims/claim-003/runtime-contract-001.json",
+        "public_runtime_contract_sha256": "638a7c8a868e6939a32912c28ec6ce2c148685ccad52a26e35aadfaf525bf8f1",
+        "revision": 1
+      },
+      "bundle_submissions": [
+        {
+          "attempt": 1,
+          "candidate_sha256": "e76ae0847ec977c54e6db1d454934305f3796d53b7b41ea0a636d1411b81976d",
+          "development_archive": {
+            "artifacts": {
+              "claim-binding.json": "b6f1a2883e9e4e8fce94da0208ce9bfd6f3c5dbe8dbe17f867bec0b9a6db1fde",
+              "execution-state.json": "9399626a8e7f7716066e3ff7a168156ffceee29aba5c3d4de4b98f079ca09e0b",
+              "implementation/app.py": "ab05bfaae27355e680d8e69652f715eeed26aa985a577130ec3b8053fc4946bd",
+              "implementation/manifest.json": "e76ae0847ec977c54e6db1d454934305f3796d53b7b41ea0a636d1411b81976d"
+            },
+            "path": "evaluator-vault/claim-003/development-001"
+          },
+          "elapsed_seconds": 284.31405283298227,
+          "finished_at": "2026-09-08T07:09:38.294616+00:00",
+          "plan_sha256": "6cdbfff92b7702918908ef1ac2f5da6db634a0354e9cb812f80f7f9056a263f6",
+          "public_run_dir": "final-results/runs/claim-003/attempt-001-e76ae0847ec9",
+          "reproduction_status": "partially_reproduced",
+          "result_sha256": "852ee3e79c82cc9bf0a8b6db7947a516a27f9eb5722625f917075c2d82eb0a65",
+          "started_at": "2026-09-08T07:04:53.982694+00:00",
+          "status": "FAILED"
+        },
+        {
+          "attempt": 2,
+          "candidate_sha256": "5ccfd196b74ca8282d119d363f4e8560253f085b2cdee4744a1cb3b4c14021ac",
+          "development_archive": {
+            "artifacts": {
+              "claim-binding.json": "9533b4662f0f7b4a3c48aafa9169f8f69ea00e121c62f860f0da5be12114f875",
+              "execution-state.json": "c82336a95e0dbb508709e42dafe2d3e58b5595f7b0cac35695831c118427eff9",
+              "implementation/app.py": "015465a2d4a85f760b49b64c298d31e7502c77dc3a3357a287ba31c483c84f39",
+              "implementation/manifest.json": "5ccfd196b74ca8282d119d363f4e8560253f085b2cdee4744a1cb3b4c14021ac"
+            },
+            "path": "evaluator-vault/claim-003/development-002"
+          },
+          "elapsed_seconds": 355.64282533401274,
+          "finished_at": "2026-09-08T07:28:29.110644+00:00",
+          "plan_sha256": "6cdbfff92b7702918908ef1ac2f5da6db634a0354e9cb812f80f7f9056a263f6",
+          "public_run_dir": "final-results/runs/claim-003/attempt-002-5ccfd196b74c",
+          "reproduction_status": "partially_reproduced",
+          "result_sha256": "bad24287b177d3bd57905aca5888597a00027b97e4671387e310951057bfafb1",
+          "started_at": "2026-09-08T07:22:33.462968+00:00",
+          "status": "FAILED"
+        }
+      ],
+      "claim_id": "claim-003",
+      "claim_payload_owner": "replica_agent",
+      "claim_payload_path": "claims/claim-003/claim.json",
+      "continuity": {
+        "builder_agent_id": "/root/replica_agent_delphi_three/builder_003",
+        "builder_status": "PREMATURELY_COMPLETED",
+        "completed_rounds": [],
+        "correction_count": 0,
+        "failure": {
+          "agent_id": "/root/replica_agent_delphi_three/builder_003",
+          "reason": "Repeated non-control final after one-time continuity recovery before validated direct feedback completion"
+        },
+        "finished_at": "2026-09-08T07:45:49.940808+00:00",
+        "next_round": 0,
+        "operator_agent_id": "/root/replica_agent_delphi_three/operator_003",
+        "operator_status": "CONTINUITY_FAILED",
+        "phase": "ABORTED",
+        "recovered_aborts": [
+          {
+            "continuity": {
+              "builder_agent_id": "/root/replica_agent_delphi_three/builder_003",
+              "builder_status": "PREMATURELY_COMPLETED",
+              "completed_rounds": [],
+              "correction_count": 0,
+              "failure": {
+                "agent_id": "/root/replica_agent_delphi_three/builder_003",
+                "reason": "Builder returned non-control final before required validated direct feedback and terminal completion"
+              },
+              "next_round": 0,
+              "operator_agent_id": "/root/replica_agent_delphi_three/operator_003",
+              "operator_status": "CONTINUITY_FAILED",
+              "phase": "ABORTED",
+              "started_at": "2026-09-08T07:29:11.936462+00:00",
+              "terminal_state": "ABORTED"
+            },
+            "execution_result": {
+              "completed_rounds": [],
+              "correction_count": 0,
+              "status": "ABORTED"
+            },
+            "execution_state_sha256": "85489e28992aa12dba46a3050f22263defdd3357808d86b1d09da02c44322f1d",
+            "resumed_at": "2026-09-08T07:43:18.462433+00:00"
+          }
+        ],
+        "started_at": "2026-09-08T07:29:11.936462+00:00",
+        "terminal_state": "ABORTED"
+      },
+      "execution_result": {
+        "completed_rounds": [],
+        "correction_count": 0,
+        "status": "ABORTED"
+      },
+      "namespace": "claims/claim-003",
+      "operator": {
+        "agent_id": "/root/replica_agent_delphi_three/operator_003",
+        "allowed_peer_agent_id": "/root/replica_agent_delphi_three/builder_003",
+        "artifact_namespace": "claims/claim-003/operator",
+        "artifact_owner": "operator",
+        "claim_id": "claim-003",
+        "parent_agent_id": "/root/replica_agent_delphi_three",
+        "requested_model": "gpt-6-astra",
+        "requested_reasoning_effort": "medium",
+        "role": "operator",
+        "status": "READY_FOR_PROTOCOL"
+      },
+      "packaging_retries": [
+        {
+          "development_archive": {
+            "artifacts": {
+              "claim-binding.json": "fd9d52ce13dc5bb1ec870dcbd87ac1e6a38fe7c333c47fd3e47af21824cddc2b",
+              "execution-state.json": "4c5214a76548980eebc7a6492088fd738251552f025a31c7a7b0014aade27bf8",
+              "implementation/app.py": "ab05bfaae27355e680d8e69652f715eeed26aa985a577130ec3b8053fc4946bd",
+              "implementation/manifest.json": "e76ae0847ec977c54e6db1d454934305f3796d53b7b41ea0a636d1411b81976d"
+            },
+            "path": "evaluator-vault/claim-003/packaging-001"
+          },
+          "recorded_at": "2026-09-08T06:46:14.076309+00:00",
+          "rejection": "undeclared_files"
+        }
+      ],
+      "smoke": {
+        "builder_to_operator": true,
+        "nonce": "delphi-three-003-20260908-d1648",
+        "operator_to_builder": true
+      },
+      "status": "EXECUTION_ABORTED"
+    }
+  ],
+  "filesystem": {
+    "evaluator_vault_root": "evaluator-vault",
+    "public_results_root": "final-results",
+    "registry_owner": "replica_agent",
+    "shared_mutation": "forbidden"
+  },
+  "model_runtime": {
+    "provider": "codex",
+    "transport": "local_cli"
+  },
+  "replica_agent": {
+    "agent_id": "/root/replica_agent_delphi_three",
+    "parent_agent_id": "/root",
+    "requested_model": "gpt-6-astra",
+    "requested_reasoning_effort": "medium",
+    "role": "replica_agent",
+    "status": "EXECUTION_COMPLETED_WITH_FAILURES"
+  },
+  "require_final_bundle_evaluation": true,
+  "scheduling": {
+    "active_claim_id": null,
+    "completed_claim_count": 3,
+    "failed_claim_count": 0,
+    "max_concurrent_pairs": 3,
+    "peak_active_pairs": 3,
+    "policy": "parallel_claim_pairs"
+  },
+  "schema_version": "replica-agent-harness/v1",
+  "status": "EXECUTION_COMPLETED_WITH_FAILURES"
+}

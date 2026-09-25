@@ -1,0 +1,35 @@
+{
+  "schema_version": "replica-implementation-bundle/v1",
+  "claim_id": "claim-003",
+  "scenario_id": "s-native-sqlite",
+  "implementation_type": "code",
+  "dependency_level": "commercial_api",
+  "input_contract": "UTF-8 JSON with current_topic, active_question, answer, input_channel=text, and optional record_id for read-only retrieval. Use actual native Codex model generation and Python sqlite3 persistence. Do not require Aural, Docker, Supabase or a separate API key for this selected alternate scenario.",
+  "output_contract": "A UTF-8 JSON object with status ('snippet_created' or 'needs_more_information'), follow_up_topic (string or null), insight_summary (one or two sentences or null), source_answer (verbatim input answer), and saved_record_id (string or null). A created record is stored in a replica-owned Interviews collection. This is a Replica schema, not a published Delphi schema. Also return database_file (relative SQLite path), storage_snapshot (relative JSON path read from the persisted database), and persisted_record (the record read back by saved_record_id, or null). An optional record_id request reads that stored record without model generation. No completed snippet may be inserted for insufficient answers.",
+  "entrypoint": "app.py",
+  "command": [
+    "python3",
+    "app.py"
+  ],
+  "dependencies": [
+    {
+      "name": "Python sqlite3",
+      "version": "3.12.12",
+      "source": "https://docs.python.org/3/library/sqlite3.html",
+      "license": "PSF-2.0"
+    },
+    {
+      "name": "codex-cli",
+      "version": "0.153.4",
+      "source": "https://github.com/openai/codex",
+      "license": "Apache-2.0"
+    }
+  ],
+  "environment_variables": [],
+  "files": [
+    {
+      "path": "app.py",
+      "sha256": "015465a2d4a85f760b49b64c298d31e7502c77dc3a3357a287ba31c483c84f39"
+    }
+  ]
+}

@@ -23,6 +23,18 @@ from .resources import measurement
 
 
 MAX_OUTPUT_BYTES = 2_000_000
+# Generated code receives only these ambient variables plus those its manifest declares.
+_BASE_ENVIRONMENT = (
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TZ",
+    "SSL_CERT_FILE", "SSL_CERT_DIR",
+)
+
+
+def bundle_environment(manifest: dict[str, Any]) -> dict[str, str]:
+    names = (*_BASE_ENVIRONMENT, *manifest["environment_variables"])
+    environment = {name: os.environ[name] for name in names if name in os.environ}
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    return environment
 
 
 def safe_relative(value: Any) -> bool:
@@ -59,7 +71,8 @@ def stop_process(process: subprocess.Popen) -> None:
     process.wait()
 
 
-def _run_command(command: list[str], value: Any, cwd: Path, timeout: float) -> bytes:
+def _run_command(command: list[str], value: Any, cwd: Path, timeout: float,
+                 env: dict[str, str] | None = None) -> bytes:
     if not command or not all(isinstance(s, str) and s for s in command) or timeout <= 0:
         raise ValueError("invalid bounded JSON command")
     data = json.dumps(value, ensure_ascii=False, allow_nan=False).encode()
@@ -70,7 +83,8 @@ def _run_command(command: list[str], value: Any, cwd: Path, timeout: float) -> b
         stdin.write(data)
         stdin.seek(0)
         process = subprocess.Popen(command, cwd=cwd, stdin=stdin, stdout=stdout, stderr=stderr,
-                                   start_new_session=os.name == "posix", env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+                                   start_new_session=os.name == "posix",
+                                   env=env if env is not None else {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
         deadline = time.monotonic() + timeout
         try:
             while process.poll() is None:
@@ -91,8 +105,9 @@ def _run_command(command: list[str], value: Any, cwd: Path, timeout: float) -> b
             stop_process(process)
 
 
-def run_json_command(command: list[str], value: Any, cwd: Path, timeout: float) -> Any:
-    raw = _run_command(command, value, cwd, timeout)
+def run_json_command(command: list[str], value: Any, cwd: Path, timeout: float,
+                     env: dict[str, str] | None = None) -> Any:
+    raw = _run_command(command, value, cwd, timeout, env)
     try:
         return json.loads(raw, parse_constant=_reject_nonstandard_constant)
     except (ValueError, UnicodeDecodeError):
@@ -202,7 +217,7 @@ def observe_dependencies(manifest: dict[str, Any], cwd: Path, timeout: float = 3
         )
         try:
             versions = run_json_command([executable, "-c", probe], [d["name"] for d in manifest["dependencies"]], cwd,
-                                        min(10, deadline - time.monotonic()))
+                                        min(10, deadline - time.monotonic()), bundle_environment(manifest))
         except (OSError, ValueError, RuntimeError):
             pass
     observations = []
@@ -219,7 +234,8 @@ def observe_dependencies(manifest: dict[str, Any], cwd: Path, timeout: float = 3
             cli = str((cwd / "dagu").resolve()) if (cwd / "dagu").is_file() else "dagu"
         if cli:
             try:
-                version = _run_command([cli, "version" if name == "dagu" else "--version"], {}, cwd, min(5, deadline - time.monotonic())).decode()
+                version = _run_command([cli, "version" if name == "dagu" else "--version"], {}, cwd,
+                                       min(5, deadline - time.monotonic()), bundle_environment(manifest)).decode()
                 match = re.search(r"\d+(?:\.\d+)+(?:[-+][\w.]+)?", version)
                 observed = match.group(0) if match else None
                 basis = "Installed CLI version command observation."
@@ -233,22 +249,57 @@ def observe_dependencies(manifest: dict[str, Any], cwd: Path, timeout: float = 3
     return observations
 
 
+def _open_workspace(manifest_path: Path, workspace: Path, prepare) -> tuple[Path, dict[str, Any]]:
+    """Create or reopen a persistent runtime directory for one published bundle."""
+    root = workspace / "implementation"
+    marker = workspace / "session.json"
+    manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    if marker.exists():
+        recorded = json.loads(marker.read_text(encoding="utf-8"))
+        if recorded.get("manifest_sha256") != manifest_sha256:
+            raise ValueError("state directory belongs to a different published bundle")
+        manifest = json.loads(manifest_path.read_bytes(), parse_constant=_reject_nonstandard_constant)
+        for record in manifest["files"]:
+            path = root / record["path"]
+            if path.is_symlink() or not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != record["sha256"]:
+                raise ValueError("state directory implementation files changed")
+        return root, manifest
+    if workspace.exists() and any(workspace.iterdir()):
+        raise ValueError("state directory is not empty and was not created by run-replica")
+    workspace.mkdir(parents=True, exist_ok=True)
+    manifest = copy_bundle(manifest_path, root)
+    if prepare is not None:
+        prepare(root)
+    marker.write_text(json.dumps({"schema_version": "replica-bundle-session/v1",
+                                  "manifest_sha256": manifest_sha256}) + "\n", encoding="utf-8")
+    return root, manifest
+
+
 @contextmanager
-def bundle_session(manifest_path: Path, runtime: dict[str, Any], timeout: float, *, prepare=None):
+def bundle_session(manifest_path: Path, runtime: dict[str, Any], timeout: float, *, prepare=None,
+                   workspace: Path | None = None, resume_prepare=None):
+    """Run one session; a workspace keeps the runtime directory across sessions."""
     validate_runtime(runtime)
     if timeout <= 0:
         raise TimeoutError("bundle time budget exhausted before startup")
     with tempfile.TemporaryDirectory(prefix="replica-bundle-") as temporary:
-        root = Path(temporary) / "implementation"
-        manifest = copy_bundle(manifest_path, root)
-        if prepare is not None:
-            prepare(root)
+        if workspace is None:
+            root = Path(temporary) / "implementation"
+            manifest = copy_bundle(manifest_path, root)
+            if prepare is not None:
+                prepare(root)
+        else:
+            resumed = (workspace / "session.json").exists()
+            root, manifest = _open_workspace(manifest_path, workspace, prepare)
+            if resumed and resume_prepare is not None:
+                resume_prepare(root)
         missing = [name for name in manifest["environment_variables"] if not os.environ.get(name)]
         if missing:
             raise PermissionError("missing bundle environment variables: " + ", ".join(missing))
         command = manifest["command"]
+        environment = bundle_environment(manifest)
         if runtime["transport"] == "stdio_json":
-            yield lambda value, seconds=timeout: run_json_command(command, value, root, seconds), root
+            yield lambda value, seconds=timeout: run_json_command(command, value, root, seconds, environment), root
             return
         with socket.socket() as reserved:
             reserved.bind(("127.0.0.1", 0))
@@ -259,7 +310,7 @@ def bundle_session(manifest_path: Path, runtime: dict[str, Any], timeout: float,
             process = subprocess.Popen(command + [runtime["port_argument"], str(port)], cwd=root,
                                        stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                        start_new_session=os.name == "posix",
-                                       env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+                                       env=environment)
             deadline = time.monotonic() + timeout
             try:
                 while True:

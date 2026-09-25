@@ -260,6 +260,7 @@ def run_built_replica(
     allow_model_adapter: bool = False,
     input_assets: dict[str, str] | None = None,
     session: bool = False,
+    state_dir: Path | None = None,
 ) -> Any:
     if session and (not isinstance(runtime_input, list) or not runtime_input
                     or not all(isinstance(value, dict) for value in runtime_input)):
@@ -271,9 +272,9 @@ def run_built_replica(
     if isinstance(raw_replica, dict) and raw_replica.get("schema_version") == "replica-bundle/v1":
         from .bundle_evaluation import run_published_bundle
         return run_published_bundle(run_dir, runtime_input, allow_model_adapter=allow_model_adapter,
-                                    input_assets=input_assets, session=session)
-    if input_assets is not None or session:
-        raise ValueError("input assets and sessions require an implementation bundle")
+                                    input_assets=input_assets, session=session, state_dir=state_dir)
+    if input_assets is not None or session or state_dir is not None:
+        raise ValueError("input assets, sessions, and state directories require an implementation bundle")
     replica = _validate_replica(raw_replica)
     replica_spec = replica["replica_spec"]
     if (

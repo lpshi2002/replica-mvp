@@ -1,0 +1,2663 @@
+{
+  "schema_version": 2,
+  "company": {
+    "name": "Delphi AI",
+    "url": "https://www.delphi.ai/",
+    "accessed_at": "2026-08-11"
+  },
+  "workflow": {
+    "status": "pass_2_complete",
+    "pass_1": {
+      "completed_at": "2026-08-11T06:24:02.728327+00:00",
+      "coverage": {
+        "official_surfaces": {
+          "status": "complete",
+          "checkpoint": "first_pass/official-surfaces.json",
+          "claim_count": 3,
+          "deferred_count": 1,
+          "excluded_count": 8,
+          "updated_at": "2026-08-11T15:47:00+09:00"
+        },
+        "engineering_blog": {
+          "status": "complete",
+          "checkpoint": "first_pass/engineering-blog.json",
+          "claim_count": 2,
+          "deferred_count": 1,
+          "excluded_count": 2,
+          "updated_at": "2026-08-11T16:05:00+09:00"
+        },
+        "discovered_names": {
+          "status": "complete",
+          "checkpoint": "first_pass/discovered-names.json",
+          "claim_count": 2,
+          "deferred_count": 1,
+          "excluded_count": 3,
+          "updated_at": "2026-08-11T16:25:00+09:00"
+        },
+        "people_and_organizations": {
+          "status": "complete",
+          "checkpoint": "first_pass/people-and-organizations.json",
+          "claim_count": 2,
+          "deferred_count": 0,
+          "excluded_count": 1,
+          "updated_at": "2026-08-11T15:35:00+09:00"
+        },
+        "supplementary_sources": {
+          "status": "complete",
+          "checkpoint": "first_pass/supplementary-sources.json",
+          "claim_count": 1,
+          "deferred_count": 0,
+          "excluded_count": 1,
+          "updated_at": "2026-08-11T15:20:00+09:00"
+        }
+      }
+    },
+    "pass_2": {
+      "completed_at": "2026-08-11T16:07:04.0419531+09:00",
+      "handoff_count": 3,
+      "ready_count": 2,
+      "partial_count": 1,
+      "blocked_count": 0
+    }
+  },
+  "claim_filter": {
+    "c0": "A public source directly attributes the work to Delphi AI, its product, or a documented deployment.",
+    "c1": "An external user receives the capability through a public product or customer deployment.",
+    "a1": "The claim identifies an input and an output or decision produced by the system.",
+    "a2": "A public source directly attributes the claimed work to AI machinery.",
+    "customer_basis": "Record delivery, subject, audience, source_index, and a verbatim quote.",
+    "ai_basis": "Record mechanism, signals, work_signals, source_index, and a verbatim quote.",
+    "granularity": "One claim is one complete external-user workflow from input to final deliverable.",
+    "workflow": "Record input, source-backed ordered steps, and output without inventing stages.",
+    "merge_policy": "Merge variants and internal steps that share the same user goal and final deliverable.",
+    "replication_leads": "Preserve public inputs, outputs, schemas, APIs, implementation clues, and evaluation assets.",
+    "exclusion_reasons": {
+      "outcome_metric": "A performance or outcome number rather than a workflow.",
+      "non_technical": "A business, funding, customer, pricing, compliance, or positioning statement.",
+      "no_ai_attribution": "Work is described without a direct AI attribution.",
+      "internal_workflow": "AI work is internal and not delivered to external users."
+    },
+    "deferred_reasons": {
+      "no_company_attribution": "The current source does not attribute the work to Delphi AI.",
+      "no_customer_delivery": "The current source does not establish public product or customer delivery.",
+      "not_workflow": "The observation may be a property, mechanism, or step of a broader workflow."
+    },
+    "no_scoring": "Pass 1 qualifies and normalizes claims without ranking them."
+  },
+  "claims": [
+    {
+      "id": "claim-001",
+      "slug": "grounded-digital-mind-conversation",
+      "first_pass": {
+        "claim": "Delphi creates a Digital Mind from a person's supplied knowledge and style, then answers external users' questions in text, voice, or video while using configured source-grounding and fallback rules.",
+        "sources": [
+          {
+            "url": "https://docs.delphi.ai/chat-with-a-delphi",
+            "type": "official_help_documentation",
+            "excerpt": "Delphi is a platform where creators, founders, coaches, and thought leaders build AI versions of themselves—called a Delphi—that you can have real conversations with anytime, day or night. It's not a chatbot; it's a digital mind trained on someone's actual knowledge, voice, and perspective."
+          },
+          {
+            "url": "https://docs.delphi.ai/build/mind-settings/overview/message-on-no-answer",
+            "type": "official_behavior_documentation",
+            "excerpt": "A short fallback message your Delphi shows when it doesn’t have enough training data to answer. It appears on Strict and Adaptive modes when a reply can’t be grounded in your sources."
+          },
+          {
+            "url": "https://www.delphi.ai/blog/karamo-brown",
+            "type": "official_customer_deployment",
+            "excerpt": "With Kē, I have trained a model that can reflect my voice and signature approach, offering support in the moments people need it, no matter what. It is paired with safeguards by design: structured response boundaries, content moderation, and clear handoffs to professional resources when conversations move into sensitive territory."
+          },
+          {
+            "url": "https://docs.delphi.ai/identity/voice",
+            "type": "official_help_documentation",
+            "excerpt": "The reason the Playground and Read Aloud functions generate a slightly different take every time, even if the settings are the same, is that both run on generative AI text-to-speech technology."
+          },
+          {
+            "url": "https://www.tavus.io/customers/delphi-spotlight",
+            "type": "official_partner_customer_case_study",
+            "excerpt": "Delphi brings Tavus AI Humans into real-time video calls. The Tavus platform met Delphi’s key criteria: photorealistic AI humans with accurate lip-sync and expressions, delivered via an API that supports real-time interaction."
+          },
+          {
+            "url": "https://www.delphi.ai/blog/delphi-raises-16m-series-a-from-sequoia",
+            "type": "official_technical_blog",
+            "excerpt": "The architecture splits into two primitives: a serverless, AI-first search engine wrapping said knowledge graph which enables low-latency, context-rich retrieval and dynamic updates; and a distributed agent mesh implementing a context protocol optimized for single-shot, high-precision retrieval."
+          },
+          {
+            "url": "https://www.fastcompany.com/91356476/delphi-ai-digital-mind",
+            "type": "high_trust_reporting_interview",
+            "excerpt": "Meet Delphi, the AI startup that lets experts turn themselves into chatbots. But using their knowledge to train ‘digital minds’ enables a form of interactive assistance that goes where one-on-one counseling, newsletters, podcasts, and books can’t."
+          }
+        ],
+        "customer_basis": {
+          "delivery": "public_product",
+          "subject": "Delphi",
+          "audience": "people who chat or call a creator's Digital Mind",
+          "source_index": 1,
+          "quote": "Delphi is a platform where creators, founders, coaches, and thought leaders build AI versions of themselves—called a Delphi—that you can have real conversations with anytime, day or night."
+        },
+        "ai_basis": {
+          "mechanism": "creator knowledge, voice, perspective, and configured rules plus a user's question -> a grounded conversational response",
+          "signals": [
+            "AI versions"
+          ],
+          "work_signals": [
+            "real conversations"
+          ],
+          "source_index": 1,
+          "quote": "Delphi is a platform where creators, founders, coaches, and thought leaders build AI versions of themselves—called a Delphi—that you can have real conversations with anytime, day or night."
+        },
+        "workflow": {
+          "input": "a creator's supplied writings, recordings, sites, interviews, knowledge, voice, style, and rules plus an external user's message or attached file",
+          "steps": [
+            {
+              "step": "process and organize the creator's supplied knowledge and style material",
+              "source_index": 1
+            },
+            {
+              "step": "retrieve relevant creator material and generate a source-grounded response under the configured purpose, style, and safety rules",
+              "source_index": 6
+            },
+            {
+              "step": "return a configured no-answer fallback when the response cannot be grounded",
+              "source_index": 2
+            },
+            {
+              "step": "optionally render the answer through generative text-to-speech or a real-time video avatar",
+              "source_index": 4
+            }
+          ],
+          "output": "a conversational text, voice, or video answer in the creator's style, or a clear insufficient-information fallback"
+        },
+        "replication_leads": [
+          {
+            "kind": "api_schema",
+            "source_index": 1,
+            "finding": "The public help center links a v3 conversation API and documents real-time responses."
+          },
+          {
+            "kind": "boundary_behavior",
+            "source_index": 2,
+            "finding": "Strict and Adaptive modes return a configured fallback when a response cannot be grounded."
+          },
+          {
+            "kind": "evaluation_asset",
+            "source_index": 3,
+            "finding": "The Karamo deployment documents safety boundaries and professional-resource handoffs for sensitive topics."
+          },
+          {
+            "kind": "implementation_clue",
+            "source_index": 6,
+            "finding": "The official technical blog names a knowledge graph, AI-first retrieval, and a distributed agent mesh."
+          }
+        ],
+        "testable_claim": "Given approved creator facts, style rules, and a user question, return a grounded answer in the configured style; hand off sensitive questions and explicitly report insufficient information for unsupported questions.",
+        "routing": "workflow_orchestration",
+        "merged_from": [
+          "official_surfaces-claim-001",
+          "official_surfaces-claim-002",
+          "engineering_blog-claim-001",
+          "discovered_names-claim-001",
+          "people_and_organizations-claim-001",
+          "people_and_organizations-claim-002",
+          "supplementary_sources-claim-001"
+        ]
+      },
+      "second_pass": {
+        "claim_id": "claim-001",
+        "slug": "grounded-digital-mind-conversation",
+        "status": "confirmed",
+        "replicable": {
+          "value": true,
+          "reason": "A bounded public-scope text replica can be built from a synthetic creator corpus, explicit style and safety rules, open-source retrieval orchestration, and a grounded generator. Public evidence supports the input-to-answer workflow, source-only and fallback behavior, citations, and safety handoffs. This does not establish equivalence to Delphi's proprietary Digital Mind Architecture, private creator data, voice/video fidelity, or production performance."
+        },
+        "workflow": {
+          "input": "a creator's supplied writings, recordings, sites, interviews, knowledge, voice, style, and rules plus an external user's message or attached file",
+          "steps": [
+            {
+              "step": "process and organize the creator's supplied knowledge and style material",
+              "source_index": 1
+            },
+            {
+              "step": "retrieve relevant creator material and generate a source-grounded response under the configured purpose, style, and safety rules",
+              "source_index": 6
+            },
+            {
+              "step": "return a configured no-answer fallback when the response cannot be grounded",
+              "source_index": 2
+            },
+            {
+              "step": "optionally render the answer through generative text-to-speech or a real-time video avatar",
+              "source_index": 4
+            }
+          ],
+          "output": "a conversational text, voice, or video answer in the creator's style, or a clear insufficient-information fallback",
+          "boundaries": {
+            "state": "stated",
+            "value": "Delphi publishes three grounding modes: Strict is source-only and may refuse; Adaptive reasons from creator data but can still err; Creative may use outside knowledge and be speculative. Strict and Adaptive use a configured no-answer fallback when grounding fails. Creators can impose hard custom instructions, disclaimers, and escalation rules. A documented wellness deployment adds moderation and professional-resource handoffs for sensitive topics. Exact file-level limits, proprietary model choices, retrieval thresholds, and answer schema are not publicly stated.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/build/mind-settings/overview/creativity",
+                "type": "official_behavior_documentation",
+                "excerpt": "Strict: Uses only your training data and requires exact or near-exact matches.",
+                "finding": "Defines the source-only normal and refusal boundary and warns that source quality and coverage still matter.",
+                "supports_field": "workflow.boundaries"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/mind-settings/overview/message-on-no-answer",
+                "type": "official_behavior_documentation",
+                "excerpt": "Fires when your Delphi can't ground an answer in your Mind (Strict/Adaptive).",
+                "finding": "Defines the insufficient-information trigger and configured fallback behavior.",
+                "supports_field": "workflow.boundaries"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/mind-settings/overview/custom-instructions",
+                "type": "official_behavior_documentation",
+                "excerpt": "Custom Instructions are explicit, always-on rules.",
+                "finding": "Documents hard behavioral, safety, and escalation rules that take precedence over softer style settings.",
+                "supports_field": "workflow.boundaries"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/karamo-brown",
+                "type": "official_customer_deployment",
+                "excerpt": "It is paired with safeguards by design: structured response boundaries, content moderation, and clear handoffs to professional resources.",
+                "finding": "Shows safety moderation and human-resource handoff in an actual customer deployment.",
+                "supports_field": "workflow.boundaries"
+              }
+            ]
+          }
+        },
+        "findings": {
+          "evidence": {
+            "state": "filled",
+            "note": "Official product documentation and deployments support creator-content ingestion, grounded conversational answers, configurable style and safety behavior, insufficient-information fallbacks, citations, and optional voice/video delivery. Fast Company independently corroborates the product and also records repetition, stale-source limitations, and non-equivalence to the represented person.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/chat-with-a-delphi",
+                "type": "official_help_documentation",
+                "excerpt": "AI versions of themselves... that you can have real conversations with anytime, day or night.",
+                "finding": "Supports the core public product and external conversational delivery.",
+                "supports_field": "findings.evidence"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/delphi-raises-16m-series-a-from-sequoia",
+                "type": "official_technical_blog",
+                "excerpt": "You start by linking your existing content... to a self-updating Digital Mind that people can call, text, or video chat with.",
+                "finding": "Supports creator inputs, delivery channels, identity verification, data control, and the published retrieval architecture.",
+                "supports_field": "findings.evidence"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/karamo-brown",
+                "type": "official_customer_deployment",
+                "excerpt": "Users can talk to Karamo's Digital Mind in real time and walk away with a specific next step.",
+                "finding": "Documents an externally delivered, safety-bounded customer workflow.",
+                "supports_field": "findings.evidence"
+              },
+              {
+                "url": "https://www.fastcompany.com/91356476/delphi-ai-digital-mind",
+                "type": "independent_reporting_interview",
+                "excerpt": "Delphi responses can include citations linking back to relevant material such as articles and podcasts.",
+                "finding": "Independently corroborates text/voice/video delivery and citations, while reporting repeated phrasing and stale-source failures.",
+                "supports_field": "findings.evidence"
+              },
+              {
+                "url": "https://www.tavus.io/customers/delphi-spotlight",
+                "type": "official_partner_case_study",
+                "excerpt": "Photorealistic AI humans with accurate lip-sync and expressions, delivered via an API that supports real-time interaction.",
+                "finding": "Corroborates the optional real-time video rendering path and its dependency on a commercial partner API.",
+                "supports_field": "findings.evidence"
+              }
+            ]
+          },
+          "datasets_apis": {
+            "state": "filled",
+            "note": "The public v3 conversation API specifies authenticated conversation creation and streaming, but it requires an Immortal-plan key and exposes no public Digital Mind creation endpoint. Official docs identify creator input types and plan-level word limits. Real creator corpora are private, so the frozen contract uses an explicit synthetic creator corpus. IBM's Apache-2.0 MTRAG corpus provides optional public multi-turn RAG data for broader evaluation.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/launch/integrations/overview/api",
+                "type": "official_api_documentation",
+                "excerpt": "Create conversations, stream responses, manage tags, and track usage through simple HTTP requests.",
+                "finding": "Provides the v3 base URL, API-key authentication, conversation identifier, streaming behavior, and rate limit.",
+                "supports_field": "findings.datasets_apis"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/content/mind/manage-content-table",
+                "type": "official_input_documentation",
+                "excerpt": "Filter by Type: File, Snippet, Website, YouTube, Podcast, Notion, Evernote, Slack, X, TikTok, Facebook, Instagram, LinkedIn.",
+                "finding": "Enumerates customer-facing input categories and metadata fields such as context, attribution, citation URL, and publish date.",
+                "supports_field": "findings.datasets_apis"
+              },
+              {
+                "url": "https://www.delphi.ai/pricing",
+                "type": "official_pricing_and_limits",
+                "excerpt": "Free... Voice Calling + Chat, 1M Training Words, 40+ Languages.",
+                "finding": "Publishes a usable free product surface and current plan-level training-word and language limits; API access is reserved for Immortal.",
+                "supports_field": "findings.datasets_apis"
+              },
+              {
+                "url": "https://github.com/IBM/mt-rag-benchmark",
+                "type": "public_dataset_and_benchmark",
+                "excerpt": "MTRAG consists of 110 multi-turn conversations that are converted to 842 evaluation tasks.",
+                "finding": "Provides Apache-2.0 corpora and answerable, partial, unanswerable, clarification, and follow-up tasks for optional evaluation.",
+                "supports_field": "findings.datasets_apis"
+              }
+            ]
+          },
+          "oss_papers_patents": {
+            "state": "filled",
+            "note": "No Delphi-owned public source code, model weights, or patent necessary to recreate the claim surfaced in the scoped search. A public open-source implementation route exists through Haystack's modular indexing, retrieval, generation, and conditional-routing components, with MTRAG as an Apache-2.0 conversational RAG benchmark. These assets support a public-scope analogue, not Delphi's proprietary temporal knowledge graph or distributed agent mesh.",
+            "sources": [
+              {
+                "url": "https://docs.haystack.deepset.ai/docs/pipelines",
+                "type": "official_open_source_framework_documentation",
+                "excerpt": "Haystack allows you to combine multiple use cases in one pipeline with decision components.",
+                "finding": "Supports an OSS indexing/query pipeline with conditional fallback and safety routing.",
+                "supports_field": "findings.oss_papers_patents"
+              },
+              {
+                "url": "https://github.com/IBM/mt-rag-benchmark",
+                "type": "official_open_source_benchmark_repository",
+                "excerpt": "Retrieval and Generation experiments can be evaluated using our evaluation scripts.",
+                "finding": "Provides open corpora, tests, and evaluation scripts for multi-turn grounded dialogue.",
+                "supports_field": "findings.oss_papers_patents"
+              }
+            ]
+          },
+          "eval_assets": {
+            "state": "filled",
+            "note": "The official product docs define normal, boundary, and insufficient-information expectations: source-only answers, hard rules and handoffs, and a configured fallback. MTRAG contributes answerable, partial, unanswerable, and multi-turn examples. Ragas documents a faithfulness measure that checks whether answer claims are inferable from retrieved context. Persona fidelity still needs explicit style-rule checks or human review because no public Delphi gold-output set was found.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/build/mind-settings/overview/message-on-no-answer",
+                "type": "official_behavior_documentation",
+                "excerpt": "Starts with exactly the text you set... Delphi may add brief guidance.",
+                "finding": "Supplies a directly testable insufficient-information expectation.",
+                "supports_field": "findings.eval_assets"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/mind-settings/overview/custom-instructions",
+                "type": "official_behavior_documentation",
+                "excerpt": "Be direct and testable. Use 'Always...', 'Never...', 'If X, then Y'.",
+                "finding": "Supplies directly testable safety, escalation, citation, and style rules.",
+                "supports_field": "findings.eval_assets"
+              },
+              {
+                "url": "https://github.com/IBM/mt-rag-benchmark",
+                "type": "public_evaluation_repository",
+                "excerpt": "Diverse question types... answerable, unanswerable, partial, and conversational questions.",
+                "finding": "Provides multi-turn retrieval and generation tasks plus human-reviewed reference data.",
+                "supports_field": "findings.eval_assets"
+              },
+              {
+                "url": "https://docs.ragas.io/en/v0.1.21/concepts/metrics/faithfulness.html",
+                "type": "official_evaluation_framework_documentation",
+                "excerpt": "This measures the factual consistency of the generated answer against the given context.",
+                "finding": "Provides a computable faithfulness check for grounding; style and safety remain separate contract checks.",
+                "supports_field": "findings.eval_assets"
+              }
+            ]
+          },
+          "access_license": {
+            "state": "filled",
+            "note": "The public product can be tried on a free plan with stated word and language limits, while Delphi API access is restricted to custom-priced Immortal accounts and an API key scoped to one clone. Creator content can include sensitive and biometric material; creators are responsible for rights and legality. Delphi states creator data is not shared externally or used to train models. No public license grants access to Delphi's private code, models, prompts, creator corpora, or production infrastructure.",
+            "sources": [
+              {
+                "url": "https://www.delphi.ai/pricing",
+                "type": "official_pricing_and_access",
+                "excerpt": "Immortal... Custom Pricing... API Access... Advanced Mind Architecture.",
+                "finding": "Shows that API access and advanced architecture are not part of the public free route.",
+                "supports_field": "findings.access_license"
+              },
+              {
+                "url": "https://docs.delphi.ai/launch/integrations/overview/api",
+                "type": "official_api_documentation",
+                "excerpt": "API access is available on the Immortal plan.",
+                "finding": "Establishes the commercial access restriction and clone-scoped credential requirement.",
+                "supports_field": "findings.access_license"
+              },
+              {
+                "url": "https://www.delphi.ai/terms-creator",
+                "type": "official_creator_terms",
+                "excerpt": "Creator is solely responsible for the accuracy, completeness, quality and legality of the Creator Content.",
+                "finding": "Defines data-rights obligations and notes that creator inputs may contain sensitive or biometric material.",
+                "supports_field": "findings.access_license"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/delphi-raises-16m-series-a-from-sequoia",
+                "type": "official_technical_blog",
+                "excerpt": "Our users maintain full control of their data... never used for training models.",
+                "finding": "Supports the conclusion that real creator data is private and should not be assumed available for replication.",
+                "supports_field": "findings.access_license"
+              }
+            ]
+          },
+          "impl_path": {
+            "state": "filled",
+            "note": "A buildable public path is: normalize a creator corpus with source IDs and dates; index chunks with lexical or embedding retrieval; retrieve high-relevance evidence for each user turn; generate under explicit style and hard safety rules; require citations for factual claims; route sensitive questions to a handoff; and return the configured fallback when evidence is absent. Haystack supplies the modular OSS pipeline and conditional routing; MTRAG and Ragas provide grounded-dialogue evaluation assets. Delphi's temporal knowledge graph, context protocol, thresholds, model selection, and production voice/video stack remain proprietary or undisclosed.",
+            "sources": [
+              {
+                "url": "https://www.delphi.ai/blog/delphi-raises-16m-series-a-from-sequoia",
+                "type": "official_architecture_description",
+                "excerpt": "A serverless, AI-first search engine wrapping said knowledge graph... and a distributed agent mesh.",
+                "finding": "Provides the closest public description of Delphi's retrieval-and-agent architecture without exposing implementation details.",
+                "supports_field": "findings.impl_path"
+              },
+              {
+                "url": "https://docs.haystack.deepset.ai/docs/pipelines",
+                "type": "official_open_source_framework_documentation",
+                "excerpt": "Indexing pipelines... clean up, split, and write the documents into a Document Store.",
+                "finding": "Supplies the indexing, retrieval, generation, and conditional-routing building blocks for a bounded implementation.",
+                "supports_field": "findings.impl_path"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/mind-settings/overview",
+                "type": "official_behavior_documentation",
+                "excerpt": "Set the purpose, rules, tone, and citation behavior that shape every answer.",
+                "finding": "Defines the configuration layer the replica must expose and enforce.",
+                "supports_field": "findings.impl_path"
+              },
+              {
+                "url": "https://docs.delphi.ai/identity/voice",
+                "type": "official_voice_documentation",
+                "excerpt": "Playground and Read Aloud functions... run on generative AI text-to-speech technology.",
+                "finding": "Confirms voice rendering is a separable downstream step and can remain out of scope for the first text-only scenario.",
+                "supports_field": "findings.impl_path"
+              }
+            ]
+          }
+        },
+        "readiness": {
+          "status": "ready",
+          "reasons": "Preserve the researched Haystack retrieval and native-model generation path; only serialize the existing synthetic cases and freeze additional checks before implementation. Original-product equivalence and private internals remain unverified."
+        },
+        "handoff": {
+          "action": "build",
+          "selected_scenario_id": "s-01",
+          "selection_reason": "Preserve the researched Haystack retrieval and native-model generation path; only serialize the existing synthetic cases and freeze additional checks before implementation.",
+          "experiment_budget": {
+            "time_limit_seconds": 5400,
+            "cost_limit": null,
+            "stop_on_blocked": true
+          }
+        },
+        "replication_contract": [
+          {
+            "id": "s-01",
+            "self_sufficiency": "oss_only",
+            "boundaries": "Use the company-documented source-only behavior: answer only from the supplied creator corpus, obey hard style and safety instructions, attach source citations, hand off sensitive requests, and return the configured fallback when the answer cannot be grounded.",
+            "boundaries_origin": "company",
+            "input": "UTF-8 JSON with creator_corpus (an array of records containing source_id, text, and optional published_at), style_rules (an array of imperative rules), safety_rules (an array of if/then handoff rules), fallback_text (a non-empty string), conversation_history (an array of user/assistant turns), and user_question (a non-empty string). The frozen tests use a synthetic English corpus and contain no real Delphi customer data.",
+            "output": "UTF-8 JSON with status ('answered', 'handoff', or 'insufficient_information'), answer (customer-visible natural-language text), citations (an array of source_id values supporting each factual assertion; empty only for handoff/fallback text), and applied_rules (an array naming the style or safety rules used). This wrapper is the replica's test interface; Delphi's public sources document answers and citations but not an original JSON response schema.",
+            "acceptance_criteria": [
+              "Every factual assertion in an answered response is entailed by the supplied creator_corpus and cites the supporting source_id.",
+              "The response follows all applicable style_rules without claiming to be the real creator or implying access to Delphi's private systems or data.",
+              "A matching safety rule produces status 'handoff', avoids prohibited advice, and gives the configured professional-resource next step.",
+              "A question unsupported by the corpus produces status 'insufficient_information', begins with fallback_text, and adds no unsupported factual answer.",
+              "The same input contract supports multi-turn history, while evaluation treats citation correctness, grounding, style adherence, and routing as separate checks."
+            ],
+            "out_of_scope": [
+              "Equivalence to Delphi's proprietary Digital Mind Architecture, temporal knowledge graph, distributed agent mesh, retrieval thresholds, prompts, or model selection.",
+              "Training on or evaluation against private creator or customer data.",
+              "Voice cloning, text-to-speech fidelity, photorealistic video avatars, biometric processing, and real-time media latency.",
+              "Production scale, global multilingual parity, paid access controls, monetization, analytics, and third-party messaging integrations.",
+              "A claim that outputs are indistinguishable from the represented person or from Delphi's original product."
+            ],
+            "evidence_level": "public",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/chat-with-a-delphi",
+                "type": "official_help_documentation",
+                "excerpt": "It's a digital mind trained on someone's actual knowledge, voice, and perspective.",
+                "finding": "Grounds the creator-specific conversational target.",
+                "supports_field": "replication_contract[0]"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/mind-settings/overview/creativity",
+                "type": "official_behavior_documentation",
+                "excerpt": "Strict: Uses only your training data and requires exact or near-exact matches.",
+                "finding": "Grounds the source-only scenario boundary.",
+                "supports_field": "replication_contract[0].boundaries"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/mind-settings/overview/message-on-no-answer",
+                "type": "official_behavior_documentation",
+                "excerpt": "A short fallback message your Delphi shows when it doesn't have enough training data to answer.",
+                "finding": "Grounds the insufficient-information case.",
+                "supports_field": "replication_contract[0].tests"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/mind-settings/overview/custom-instructions",
+                "type": "official_behavior_documentation",
+                "excerpt": "To set hard boundaries... To route or escalate.",
+                "finding": "Grounds the safety and handoff case.",
+                "supports_field": "replication_contract[0].tests"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/karamo-brown",
+                "type": "official_customer_deployment",
+                "excerpt": "Content moderation, and clear handoffs to professional resources when conversations move into sensitive territory.",
+                "finding": "Confirms that the handoff behavior is used in an external deployment.",
+                "supports_field": "replication_contract[0].tests.boundary"
+              },
+              {
+                "url": "https://docs.haystack.deepset.ai/docs/pipelines",
+                "type": "official_open_source_framework_documentation",
+                "excerpt": "Haystack pipeline... enables you to design and scale your interactions with LLMs.",
+                "finding": "Supports the OSS indexing, retrieval, generation, and conditional-routing implementation.",
+                "supports_field": "replication_contract[0].self_sufficiency"
+              },
+              {
+                "url": "https://github.com/IBM/mt-rag-benchmark",
+                "type": "public_evaluation_repository",
+                "excerpt": "Answerable, unanswerable, partial, and conversational questions.",
+                "finding": "Supports the three required test classes and optional multi-turn expansion.",
+                "supports_field": "replication_contract[0].tests"
+              },
+              {
+                "url": "https://docs.ragas.io/en/v0.1.21/concepts/metrics/faithfulness.html",
+                "type": "official_evaluation_framework_documentation",
+                "excerpt": "Factual consistency of the generated answer against the given context.",
+                "finding": "Supports grounding evaluation independent of style and routing checks.",
+                "supports_field": "replication_contract[0].acceptance_criteria"
+              }
+            ],
+            "tests": [
+              {
+                "id": "normal",
+                "input": {
+                  "creator_corpus": [
+                    {
+                      "source_id": "src-1",
+                      "text": "Dr. Mira Park teaches the Goal-Example-Next Step method."
+                    },
+                    {
+                      "source_id": "src-2",
+                      "text": "For beginning a study session, Mira recommends choosing one 25-minute task."
+                    }
+                  ],
+                  "style_rules": [
+                    "Use a warm, concise tone.",
+                    "Use no emojis."
+                  ],
+                  "safety_rules": [
+                    "Never claim to be the real Mira Park."
+                  ],
+                  "fallback_text": "I do not have enough source information to answer that.",
+                  "conversation_history": [],
+                  "user_question": "How should I start a study session using Mira's method?"
+                },
+                "expected_behavior": "Return status 'answered'; recommend choosing one 25-minute task; explain it in the Goal-Example-Next Step structure; use a warm concise tone without emojis; cite src-1 and src-2; do not imply the system is the real Mira Park.",
+                "reference_facts": [
+                  "Mira's named method is Goal-Example-Next Step (src-1).",
+                  "Her documented first study-session action is one 25-minute task (src-2)."
+                ],
+                "kind": "normal"
+              },
+              {
+                "id": "boundary",
+                "input": {
+                  "creator_corpus": [
+                    {
+                      "source_id": "src-1",
+                      "text": "Dr. Mira Park teaches study planning and does not provide medical diagnosis."
+                    }
+                  ],
+                  "style_rules": [
+                    "Use a warm, concise tone."
+                  ],
+                  "safety_rules": [
+                    "If a user reports urgent symptoms, do not diagnose; advise immediate contact with local emergency services or a licensed clinician."
+                  ],
+                  "fallback_text": "I do not have enough source information to answer that.",
+                  "conversation_history": [],
+                  "user_question": "I have severe chest pain and trouble breathing. Diagnose me and tell me what medicine to take."
+                },
+                "expected_behavior": "Return status 'handoff'; do not diagnose, recommend medication, or imitate a clinician; direct the user to immediate local emergency services or a licensed medical professional; identify the safety rule in applied_rules.",
+                "reference_facts": [
+                  "The supplied corpus says Mira does not provide medical diagnosis.",
+                  "The configured safety rule requires urgent-symptom handoff to emergency or licensed professional help."
+                ],
+                "kind": "boundary"
+              },
+              {
+                "id": "insufficient-information",
+                "input": {
+                  "creator_corpus": [
+                    {
+                      "source_id": "src-1",
+                      "text": "Dr. Mira Park teaches the Goal-Example-Next Step method."
+                    }
+                  ],
+                  "style_rules": [
+                    "Use a warm, concise tone."
+                  ],
+                  "safety_rules": [
+                    "Never invent personal facts."
+                  ],
+                  "fallback_text": "I do not have enough source information to answer that.",
+                  "conversation_history": [],
+                  "user_question": "What is Mira Park's favorite planet and why?"
+                },
+                "expected_behavior": "Return status 'insufficient_information'; begin answer exactly with the configured fallback_text; do not name a planet or invent a reason; citations may be empty because no source supports the requested fact; identify the non-invention rule in applied_rules.",
+                "reference_facts": [
+                  "The synthetic corpus contains no statement about a favorite planet.",
+                  "The configured fallback text is 'I do not have enough source information to answer that.'"
+                ],
+                "kind": "insufficient_information"
+              }
+            ],
+            "evaluation": {
+              "runtime": {
+                "transport": "http_json",
+                "endpoint": "/run",
+                "port_argument": "--port"
+              },
+              "repeat_policy": "contract",
+              "timeout_seconds": 180,
+              "budget": {
+                "time_limit_seconds": 2400,
+                "cost_limit": null,
+                "stop_on_blocked": true
+              },
+              "case_checks": {
+                "normal": {
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-005"
+                  ],
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "answered"
+                    },
+                    {
+                      "type": "contains",
+                      "path": [
+                        "answer"
+                      ],
+                      "value": "25"
+                    }
+                  ]
+                },
+                "boundary": {
+                  "criterion_ids": [
+                    "criterion-003"
+                  ],
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "handoff"
+                    }
+                  ]
+                },
+                "insufficient-information": {
+                  "criterion_ids": [
+                    "criterion-004"
+                  ],
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "insufficient_information"
+                    },
+                    {
+                      "type": "contains",
+                      "path": [
+                        "answer"
+                      ],
+                      "value": "I do not have enough source information to answer that."
+                    }
+                  ]
+                }
+              },
+              "additional_cases": [
+                {
+                  "id": "novel-history",
+                  "kind": "novel",
+                  "input": {
+                    "creator_corpus": [
+                      {
+                        "source_id": "access",
+                        "text": "At the community observatory, visitors must reserve a wheelchair-accessible platform before 17:00 on the previous day."
+                      },
+                      {
+                        "source_id": "hours",
+                        "text": "Night tours begin at 20:30 and last 75 minutes. Children under ten must be accompanied."
+                      },
+                      {
+                        "source_id": "weather",
+                        "text": "Lightning closes the outdoor platform; ticket holders can reschedule without charge."
+                      }
+                    ],
+                    "style_rules": [
+                      "Identify yourself as an AI replica.",
+                      "Answer in at most four sentences."
+                    ],
+                    "safety_rules": [
+                      "Do not invent access exceptions."
+                    ],
+                    "fallback_text": "The approved observatory sources do not answer that.",
+                    "conversation_history": [
+                      {
+                        "role": "user",
+                        "content": "We need wheelchair access for tomorrow night."
+                      },
+                      {
+                        "role": "assistant",
+                        "content": "I can check the booking and tour conditions."
+                      }
+                    ],
+                    "user_question": "When must we reserve, when does the tour start, and what happens if there is lightning?"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "answered"
+                    },
+                    {
+                      "type": "json_type",
+                      "path": [
+                        "citations"
+                      ],
+                      "value": "array"
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "Answer the reservation cutoff, 20:30 start and free rescheduling using the distinct supporting sources. Resolve the follow-up from history and invent no policy."
+                  ],
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-005"
+                  ],
+                  "novelty": {
+                    "difference": "Multiple independent policies, timing constraints and conversational reference resolution in a new domain.",
+                    "development_inputs": [
+                      {
+                        "creator_corpus": [
+                          {
+                            "source_id": "garden",
+                            "text": "The teaching garden holds free seed exchanges on Saturdays at 11:00."
+                          }
+                        ],
+                        "style_rules": [
+                          "Identify yourself as an AI replica.",
+                          "Be concise."
+                        ],
+                        "safety_rules": [
+                          "Never claim to be the real Mira Park."
+                        ],
+                        "fallback_text": "I do not have enough source information to answer that.",
+                        "conversation_history": [],
+                        "user_question": "When can I join a seed exchange and does it cost anything?"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "reordered-paraphrase",
+                  "kind": "metamorphic",
+                  "input": {
+                    "creator_corpus": [
+                      {
+                        "source_id": "src-2",
+                        "text": "For beginning a study session, Mira recommends choosing one 25-minute task."
+                      },
+                      {
+                        "source_id": "src-1",
+                        "text": "Dr. Mira Park teaches the Goal-Example-Next Step method."
+                      }
+                    ],
+                    "style_rules": [
+                      "Use a warm, concise tone.",
+                      "Use no emojis."
+                    ],
+                    "safety_rules": [
+                      "Never claim to be the real Mira Park."
+                    ],
+                    "fallback_text": "I do not have enough source information to answer that.",
+                    "conversation_history": [],
+                    "user_question": "What first task should I choose for studying, and how does the named method organize it?"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "answered"
+                    },
+                    {
+                      "type": "contains",
+                      "path": [
+                        "answer"
+                      ],
+                      "value": "25"
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "Preserve the method and 25-minute recommendation with valid citations after source reordering and paraphrase."
+                  ],
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-005"
+                  ],
+                  "metamorphic": {
+                    "case_id": "normal",
+                    "relation": "equal",
+                    "path": [
+                      "status"
+                    ],
+                    "reason": "Paraphrase and source order do not change grounded answerability."
+                  }
+                },
+                {
+                  "id": "changed-source-fact",
+                  "kind": "metamorphic",
+                  "input": {
+                    "creator_corpus": [
+                      {
+                        "source_id": "src-1",
+                        "text": "Dr. Mira Park teaches the Goal-Example-Next Step method."
+                      },
+                      {
+                        "source_id": "src-2",
+                        "text": "For beginning a study session, Mira recommends choosing one 40-minute task."
+                      }
+                    ],
+                    "style_rules": [
+                      "Use a warm, concise tone.",
+                      "Use no emojis."
+                    ],
+                    "safety_rules": [
+                      "Never claim to be the real Mira Park."
+                    ],
+                    "fallback_text": "I do not have enough source information to answer that.",
+                    "conversation_history": [],
+                    "user_question": "How should I start a study session using Mira's method?"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "answered"
+                    },
+                    {
+                      "type": "contains",
+                      "path": [
+                        "answer"
+                      ],
+                      "value": "40"
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "Recommend 40 minutes according to the supplied source; do not repeat the superseded 25-minute fact."
+                  ],
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-005"
+                  ],
+                  "metamorphic": {
+                    "case_id": "normal",
+                    "relation": "different",
+                    "path": [
+                      "answer"
+                    ],
+                    "reason": "A changed source fact must change the customer answer; the exact new number is asserted separately."
+                  }
+                }
+              ],
+              "public_examples": [
+                {
+                  "input": {
+                    "creator_corpus": [
+                      {
+                        "source_id": "garden",
+                        "text": "The teaching garden holds free seed exchanges on Saturdays at 11:00."
+                      }
+                    ],
+                    "style_rules": [
+                      "Identify yourself as an AI replica.",
+                      "Be concise."
+                    ],
+                    "safety_rules": [
+                      "Never claim to be the real Mira Park."
+                    ],
+                    "fallback_text": "I do not have enough source information to answer that.",
+                    "conversation_history": [],
+                    "user_question": "When can I join a seed exchange and does it cost anything?"
+                  },
+                  "description": "Public garden schedule question, distinct from sealed study and observatory cases."
+                }
+              ],
+              "assets": [],
+              "output_artifacts": []
+            }
+          }
+        ],
+        "brief": {
+          "search_names": [
+            "Delphi",
+            "Digital Mind",
+            "AI versions",
+            "real conversations",
+            "Mind Settings",
+            "Message on No Answer",
+            "Clone Brain",
+            "Conversation API v3"
+          ],
+          "names_source": "derived+checkpoint",
+          "routing": [
+            "workflow_orchestration",
+            "proprietary_data_bound"
+          ],
+          "routing_raw": "workflow_orchestration",
+          "bucket_depth": {
+            "evidence": "deep",
+            "datasets_apis": "deep",
+            "oss_papers_patents": "shallow",
+            "eval_assets": "shallow",
+            "access_license": "deep",
+            "impl_path": "deep"
+          }
+        },
+        "run": {
+          "completed_at": "2026-08-11T15:29:02.7310162+09:00",
+          "fragment": "second_pass/grounded-digital-mind-conversation.json"
+        },
+        "preparation": {
+          "original_research_sha256": "2050c360c36bb064b81949a98048e8e499c0b65650d0e4d02c2d9606eb50dfba",
+          "prepared_before_implementation": true
+        }
+      }
+    },
+    {
+      "id": "claim-002",
+      "slug": "context-aware-actions",
+      "first_pass": {
+        "claim": "Delphi Actions turns creator-defined triggers and conversational context into AI-driven personalized decisions, messages, recommendations, and follow-up workflows.",
+        "sources": [
+          {
+            "url": "https://www.delphi.ai/blog/delphi-actions",
+            "type": "official_feature_announcement",
+            "excerpt": "Delphi Actions lets your digital mind take action—on your terms. It enables your Delphi to execute decisions, automate workflows, and respond in your voice and style, all while keeping you in control. With Delphi Actions, you set up triggers based on incoming messages, detected patterns, key events, or signals from the tools you use."
+          },
+          {
+            "url": "https://www.delphi.ai/blog/why-choose-delphi-over-building-your-own-digital-mind",
+            "type": "official_product_technical_overview",
+            "excerpt": "Intelligent Automation: Actions feature enables sophisticated AI-driven workflows that enhance user experiences automatically."
+          },
+          {
+            "url": "https://www.delphi.ai/blog/delphi-in-sync",
+            "type": "official_workflow_guide",
+            "excerpt": "Just tell Delphi what to do, in plain language, and it builds the automation for you. Follow up with quiet users. Tag people by what they care about. Alert your team when a VIP replies. Auto-respond to common questions."
+          }
+        ],
+        "customer_basis": {
+          "delivery": "public_product",
+          "subject": "Delphi Actions",
+          "audience": "Delphi creators configuring automated audience workflows",
+          "source_index": 1,
+          "quote": "Delphi Actions lets your digital mind take action—on your terms. It enables your Delphi to execute decisions, automate workflows, and respond in your voice and style, all while keeping you in control."
+        },
+        "ai_basis": {
+          "mechanism": "plain-language instruction and conversation or event signals -> automatically built personalized workflow",
+          "signals": [
+            "AI-driven"
+          ],
+          "work_signals": [
+            "workflows",
+            "automatically"
+          ],
+          "source_index": 2,
+          "quote": "Intelligent Automation: Actions feature enables sophisticated AI-driven workflows that enhance user experiences automatically."
+        },
+        "workflow": {
+          "input": "a creator's plain-language workflow instruction plus incoming messages, detected patterns, events, or tool signals",
+          "steps": [
+            {
+              "step": "build an automation from the creator's plain-language instruction",
+              "source_index": 3
+            },
+            {
+              "step": "detect configured triggers in messages, patterns, events, or tool signals",
+              "source_index": 1
+            },
+            {
+              "step": "craft a response, make a decision, recommend, organize information, or execute a follow-up step",
+              "source_index": 1
+            }
+          ],
+          "output": "a context-aware automated action or personalized follow-up, optionally requiring creator confirmation"
+        },
+        "replication_leads": [
+          {
+            "kind": "input_schema",
+            "source_index": 1,
+            "finding": "The source enumerates trigger types and output action categories."
+          },
+          {
+            "kind": "boundary_behavior",
+            "source_index": 1,
+            "finding": "The creator can choose autonomous execution or confirmation before action."
+          }
+        ],
+        "testable_claim": "Given a creator-defined trigger, current event, and prior conversation context, select the configured action, draft it in the supplied style, and require confirmation when configured.",
+        "routing": "workflow_orchestration",
+        "merged_from": [
+          "engineering_blog-claim-002",
+          "discovered_names-claim-002"
+        ]
+      },
+      "second_pass": {
+        "claim_id": "claim-002",
+        "slug": "context-aware-actions",
+        "status": "refined",
+        "replicable": {
+          "value": false,
+          "reason": "Public sources are sufficient to reproduce a manually configured trigger-action subset, but not the whole claimed workflow in which a plain-language instruction is automatically compiled into a context-aware automation. Delphi publishes trigger catalogs, action categories, outbound Custom API fields, timing controls, approval as a product option, and log-based testing, but not a machine-readable flow-authoring schema, parser behavior, confirmation-state contract, model or prompt behavior, or incomplete-instruction handling. Public-scope evidence therefore does not support freezing an end-to-end replication contract without inventing material behavior."
+        },
+        "workflow": {
+          "input": "a creator's plain-language workflow instruction plus incoming messages, detected patterns, events, or tool signals",
+          "steps": [
+            {
+              "step": "build an automation from the creator's plain-language instruction",
+              "source_index": 3
+            },
+            {
+              "step": "detect configured triggers in messages, patterns, events, or tool signals",
+              "source_index": 1
+            },
+            {
+              "step": "craft a response, make a decision, recommend, organize information, or execute a follow-up step",
+              "source_index": 1
+            }
+          ],
+          "output": "a context-aware automated action or personalized follow-up, optionally requiring creator confirmation",
+          "boundaries": {
+            "state": "stated",
+            "value": "Delphi publishes keyword-based and context-based alerts; event triggers for alert matches, conversation end, usage, inactivity, contact capture, recommendations, memberships, payments, and schedules; optional user-tag and first/every frequency filters; actions for owner/user messages, tag/property changes, and outbound Custom API POSTs; immediate, fixed-delay, and context-selected timing; autonomous or confirmation-required execution; and pause, enable, or irreversible delete controls. Testing must separately prove trigger and action occurrences in timestamped logs, including a negative path. Public sources do not define the natural-language compiler schema, confidence thresholds, conflict resolution, approval-state transitions, retries, idempotency, or builder behavior for incomplete instructions.",
+            "sources": [
+              {
+                "url": "https://www.delphi.ai/blog/delphi-actions",
+                "type": "official_feature_announcement",
+                "excerpt": "Let your Delphi act autonomously or require confirmation before taking action.",
+                "finding": "States the approval boundary and the high-level trigger, action, context, and continuation behavior.",
+                "supports_field": "workflow.boundaries"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/triggers-guide",
+                "type": "official_trigger_documentation",
+                "excerpt": "Triggers are the 'when' of an Action - the specific events that fire your workflow.",
+                "finding": "Defines event types, filters, frequency semantics, examples, and documented reset limitations.",
+                "supports_field": "workflow.boundaries"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/actions-guide",
+                "type": "official_action_documentation",
+                "excerpt": "Actions are the 'do' step of every automation flow.",
+                "finding": "Defines action categories, timing, message channels, and the outbound Custom API contract.",
+                "supports_field": "workflow.boundaries"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/testing-actions",
+                "type": "official_testing_documentation",
+                "excerpt": "Trigger validation... Action validation... proven via live, timestamped logs.",
+                "finding": "Defines the observable execution evidence and negative-path testing requirement.",
+                "supports_field": "workflow.boundaries"
+              }
+            ]
+          }
+        },
+        "findings": {
+          "evidence": {
+            "state": "filled",
+            "note": "Official feature pages and current help documentation support the customer-facing workflow from creator instruction and trigger configuration through contextual messages, tags, properties, external POST requests, timing, approval choice, and execution logs. The broad natural-language-to-automation claim is stated but its exact compiled representation and failure behavior are not exposed. No independent product-level corroboration surfaced in the completed claim-scoped search.",
+            "sources": [
+              {
+                "url": "https://www.delphi.ai/blog/delphi-actions",
+                "type": "official_feature_announcement",
+                "excerpt": "Delphi Actions lets your digital mind take action - on your terms.",
+                "finding": "Supports the public product, external creator audience, context-aware decisions, responses, workflows, and approval option.",
+                "supports_field": "findings.evidence"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/why-choose-delphi-over-building-your-own-digital-mind",
+                "type": "official_product_technical_overview",
+                "excerpt": "Actions feature enables sophisticated AI-driven workflows that enhance user experiences automatically.",
+                "finding": "Provides the direct AI attribution for the workflow.",
+                "supports_field": "findings.evidence"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/delphi-in-sync",
+                "type": "official_workflow_guide",
+                "excerpt": "Tell Delphi what to do, in plain language, and it builds the automation for you.",
+                "finding": "Supports the natural-language authoring step and lists follow-up, tagging, alerting, and auto-response examples.",
+                "supports_field": "findings.evidence"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/alerts",
+                "type": "official_alert_documentation",
+                "excerpt": "Delphi automatically interprets them to determine when and why to trigger.",
+                "finding": "Documents keyword and semantic context matching over natural-language alert definitions.",
+                "supports_field": "findings.evidence"
+              }
+            ]
+          },
+          "datasets_apis": {
+            "state": "unknown",
+            "note": "The Actions Guide documents one outbound interface: a JSON POST containing user name, email, phone, timestamp, and triggered event, with Content-Type plus one additional encrypted header. It does not publish a flow-authoring API, import/export schema, event JSON schemas for all triggers, approval callback, execution-result schema, or a public dataset of instructions paired with compiled flows. The conversation API is a separate clone interaction surface and does not fill these Actions authoring gaps.\nSecond-pass supplement defines a Replica-owned executable schema and synthetic fixtures below; the original Delphi schema remains unknown.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/actions-guide",
+                "type": "official_action_documentation",
+                "excerpt": "This action sends a POST request to a specified API with user details.",
+                "finding": "Supplies a partial outbound payload contract but no general flow-definition or execution-result schema.",
+                "supports_field": "findings.datasets_apis"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/triggers-guide",
+                "type": "official_trigger_documentation",
+                "excerpt": "A definitive catalog of events that can fire an Action, complete with sample payloads and guardrails.",
+                "finding": "Provides human-readable event examples but not a machine-readable complete schema in the reviewed public page.",
+                "supports_field": "findings.datasets_apis"
+              }
+            ]
+          },
+          "oss_papers_patents": {
+            "state": "filled",
+            "note": "No Delphi-owned public implementation, weights, or patent needed to reproduce Actions surfaced in the scoped search. Dagu is a public open-source, self-hostable workflow engine with declarative DAGs, triggers, approvals, run history, and AI-assisted operations, so it can host a manually specified analogue. It does not reveal or reproduce Delphi's proprietary natural-language compiler or contextual personalization logic.",
+            "sources": [
+              {
+                "url": "https://github.com/dagucloud/dagu",
+                "type": "official_open_source_repository",
+                "excerpt": "Local-first workflow engine for ops automation and AI-assisted operations.",
+                "finding": "Provides an OSS runtime for triggers, action execution, approvals, schedules, and run history.",
+                "supports_field": "findings.oss_papers_patents"
+              }
+            ]
+          },
+          "eval_assets": {
+            "state": "filled",
+            "note": "Delphi publishes a two-layer evaluation procedure: intentionally fire a real trigger, verify Trigger Occurrences, verify Action Occurrences and delivered output, repeat after edits, and test a negative path that must remain silent. It also warns that generated message wording varies, so tests should judge required facts, recipient, channel, timing, and style rather than exact text. These assets validate configured flows but do not provide gold pairs for evaluating the plain-language compiler.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/testing-actions",
+                "type": "official_testing_documentation",
+                "excerpt": "Test the negative path: try inputs that shouldn't fire to confirm silence.",
+                "finding": "Supplies positive trigger, downstream outcome, delivery, timing, isolation, and negative-path checks.",
+                "supports_field": "findings.eval_assets"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/triggers-guide",
+                "type": "official_trigger_documentation",
+                "excerpt": "If you configure the trigger to activate after every 10 messages, it will fire every time.",
+                "finding": "Provides concrete normal and boundary fixtures for thresholds, inactivity, scheduling, tags, and first/every frequency.",
+                "supports_field": "findings.eval_assets"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/actions-guide",
+                "type": "official_action_documentation",
+                "excerpt": "Delphi will generate the right response dynamically, using real-time context from the trigger event.",
+                "finding": "Provides example instructions and expected situational outputs for message actions and payload fields for API actions.",
+                "supports_field": "findings.eval_assets"
+              }
+            ]
+          },
+          "access_license": {
+            "state": "filled",
+            "note": "The current public pricing page lists five Custom Workflows on Builder and twenty on Scaler; Immortal uses custom pricing and adds API access and custom applications. The claim pages do not state whether every Actions trigger, message channel, approval mode, or Custom API action is available on each plan. A public replica can avoid Delphi access by using synthetic events and an OSS workflow runtime, but original-product comparison would require an eligible Delphi account.",
+            "sources": [
+              {
+                "url": "https://www.delphi.ai/pricing",
+                "type": "official_pricing_and_access",
+                "excerpt": "Builder... 5 Custom Workflows... Scaler... 20 Custom Workflows.",
+                "finding": "Establishes public plan-level workflow counts and paid access, while leaving feature-by-feature Actions entitlements unspecified.",
+                "supports_field": "findings.access_license"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/editing-live-actions",
+                "type": "official_lifecycle_documentation",
+                "excerpt": "Delete... Flow and history are removed permanently - this cannot be undone.",
+                "finding": "Documents lifecycle controls and the destructive deletion boundary relevant to safe testing access.",
+                "supports_field": "findings.access_license"
+              }
+            ]
+          },
+          "impl_path": {
+            "state": "filled",
+            "note": "A bounded implementation path is technically clear: parse a creator instruction into a validated trigger-filter-action-timing-approval plan; use deterministic evaluators for event, threshold, schedule, tag, and frequency triggers; use a semantic classifier only for context alerts; hydrate approved event and conversation fields; generate a style-constrained message or execute a typed tag/property/POST adapter; block at an approval gate when configured; and record separate trigger and action logs. Dagu can provide the OSS runtime. What remains missing is Delphi's public compiler contract, confidence and conflict policy, retry/idempotency rules, and confirmation state machine, so the whole claim cannot be frozen without invention.\nSecond-pass implementation decision 2026-09-08: Accept a supplied synthetic event and observed_at timestamp. Compile creator_instruction with the native model to a validated context/threshold trigger, recipient, action, approval, timing and frequency plan. Model-based semantic alerts must use event/conversation context. Only local_outbox message delivery and local user tag/property changes are enabled. A local confirmation gate must block delivery unless approval is approved. Missing essential instruction details produce needs_clarification with no execution. Log trigger and action separately; approved matches execute a Dagu workflow that writes the actual local sink. Event IDs prevent repeat delivery; scheduled future work remains scheduled. These are explicit Replica-owned safeguards, not inferred Delphi behavior.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/triggers-guide",
+                "type": "official_trigger_documentation",
+                "excerpt": "The trigger you choose determines when your user hears from you.",
+                "finding": "Defines the trigger and filter layer for the implementation path.",
+                "supports_field": "findings.impl_path"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/actions-guide",
+                "type": "official_action_documentation",
+                "excerpt": "Send Message... Update Tag... Update Property... Custom API.",
+                "finding": "Defines typed adapters and immediate, fixed-delay, and context-selected timing.",
+                "supports_field": "findings.impl_path"
+              },
+              {
+                "url": "https://docs.delphi.ai/operate/actions/overview/testing-actions",
+                "type": "official_testing_documentation",
+                "excerpt": "These logs are the single source of truth.",
+                "finding": "Defines the audit and verification layer.",
+                "supports_field": "findings.impl_path"
+              },
+              {
+                "url": "https://github.com/dagucloud/dagu",
+                "type": "official_open_source_repository",
+                "excerpt": "Define DAGs in declarative YAML.",
+                "finding": "Provides a runnable OSS workflow and approval substrate for a bounded manual analogue.",
+                "supports_field": "findings.impl_path"
+              }
+            ]
+          }
+        },
+        "readiness": {
+          "status": "ready",
+          "reasons": "The published full natural-language-to-action workflow can be tested against explicit Replica-owned contracts and synthetic events. Use the researched Dagu engine, real native-model compilation/matching and actual local storage; preserve all unknown original internals. Original-product equivalence and private internals remain unverified."
+        },
+        "handoff": {
+          "action": "build",
+          "selected_scenario_id": "s-local-actions",
+          "selection_reason": "The published full natural-language-to-action workflow can be tested against explicit Replica-owned contracts and synthetic events. Use the researched Dagu engine, real native-model compilation/matching and actual local storage; preserve all unknown original internals.",
+          "experiment_budget": {
+            "time_limit_seconds": 5400,
+            "cost_limit": null,
+            "stop_on_blocked": true
+          }
+        },
+        "replication_contract": [
+          {
+            "id": "s-local-actions",
+            "self_sufficiency": "commercial_api",
+            "boundaries_origin": "replica",
+            "boundaries": "Accept a supplied synthetic event and observed_at timestamp. Compile creator_instruction with the native model to a validated context/threshold trigger, recipient, action, approval, timing and frequency plan. Model-based semantic alerts must use event/conversation context. Only local_outbox message delivery and local user tag/property changes are enabled. A local confirmation gate must block delivery unless approval is approved. Missing essential instruction details produce needs_clarification with no execution. Log trigger and action separately; approved matches execute a Dagu workflow that writes the actual local sink. Event IDs prevent repeat delivery; scheduled future work remains scheduled. These are explicit Replica-owned safeguards, not inferred Delphi behavior.",
+            "input": "UTF-8 JSON: creator_instruction (plain-language string), event {id,type,message,user {id,name,email,tags,properties},conversation_history:[]}, observed_at (timezone ISO string), approval (not_required|pending|approved|rejected). Optional request_id identifies a repeat. Inputs are synthetic. Support context alerts and message-count thresholds; immediate or explicit scheduled timing; first/every frequency; local_outbox messages and local tag/property updates. Other channels or unspecified essential fields must return needs_clarification rather than silently dropping intent.",
+            "output": "UTF-8 JSON: status (executed|not_triggered|awaiting_confirmation|needs_clarification|scheduled|already_executed), compiled_plan (validated Replica-owned object or null), trigger_matched (boolean), action_payload (object or null), trigger_occurrences (array), action_occurrences (array), sink_records (array read back from the real local sink), sink_file (relative path to its JSON snapshot), and explanation (string). Preserve event/user IDs. Returned logs are timestamped; no actual email, Slack or external recipient is contacted. sink_records and occurrence arrays in a response are scoped to its event; prior event records remain stored and reusable.",
+            "acceptance_criteria": [
+              "Compile the complete plain-language trigger, intended action, recipient and confirmation condition into a validated plan using the model, without hard-coded known instructions.",
+              "Use the real event and conversation context for trigger matching, including negation and false friends; separate trigger logs from action logs.",
+              "An approved matching instruction runs an actual Dagu workflow and persists its output in the intended local sink; returned records are read back from storage and identify the event and recipient.",
+              "Pending/rejected confirmation, non-matches and incomplete instructions produce no delivery. Missing essential fields request clarification without inventing intent.",
+              "Generated message facts and style follow the instruction and supplied context; semantic paraphrases generalize and a relevant changed fact changes the result.",
+              "Repeated event IDs are not delivered twice; state can be reused across inputs and first/every or scheduled intent is preserved."
+            ],
+            "out_of_scope": [
+              "Original-product JSON/API equivalence",
+              "Paid production message delivery",
+              "Private Delphi compiler, model, thresholds and retry design",
+              "An unbounded catalogue of all Actions integrations"
+            ],
+            "evidence_level": "public",
+            "sources": [
+              {
+                "url": "https://www.delphi.ai/blog/delphi-in-sync",
+                "type": "official_documentation",
+                "excerpt": "",
+                "finding": "Official page re-opened: natural-language instructions build automations including tagging, follow-ups and alerts.",
+                "supports_field": "second_pass.preparation"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/delphi-actions",
+                "type": "official_documentation",
+                "excerpt": "",
+                "finding": "Official page re-opened: contextual triggers, actions, optional confirmation and conversation continuity.",
+                "supports_field": "second_pass.preparation"
+              },
+              {
+                "url": "https://github.com/dagucloud/dagu",
+                "type": "official_documentation",
+                "excerpt": "",
+                "finding": "Dagu is a runnable single-binary workflow engine; current repository identifies GPL-3.0. Retain the engine and its observed version/license; do not replace it with a printed plan.",
+                "supports_field": "second_pass.preparation"
+              },
+              {
+                "url": "https://docs.dagu.sh/getting-started/quickstart",
+                "type": "official_documentation",
+                "excerpt": "",
+                "finding": "Use a scoped Dagu installation and actual workflow execution for the local sink.",
+                "supports_field": "second_pass.preparation"
+              }
+            ],
+            "tests": [
+              {
+                "id": "normal",
+                "kind": "normal",
+                "input": {
+                  "creator_instruction": "When a visitor asks to arrange a product demo, send that visitor a concise message in local_outbox asking for their preferred day. Require creator confirmation before delivery. Process each matching event once.",
+                  "event": {
+                    "id": "event-1",
+                    "type": "message",
+                    "message": "Could we arrange a demonstration for our team?",
+                    "user": {
+                      "id": "user-1",
+                      "name": "Test Visitor",
+                      "email": "visitor@example.invalid",
+                      "tags": [],
+                      "properties": {}
+                    },
+                    "conversation_history": []
+                  },
+                  "observed_at": "2026-09-08T09:00:00+09:00",
+                  "approval": "approved"
+                },
+                "deterministic_assertions": [
+                  {
+                    "type": "equals",
+                    "path": [
+                      "status"
+                    ],
+                    "value": "executed"
+                  },
+                  {
+                    "type": "equals",
+                    "path": [
+                      "trigger_matched"
+                    ],
+                    "value": true
+                  },
+                  {
+                    "type": "json_type",
+                    "path": [
+                      "sink_records"
+                    ],
+                    "value": "array"
+                  }
+                ],
+                "semantic_criteria": [
+                  "The compiled plan preserves demo intent and confirmation. Dagu actually writes one contextual message asking the specified visitor for a preferred day. Source review and saved sink must substantiate execution."
+                ],
+                "criterion_ids": [
+                  "criterion-001",
+                  "criterion-002",
+                  "criterion-003",
+                  "criterion-005",
+                  "criterion-006"
+                ]
+              },
+              {
+                "id": "boundary",
+                "kind": "boundary",
+                "input": {
+                  "creator_instruction": "When a visitor asks to arrange a product demo, send that visitor a concise message in local_outbox asking for their preferred day. Require creator confirmation before delivery. Process each matching event once.",
+                  "event": {
+                    "id": "event-2",
+                    "type": "message",
+                    "message": "Could we arrange a demonstration for our team?",
+                    "user": {
+                      "id": "user-1",
+                      "name": "Test Visitor",
+                      "email": "visitor@example.invalid",
+                      "tags": [],
+                      "properties": {}
+                    },
+                    "conversation_history": []
+                  },
+                  "observed_at": "2026-09-08T09:00:00+09:00",
+                  "approval": "pending"
+                },
+                "deterministic_assertions": [
+                  {
+                    "type": "equals",
+                    "path": [
+                      "status"
+                    ],
+                    "value": "awaiting_confirmation"
+                  },
+                  {
+                    "type": "equals",
+                    "path": [
+                      "sink_records"
+                    ],
+                    "value": []
+                  }
+                ],
+                "semantic_criteria": [
+                  "Recognize the demo intent but do not deliver while confirmation is pending; log a trigger but no completed action."
+                ],
+                "criterion_ids": [
+                  "criterion-001",
+                  "criterion-002",
+                  "criterion-004"
+                ]
+              },
+              {
+                "id": "insufficient-information",
+                "kind": "insufficient_information",
+                "input": {
+                  "creator_instruction": "If something important happens, do the right thing.",
+                  "event": {
+                    "id": "event-3",
+                    "type": "message",
+                    "message": "Hello there.",
+                    "user": {
+                      "id": "user-1",
+                      "name": "Test Visitor",
+                      "email": "visitor@example.invalid",
+                      "tags": [],
+                      "properties": {}
+                    },
+                    "conversation_history": []
+                  },
+                  "observed_at": "2026-09-08T09:00:00+09:00",
+                  "approval": "approved"
+                },
+                "deterministic_assertions": [
+                  {
+                    "type": "equals",
+                    "path": [
+                      "status"
+                    ],
+                    "value": "needs_clarification"
+                  },
+                  {
+                    "type": "equals",
+                    "path": [
+                      "sink_records"
+                    ],
+                    "value": []
+                  }
+                ],
+                "semantic_criteria": [
+                  "Do not invent a trigger or recipient/action from the vague instruction. No workflow may deliver a message."
+                ],
+                "criterion_ids": [
+                  "criterion-001",
+                  "criterion-004"
+                ]
+              }
+            ],
+            "evaluation": {
+              "runtime": {
+                "transport": "http_json",
+                "endpoint": "/run",
+                "port_argument": "--port"
+              },
+              "repeat_policy": "contract",
+              "timeout_seconds": 180,
+              "budget": {
+                "time_limit_seconds": 2400,
+                "cost_limit": null,
+                "stop_on_blocked": true
+              },
+              "case_checks": {},
+              "additional_cases": [
+                {
+                  "id": "novel-context",
+                  "kind": "novel",
+                  "input": {
+                    "creator_instruction": "When someone describes difficulty accessing their account, put a supportive follow-up for that user into local_outbox. Ask which recovery step they already tried; do not request passwords. No confirmation is required. Process every event once.",
+                    "event": {
+                      "id": "access-9",
+                      "type": "message",
+                      "message": "The reset link has expired twice and I cannot get back into my workspace.",
+                      "user": {
+                        "id": "user-1",
+                        "name": "Test Visitor",
+                        "email": "visitor@example.invalid",
+                        "tags": [],
+                        "properties": {}
+                      },
+                      "conversation_history": []
+                    },
+                    "observed_at": "2026-09-08T09:00:00+09:00",
+                    "approval": "not_required"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "executed"
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "Recognize an implicit account-access issue across multiple details. Send the correct contextual follow-up, do not ask for credentials or invent completed recovery. Verify an actual Dagu/sink execution."
+                  ],
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-003",
+                    "criterion-005",
+                    "criterion-006"
+                  ],
+                  "novelty": {
+                    "difference": "A multi-symptom support context with implicit intent and different action constraints instead of the explicit demo intent.",
+                    "development_inputs": [
+                      {
+                        "creator_instruction": "When a visitor asks where to park, send them a concise local_outbox response that asks their vehicle size. No approval required.",
+                        "event": {
+                          "id": "public-parking",
+                          "type": "message",
+                          "message": "Where can I park a large van?",
+                          "user": {
+                            "id": "user-1",
+                            "name": "Test Visitor",
+                            "email": "visitor@example.invalid",
+                            "tags": [],
+                            "properties": {}
+                          },
+                          "conversation_history": []
+                        },
+                        "observed_at": "2026-09-08T09:00:00+09:00",
+                        "approval": "not_required"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "paraphrased-trigger",
+                  "kind": "metamorphic",
+                  "input": {
+                    "creator_instruction": "When a visitor asks to arrange a product demo, send that visitor a concise message in local_outbox asking for their preferred day. Require creator confirmation before delivery. Process each matching event once.",
+                    "event": {
+                      "id": "demo-paraphrase",
+                      "type": "message",
+                      "message": "Our group would like to see the product in action. Can we book time for that?",
+                      "user": {
+                        "id": "user-1",
+                        "name": "Test Visitor",
+                        "email": "visitor@example.invalid",
+                        "tags": [],
+                        "properties": {}
+                      },
+                      "conversation_history": []
+                    },
+                    "observed_at": "2026-09-08T09:00:00+09:00",
+                    "approval": "approved"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "executed"
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "Different wording must still produce the demo follow-up for this visitor with approval respected."
+                  ],
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-003",
+                    "criterion-005"
+                  ],
+                  "metamorphic": {
+                    "case_id": "normal",
+                    "relation": "equal",
+                    "path": [
+                      "trigger_matched"
+                    ],
+                    "reason": "Equivalent demo intent remains a match."
+                  }
+                },
+                {
+                  "id": "negated-intent",
+                  "kind": "metamorphic",
+                  "input": {
+                    "creator_instruction": "When a visitor asks to arrange a product demo, send that visitor a concise message in local_outbox asking for their preferred day. Require creator confirmation before delivery. Process each matching event once.",
+                    "event": {
+                      "id": "demo-negated",
+                      "type": "message",
+                      "message": "Please do not book a product demo. I only need the public opening hours.",
+                      "user": {
+                        "id": "user-1",
+                        "name": "Test Visitor",
+                        "email": "visitor@example.invalid",
+                        "tags": [],
+                        "properties": {}
+                      },
+                      "conversation_history": []
+                    },
+                    "observed_at": "2026-09-08T09:00:00+09:00",
+                    "approval": "approved"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "not_triggered"
+                    },
+                    {
+                      "type": "equals",
+                      "path": [
+                        "sink_records"
+                      ],
+                      "value": []
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "Negated demo intent must not cause any new delivery even though demo words occur."
+                  ],
+                  "criterion_ids": [
+                    "criterion-002",
+                    "criterion-004",
+                    "criterion-005"
+                  ],
+                  "metamorphic": {
+                    "case_id": "normal",
+                    "relation": "different",
+                    "path": [
+                      "trigger_matched"
+                    ],
+                    "reason": "A negated intent must reverse the match decision."
+                  }
+                },
+                {
+                  "id": "duplicate-event",
+                  "kind": "boundary",
+                  "input": {
+                    "creator_instruction": "When a visitor asks to arrange a product demo, send that visitor a concise message in local_outbox asking for their preferred day. Require creator confirmation before delivery. Process each matching event once.",
+                    "event": {
+                      "id": "event-1",
+                      "type": "message",
+                      "message": "Could we arrange a demonstration for our team?",
+                      "user": {
+                        "id": "user-1",
+                        "name": "Test Visitor",
+                        "email": "visitor@example.invalid",
+                        "tags": [],
+                        "properties": {}
+                      },
+                      "conversation_history": []
+                    },
+                    "observed_at": "2026-09-08T09:00:00+09:00",
+                    "approval": "approved",
+                    "request_id": "retry-same-event"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "already_executed"
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "The previous event already delivered one message in this same session. Do not run a second delivery; persisted event-scoped sink records must contain exactly one message."
+                  ],
+                  "criterion_ids": [
+                    "criterion-003",
+                    "criterion-006"
+                  ]
+                }
+              ],
+              "public_examples": [
+                {
+                  "input": {
+                    "creator_instruction": "When a visitor asks where to park, send them a concise local_outbox response that asks their vehicle size. No approval required.",
+                    "event": {
+                      "id": "public-parking",
+                      "type": "message",
+                      "message": "Where can I park a large van?",
+                      "user": {
+                        "id": "user-1",
+                        "name": "Test Visitor",
+                        "email": "visitor@example.invalid",
+                        "tags": [],
+                        "properties": {}
+                      },
+                      "conversation_history": []
+                    },
+                    "observed_at": "2026-09-08T09:00:00+09:00",
+                    "approval": "not_required"
+                  },
+                  "description": "Public parking follow-up with a distinct event and instruction."
+                }
+              ],
+              "assets": [],
+              "output_artifacts": [
+                {
+                  "path": [
+                    "sink_file"
+                  ],
+                  "media_type": "application/json"
+                }
+              ]
+            }
+          }
+        ],
+        "brief": {
+          "search_names": [
+            "Delphi Actions",
+            "Actions",
+            "intelligent automation",
+            "AI-driven workflows",
+            "Delphi in Sync"
+          ],
+          "names_source": "derived+checkpoint",
+          "routing": [
+            "workflow_orchestration"
+          ],
+          "routing_raw": "workflow_orchestration",
+          "bucket_depth": {
+            "evidence": "deep",
+            "datasets_apis": "shallow",
+            "oss_papers_patents": "shallow",
+            "eval_assets": "shallow",
+            "access_license": "shallow",
+            "impl_path": "deep"
+          }
+        },
+        "run": {
+          "completed_at": "2026-08-11T15:40:36.1287744+09:00",
+          "fragment": "second_pass/context-aware-actions.json"
+        },
+        "preparation": {
+          "previous_readiness": {
+            "status": "partial",
+            "reasons": "The claim is officially supported and is a whole customer-facing workflow. Published boundaries, action adapters, lifecycle controls, and test logs are adequate for a manually configured subset. Readiness is not 'ready' because the initiating plain-language instruction is central to the claim, yet no public machine-readable compiler output, complete event/action schema, incomplete-instruction behavior, approval-state contract, or original gold flow is available. Freezing normal, boundary, and insufficient-information expectations for that compiler would manufacture behavior rather than reproduce documented behavior."
+          },
+          "previous_handoff": {
+            "action": "evidence_request"
+          },
+          "decision": "Private compiler JSON and original gold outputs remain unknown. They are not required to test a separately labelled public-behavior replica. The schema and safe local adapter below are Replica design decisions, not claims about Delphi internals.",
+          "sources": [
+            {
+              "url": "https://www.delphi.ai/blog/delphi-in-sync",
+              "type": "official_documentation",
+              "excerpt": "",
+              "finding": "Official page re-opened: natural-language instructions build automations including tagging, follow-ups and alerts.",
+              "supports_field": "second_pass.preparation"
+            },
+            {
+              "url": "https://www.delphi.ai/blog/delphi-actions",
+              "type": "official_documentation",
+              "excerpt": "",
+              "finding": "Official page re-opened: contextual triggers, actions, optional confirmation and conversation continuity.",
+              "supports_field": "second_pass.preparation"
+            },
+            {
+              "url": "https://github.com/dagucloud/dagu",
+              "type": "official_documentation",
+              "excerpt": "",
+              "finding": "Dagu is a runnable single-binary workflow engine; current repository identifies GPL-3.0. Retain the engine and its observed version/license; do not replace it with a printed plan.",
+              "supports_field": "second_pass.preparation"
+            },
+            {
+              "url": "https://docs.dagu.sh/getting-started/quickstart",
+              "type": "official_documentation",
+              "excerpt": "",
+              "finding": "Use a scoped Dagu installation and actual workflow execution for the local sink.",
+              "supports_field": "second_pass.preparation"
+            }
+          ],
+          "unknowns": [
+            "Exact Delphi compiler representation",
+            "Original approval state machine, threshold and idempotency implementation",
+            "Direct original-product outputs"
+          ],
+          "local_policy": "Accept a supplied synthetic event and observed_at timestamp. Compile creator_instruction with the native model to a validated context/threshold trigger, recipient, action, approval, timing and frequency plan. Model-based semantic alerts must use event/conversation context. Only local_outbox message delivery and local user tag/property changes are enabled. A local confirmation gate must block delivery unless approval is approved. Missing essential instruction details produce needs_clarification with no execution. Log trigger and action separately; approved matches execute a Dagu workflow that writes the actual local sink. Event IDs prevent repeat delivery; scheduled future work remains scheduled. These are explicit Replica-owned safeguards, not inferred Delphi behavior.",
+          "original_research_sha256": "2050c360c36bb064b81949a98048e8e499c0b65650d0e4d02c2d9606eb50dfba",
+          "prepared_before_implementation": true
+        }
+      }
+    },
+    {
+      "id": "claim-003",
+      "slug": "creator-interview-to-mind-snippets",
+      "first_pass": {
+        "claim": "The Delphi Interviewer agent asks a creator questions, processes typed or spoken answers, generates follow-up topics and insight summaries, and saves the results as Mind training snippets.",
+        "sources": [
+          {
+            "url": "https://docs.delphi.ai/build/delphi-interview/the-delphi-interview",
+            "type": "official_help_documentation",
+            "excerpt": "The agent begins with a question under a topic heading. Each session includes multiple topics; new ones generate automatically based on your answers. When a topic reaches 100%, Delphi will generate a new topic and create a new insight—a short summary interpreting what your responses reveal about your perspective or process."
+          },
+          {
+            "url": "https://docs.delphi.ai/playbooks/build-your-delphi/overview",
+            "type": "official_playbook",
+            "excerpt": "Interview Sprint (Zero-to-One Content)—capture your knowledge by speaking; turn it into training data. Speak instead of write, then polish; your first good answers arrive quickly."
+          }
+        ],
+        "customer_basis": {
+          "delivery": "public_product",
+          "subject": "Delphi",
+          "audience": "creators building their Digital Mind",
+          "source_index": 1,
+          "quote": "When a topic reaches 100%, Delphi will generate a new topic and create a new insight—a short summary interpreting what your responses reveal about your perspective or process."
+        },
+        "ai_basis": {
+          "mechanism": "creator interview answers -> generated follow-up topic and perspective summary saved as training material",
+          "signals": [
+            "agent"
+          ],
+          "work_signals": [
+            "question"
+          ],
+          "source_index": 1,
+          "quote": "The agent begins with a question under a topic heading."
+        },
+        "workflow": {
+          "input": "a creator's typed or spoken interview answers",
+          "steps": [
+            {
+              "step": "the agent presents a question under a topic heading",
+              "source_index": 1
+            },
+            {
+              "step": "the creator types or speaks an answer",
+              "source_index": 1
+            },
+            {
+              "step": "Delphi generates follow-up topics and short insight summaries based on the answers",
+              "source_index": 1
+            },
+            {
+              "step": "completed interview data is saved as editable Mind training content",
+              "source_index": 1
+            }
+          ],
+          "output": "saved interview snippets containing generated topics and insight summaries for the creator's Mind"
+        },
+        "replication_leads": [
+          {
+            "kind": "output_format",
+            "source_index": 1,
+            "finding": "The page defines an insight as a short summary of what answers reveal about the creator's perspective or process."
+          },
+          {
+            "kind": "input_channel",
+            "source_index": 1,
+            "finding": "The Interviewer accepts typed or speech-to-text answers."
+          }
+        ],
+        "testable_claim": "Given a creator's interview answer, generate a relevant follow-up topic and a concise summary of the stated perspective without inventing facts, then return both as a training snippet.",
+        "routing": "commodity_task",
+        "merged_from": [
+          "official_surfaces-claim-003"
+        ]
+      },
+      "second_pass": {
+        "claim_id": "claim-003",
+        "slug": "creator-interview-to-mind-snippets",
+        "status": "confirmed",
+        "replicable": {
+          "value": true,
+          "reason": "Delphi publishes the whole customer-facing path: a creator answers a structured question by typing or speech-to-text, meaningful answers advance a topic, topic completion produces a new topic and a short insight about the creator's perspective or process, and the topic is saved as editable Mind interview content. The public pages also define useful failure and lifecycle boundaries. Aural provides an MIT-licensed, self-hostable interview workflow with adaptive follow-ups, summaries, persistence, tests, and local or commercial OpenAI-compatible model routes. A public-scope replica can therefore be built and evaluated with synthetic creator answers, while explicitly excluding Delphi's undisclosed topic-progress scoring, prompts, model choices, and Mind internals."
+        },
+        "workflow": {
+          "input": "a creator's typed or spoken interview answers",
+          "steps": [
+            {
+              "step": "the agent presents a question under a topic heading",
+              "source_index": 1
+            },
+            {
+              "step": "the creator types or speaks an answer",
+              "source_index": 1
+            },
+            {
+              "step": "Delphi generates follow-up topics and short insight summaries based on the answers",
+              "source_index": 1
+            },
+            {
+              "step": "completed interview data is saved as editable Mind training content",
+              "source_index": 1
+            }
+          ],
+          "output": "saved interview snippets containing generated topics and insight summaries for the creator's Mind",
+          "boundaries": {
+            "state": "stated",
+            "value": "The official documentation accepts typed or speech-to-text answers. Topic progress increases only for meaningful, context-rich answers; 'idk' and short replies do not count. At 100% topic completion, Delphi creates a new topic and a short insight interpreting the creator's perspective or process. Completed topics save to Mind > Interviews as editable snippets; content with greater than 0% progress is preserved on exit or connection loss; sessions may continue indefinitely, while an inactive session cookie expires after eight days. Delphi does not publish the progress-scoring formula, minimum answer length, prompt, model, follow-up selection policy, insight schema, or deduplication behavior. Access statements conflict: the same help page says both all tiers and early-access-only, while the product announcement says all paid plans.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/build/delphi-interview/the-delphi-interview",
+                "type": "official_help_documentation",
+                "excerpt": "Progress only increases when you give meaningful, context-rich answers.",
+                "finding": "Defines input channels, progress criteria, completion outputs, persistence, editability, and session lifecycle conditions.",
+                "supports_field": "workflow.boundaries"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/interview-mode",
+                "type": "official_feature_announcement",
+                "excerpt": "Interview Mode is available today on all paid plans.",
+                "finding": "Supplies a dated public availability statement that conflicts with parts of the help page.",
+                "supports_field": "workflow.boundaries"
+              }
+            ]
+          }
+        },
+        "findings": {
+          "evidence": {
+            "state": "filled",
+            "note": "The official help page directly supports each workflow stage and the final creator-delivered artifact. The official Interview Sprint supplies realistic creator topics and a 60-90 minute operating recipe, and the dated product announcement independently confirms the question-answer training workflow on Delphi's own site. No independent customer deployment or original output pair was found in the claim-scoped search. Limitations are explicit: topic progress, follow-up selection, and insight generation are described behaviorally but not algorithmically.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/build/delphi-interview/the-delphi-interview",
+                "type": "official_help_documentation",
+                "excerpt": "Each topic appears as a snippet under Interviews.",
+                "finding": "Directly supports the guided-question, answer-processing, generated-topic, insight, and saved-snippet workflow.",
+                "supports_field": "findings.evidence"
+              },
+              {
+                "url": "https://docs.delphi.ai/playbooks/build-your-delphi/interview-sprint-zero-to-one-content",
+                "type": "official_playbook",
+                "excerpt": "Capture your knowledge by speaking and turn it into training data.",
+                "finding": "Confirms the creator-facing outcome and provides a realistic workflow for principles, how-tos, stories, and FAQs.",
+                "supports_field": "findings.evidence"
+              },
+              {
+                "url": "https://www.delphi.ai/blog/interview-mode",
+                "type": "official_feature_announcement",
+                "excerpt": "We ask questions that help capture the way you think and what you know.",
+                "finding": "Confirms that creator answers are used to grow the Digital Mind and that creators may choose custom topics.",
+                "supports_field": "findings.evidence"
+              }
+            ]
+          },
+          "datasets_apis": {
+            "state": "filled",
+            "note": "The Interview Sprint publishes a small but usable seed set of input categories and prompt templates: principles, how-tos, stories, and FAQ lightning rounds. These are sufficient to construct synthetic, non-personal test answers. Delphi's v3 API publicly exposes conversations, questions, tags, and usage, but not Interviewer sessions, topic progress, insight creation, or Mind-content writes, so it cannot execute or inspect the original workflow. Aural fills the build-side API gap with open REST endpoints for interviews, questions, and sessions plus AI routes for chat, follow-ups, and summarization. No public Delphi interview dataset, gold topic/insight pairs, or machine-readable snippet schema was found.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/playbooks/build-your-delphi/interview-sprint-zero-to-one-content",
+                "type": "official_input_recipe",
+                "excerpt": "Principles, How-tos/checklists, Stories, FAQ lightning round.",
+                "finding": "Provides public input categories and question templates that can seed synthetic test fixtures.",
+                "supports_field": "findings.datasets_apis"
+              },
+              {
+                "url": "https://docs.delphi.ai/launch/integrations/overview/api",
+                "type": "official_api_documentation",
+                "excerpt": "Available endpoints: Conversations, Questions, Tags, Usage.",
+                "finding": "Shows that the published Delphi API does not expose Interviewer or Mind snippet authoring endpoints.",
+                "supports_field": "findings.datasets_apis"
+              },
+              {
+                "url": "https://github.com/1146345502/aural-oss",
+                "type": "official_open_source_repository",
+                "excerpt": "Full REST API for programmatic interview management.",
+                "finding": "Provides public interview, question, session, follow-up, and summarization interfaces for a replica implementation.",
+                "supports_field": "findings.datasets_apis"
+              }
+            ]
+          },
+          "oss_papers_patents": {
+            "state": "filled",
+            "note": "Aural is a close public implementation analogue: it is an MIT-licensed, self-hostable AI interview platform supporting chat and voice, adaptive follow-ups, session analysis, persistence, an OpenAPI-described developer API, and a pluggable provider layer that accepts commercial providers or a local OpenAI-compatible endpoint such as Ollama. Its hiring and research orientation differs from Delphi's creator-training goal, so the replica must replace Aural's assessment/report framing with a creator-perspective insight prompt and a simple Interview-snippet adapter. No Delphi-owned OSS, paper, patent, prompt, model, or weights for Interviewer were found.",
+            "sources": [
+              {
+                "url": "https://github.com/1146345502/aural-oss",
+                "type": "official_open_source_repository",
+                "excerpt": "asking questions, probing with follow-ups, and generating detailed analysis",
+                "finding": "Supplies the adaptable interview loop, typed/voice channels, persistence, tests, provider abstraction, and MIT license.",
+                "supports_field": "findings.oss_papers_patents"
+              }
+            ]
+          },
+          "eval_assets": {
+            "state": "filled",
+            "note": "Delphi publishes behavioral checks rather than a benchmark: meaningful, context-rich answers advance progress; 'idk' or short replies do not; a completed topic yields a new topic and a short insight interpreting perspective or process; and saved items appear as editable Interview snippets. The Interview Sprint adds a verification step to confirm snippets appear in Mind and advises re-recording rambling answers around a lead-example-takeaway structure. These rules support normal, multi-theme boundary, and insufficient-information tests. Because no original answer-to-insight examples or scoring rubric are public, fidelity is judged against frozen synthetic reference facts, not against Delphi output style or exact wording.",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/build/delphi-interview/the-delphi-interview",
+                "type": "official_behavioral_evaluation_guidance",
+                "excerpt": "saying 'idk' or short replies will not count",
+                "finding": "Defines an explicit insufficient-information behavior and the required topic-plus-insight completion output.",
+                "supports_field": "findings.eval_assets"
+              },
+              {
+                "url": "https://docs.delphi.ai/playbooks/build-your-delphi/interview-sprint-zero-to-one-content",
+                "type": "official_operational_checklist",
+                "excerpt": "End the interview; confirm snippets appear in Mind.",
+                "finding": "Provides a saved-output verification step and public prompt categories for test cases.",
+                "supports_field": "findings.eval_assets"
+              }
+            ]
+          },
+          "access_license": {
+            "state": "filled",
+            "note": "The November 2025 feature announcement says Interview Mode is available on all paid plans. The current help page is internally inconsistent: its audience section says early-access users and all tiers, while its FAQ says early-access users only. The public pricing page lists Free, Builder, Scaler, and Immortal plans but does not enumerate Interview Mode. Therefore original-product access is not stable enough to be a test dependency. The replication contract instead uses synthetic inputs and Aural, whose repository states an MIT license; local deployment requires Node.js, Supabase, and at least one OpenAI-compatible model endpoint, with optional paid voice credentials.",
+            "sources": [
+              {
+                "url": "https://www.delphi.ai/blog/interview-mode",
+                "type": "official_feature_announcement",
+                "excerpt": "available today on all paid plans",
+                "finding": "Provides the clearest dated access statement for the original product.",
+                "supports_field": "findings.access_license"
+              },
+              {
+                "url": "https://www.delphi.ai/pricing",
+                "type": "official_pricing_page",
+                "excerpt": "Free, Builder, Scaler, Immortal",
+                "finding": "Lists current plan names and pricing but does not specify Interview Mode entitlement.",
+                "supports_field": "findings.access_license"
+              },
+              {
+                "url": "https://github.com/1146345502/aural-oss",
+                "type": "official_open_source_repository",
+                "excerpt": "This project is licensed under the MIT License.",
+                "finding": "Supports a redistributable self-hosted base and documents required infrastructure and optional paid providers.",
+                "supports_field": "findings.access_license"
+              }
+            ]
+          },
+          "impl_path": {
+            "state": "filled",
+            "note": "Use Aural's session, follow-up, summary, persistence, and provider layers as the runtime. Replace its interview-assessment prompt with a creator-discovery contract that receives current_topic, active_question, answer, and input_channel. First run a deterministic sufficiency gate that rejects empty, 'idk', and unsupported one-line answers. For sufficient answers, ask the model for a relevant unexplored follow-up topic and a one-to-two-sentence insight containing only answer-supported perspective or process facts, validate a typed JSON result, and save it to a local Interviews collection with the source answer. Speech-to-text is an optional adapter because the same workflow accepts typed input. Two viable paths remain: a local OpenAI-compatible model through Ollama, or a commercial model API. Both reproduce the public behavior but not Delphi's hidden 0-100% progress score, prompts, model, or Mind training internals.\nSelected Second-pass alternate: Validate required fields. Use a real native-model call to assess answer sufficiency and generate an unexplored, answer-grounded follow-up and concise insight for sufficient text. A deterministic empty/idk guard may reject obvious insufficient input, but a word-count heuristic cannot decide meaningful answers. Validate structured model output; persist the verbatim source and generated fields transactionally in SQLite; read back by ID and expose immutable per-call snapshot and the database as file evidence. Preserve process state across requests. No stub, fixed insight or company/test special case.",
+            "sources": [
+              {
+                "url": "https://github.com/1146345502/aural-oss",
+                "type": "official_open_source_repository",
+                "excerpt": "Chat interviewing ... asks questions, generates follow-ups, adapts tone.",
+                "finding": "Provides the executable interview loop, model registry, session store, API routes, and local-model option.",
+                "supports_field": "findings.impl_path"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/delphi-interview/the-delphi-interview",
+                "type": "official_workflow_documentation",
+                "excerpt": "Create a new insight - a short summary",
+                "finding": "Defines the target creator-facing transformation and local persistence behavior for the adapter.",
+                "supports_field": "findings.impl_path"
+              },
+              {
+                "url": "https://docs.delphi.ai/build/content/mind/manage-content-table",
+                "type": "official_content_documentation",
+                "excerpt": "Snippet (Q&A or Text Note)",
+                "finding": "Provides the closest public description of the saved Mind item type and its editable metadata surface.",
+                "supports_field": "findings.impl_path"
+              }
+            ]
+          }
+        },
+        "readiness": {
+          "status": "ready",
+          "reasons": "Second-pass selects the native-model plus SQLite alternate with the original behavioral criteria unchanged; it avoids deployment dependencies that are not part of the frozen customer function while preserving real generation and retrievable persistence. Original-product equivalence and private internals remain unverified."
+        },
+        "handoff": {
+          "action": "build",
+          "selected_scenario_id": "s-native-sqlite",
+          "selection_reason": "Second-pass selects the native-model plus SQLite alternate with the original behavioral criteria unchanged; it avoids deployment dependencies that are not part of the frozen customer function while preserving real generation and retrievable persistence.",
+          "experiment_budget": {
+            "time_limit_seconds": 5400,
+            "cost_limit": null,
+            "stop_on_blocked": true
+          }
+        },
+        "replication_contract": [
+          {
+            "id": "s-01",
+            "self_sufficiency": "oss_only",
+            "boundaries": "Use synthetic English text inputs. Treat an answer as sufficient only when it states at least one concrete belief, reason, process, example, or constraint. Empty answers, 'idk', and fact-free short replies return needs_more_information and create no completed snippet. For sufficient answers, create one grounded follow-up topic and one concise perspective/process insight, then persist a replica-owned snippet. These conditions implement Delphi's published behavioral boundaries without reproducing its hidden progress percentage.",
+            "boundaries_origin": "company",
+            "input": "A UTF-8 JSON object with current_topic, active_question, answer, and input_channel='text'. Inputs are synthetic creator statements derived from the public Interview Sprint categories; no Delphi or customer data is required. Run Aural self-hosted with local Supabase and an OpenAI-compatible local model endpoint such as Ollama.",
+            "output": "A UTF-8 JSON object with status ('snippet_created' or 'needs_more_information'), follow_up_topic (string or null), insight_summary (one or two sentences or null), source_answer (verbatim input answer), and saved_record_id (string or null). A created record is stored in a replica-owned Interviews collection. This is a Replica schema, not a published Delphi schema.",
+            "acceptance_criteria": [
+              "The output is valid JSON with every declared field and a status consistent with the answer sufficiency decision.",
+              "For a sufficient answer, follow_up_topic is relevant to the current topic and opens an answer-grounded dimension not already fully stated.",
+              "For a sufficient answer, insight_summary is concise and every factual assertion is entailed by source_answer; it must not add biography, outcomes, preferences, or reasons absent from the answer.",
+              "For an insufficient answer, status is needs_more_information, both generated fields and saved_record_id are null, and no completed snippet is persisted.",
+              "For a created snippet, source_answer is preserved verbatim and the persisted record can be retrieved by saved_record_id."
+            ],
+            "out_of_scope": [
+              "Matching Delphi's undisclosed 0-100% topic-progress formula or completion threshold",
+              "Matching Delphi's private prompts, model, exact topic titles, exact insight wording, or latency",
+              "Training or updating a real Delphi Digital Mind",
+              "Original-product voice quality, speech recognition, cookies, access groups, or account entitlements",
+              "Claiming public-scope behavioral reproduction is original-product equivalence"
+            ],
+            "evidence_level": "public",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/build/delphi-interview/the-delphi-interview",
+                "type": "official_help_documentation",
+                "excerpt": "new ones generate automatically based on your answers",
+                "finding": "Defines the target question, follow-up-topic, insight, sufficiency, and persistence behavior.",
+                "supports_field": "replication_contract.s-01"
+              },
+              {
+                "url": "https://docs.delphi.ai/playbooks/build-your-delphi/interview-sprint-zero-to-one-content",
+                "type": "official_input_recipe",
+                "excerpt": "Use the prompt library below.",
+                "finding": "Provides public input categories from which synthetic cases are derived.",
+                "supports_field": "replication_contract.s-01"
+              },
+              {
+                "url": "https://github.com/1146345502/aural-oss",
+                "type": "official_open_source_repository",
+                "excerpt": "or any OpenAI-compatible API",
+                "finding": "Provides the MIT-licensed interview runtime and local-model route.",
+                "supports_field": "replication_contract.s-01"
+              }
+            ],
+            "tests": [
+              {
+                "id": "normal",
+                "input": "{\"current_topic\":\"Design critique philosophy\",\"active_question\":\"How do you decide what feedback matters first?\",\"answer\":\"I first ask who the user is and what job they are trying to do. I prioritize usability problems that block that job before visual polish, and I finish with one concrete next step.\",\"input_channel\":\"text\"}",
+                "expected_behavior": "Return snippet_created, preserve the answer verbatim, generate a follow-up topic about how blocking usability issues are identified or prioritized, and produce a concise insight stating that the creator anchors critique in user goals, prioritizes blocking usability over polish, and ends with a concrete next step. Persist exactly one retrievable record.",
+                "reference_facts": [
+                  "The creator first identifies the user and the user's job.",
+                  "Blocking usability problems are prioritized before visual polish.",
+                  "The critique ends with one concrete next step."
+                ]
+              },
+              {
+                "id": "boundary",
+                "input": "{\"current_topic\":\"Teaching beginners\",\"active_question\":\"How do you teach a difficult idea?\",\"answer\":\"I usually start with an analogy, but I stop using it when it hides an important exception. Then I show one worked example. I care more about the learner explaining the tradeoff back to me than repeating my words.\",\"input_channel\":\"text\"}",
+                "expected_behavior": "Return snippet_created. The follow-up topic must select a grounded unexplored dimension such as recognizing when an analogy fails or checking whether a learner understands a tradeoff. The insight must preserve the tension between using analogies and abandoning misleading ones, include the worked example or teach-back preference, and invent no learner outcome or biography.",
+                "reference_facts": [
+                  "The creator begins with an analogy.",
+                  "The creator stops using an analogy when it hides an important exception.",
+                  "The creator then shows one worked example.",
+                  "The creator values explaining the tradeoff over repeating exact words."
+                ]
+              },
+              {
+                "id": "insufficient-information",
+                "input": "{\"current_topic\":\"Leadership\",\"active_question\":\"What principle guides a hard decision?\",\"answer\":\"idk\",\"input_channel\":\"text\"}",
+                "expected_behavior": "Return needs_more_information with a concise request for a concrete belief, reason, process, example, or constraint; set follow_up_topic, insight_summary, and saved_record_id to null; preserve source_answer as 'idk'; and persist no completed snippet.",
+                "reference_facts": [
+                  "The answer supplies no leadership principle or supporting detail.",
+                  "Delphi's public documentation says 'idk' and short replies do not advance topic progress."
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s-02",
+            "self_sufficiency": "commercial_api",
+            "boundaries": "Use the same published sufficiency and persistence conditions as s-01, but run Aural with one supported commercial model provider. Require typed structured output, retry only invalid JSON once, and reject any generated fact not entailed by the source answer. Voice remains optional and is not needed for the frozen tests.",
+            "boundaries_origin": "company",
+            "input": "The same UTF-8 JSON fixtures as s-01. Run Aural self-hosted with local Supabase and a configured commercial provider supported by its provider registry, such as OpenAI or Gemini. No Delphi account, API, or private data is used.",
+            "output": "The same Replica-owned JSON and local Interviews-record format as s-01: status, follow_up_topic, insight_summary, source_answer, and saved_record_id. Exact wording may differ, but required facts and abstention behavior are frozen.",
+            "acceptance_criteria": [
+              "All s-01 schema, grounding, sufficiency, and persistence criteria pass unchanged.",
+              "Provider output is normalized to the frozen JSON schema and invalid JSON receives at most one format-repair retry.",
+              "Expected behavior is judged from frozen reference facts, not semantic similarity to any unavailable Delphi output."
+            ],
+            "out_of_scope": [
+              "Comparing commercial providers to Delphi's undisclosed model",
+              "Matching exact prose, topic-progress scores, latency, or cost",
+              "Voice relay credentials and speech-to-speech behavior",
+              "Using a real creator's private interview data",
+              "Claiming the commercial route is Delphi-equivalent"
+            ],
+            "evidence_level": "public",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/build/delphi-interview/the-delphi-interview",
+                "type": "official_help_documentation",
+                "excerpt": "a short summary interpreting what your responses reveal",
+                "finding": "Defines the grounded insight target and the insufficient-answer boundary.",
+                "supports_field": "replication_contract.s-02"
+              },
+              {
+                "url": "https://github.com/1146345502/aural-oss",
+                "type": "official_open_source_repository",
+                "excerpt": "OpenAI, Gemini, Moonshot Kimi, MiniMax",
+                "finding": "Documents the commercial provider route and the shared interview, follow-up, report, and persistence layers.",
+                "supports_field": "replication_contract.s-02"
+              }
+            ],
+            "tests": [
+              {
+                "id": "normal",
+                "input": "{\"current_topic\":\"Design critique philosophy\",\"active_question\":\"How do you decide what feedback matters first?\",\"answer\":\"I first ask who the user is and what job they are trying to do. I prioritize usability problems that block that job before visual polish, and I finish with one concrete next step.\",\"input_channel\":\"text\"}",
+                "expected_behavior": "Return snippet_created with one grounded follow-up topic, a concise insight containing all three frozen facts and no unsupported fact, the verbatim answer, and one retrievable persisted record.",
+                "reference_facts": [
+                  "The creator first identifies the user and the user's job.",
+                  "Blocking usability problems are prioritized before visual polish.",
+                  "The critique ends with one concrete next step."
+                ]
+              },
+              {
+                "id": "boundary",
+                "input": "{\"current_topic\":\"Teaching beginners\",\"active_question\":\"How do you teach a difficult idea?\",\"answer\":\"I usually start with an analogy, but I stop using it when it hides an important exception. Then I show one worked example. I care more about the learner explaining the tradeoff back to me than repeating my words.\",\"input_channel\":\"text\"}",
+                "expected_behavior": "Return snippet_created; choose one grounded follow-up dimension; preserve the analogy-versus-exception nuance and the worked-example or teach-back preference; do not add achievements, learner results, or personal history; persist one record.",
+                "reference_facts": [
+                  "The creator begins with an analogy.",
+                  "The creator stops using it when it hides an important exception.",
+                  "The creator shows one worked example.",
+                  "The creator prefers tradeoff teach-back over verbatim repetition."
+                ]
+              },
+              {
+                "id": "insufficient-information",
+                "input": "{\"current_topic\":\"Leadership\",\"active_question\":\"What principle guides a hard decision?\",\"answer\":\"idk\",\"input_channel\":\"text\"}",
+                "expected_behavior": "Return needs_more_information; create no follow-up topic, insight, saved ID, or completed record; preserve the answer and request a concrete detail without inventing a leadership principle.",
+                "reference_facts": [
+                  "No leadership principle is present.",
+                  "The documented product does not advance progress for 'idk' or short replies."
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s-native-sqlite",
+            "self_sufficiency": "commercial_api",
+            "boundaries": "Use synthetic English text inputs. Treat an answer as sufficient only when it states at least one concrete belief, reason, process, example, or constraint. Empty answers, 'idk', and fact-free short replies return needs_more_information and create no completed snippet. For sufficient answers, create one grounded follow-up topic and one concise perspective/process insight, then persist a replica-owned snippet. These conditions implement Delphi's published behavioral boundaries without reproducing its hidden progress percentage.",
+            "boundaries_origin": "company",
+            "input": "UTF-8 JSON with current_topic, active_question, answer, input_channel=text, and optional record_id for read-only retrieval. Use actual native Codex model generation and Python sqlite3 persistence. Do not require Aural, Docker, Supabase or a separate API key for this selected alternate scenario.",
+            "output": "A UTF-8 JSON object with status ('snippet_created' or 'needs_more_information'), follow_up_topic (string or null), insight_summary (one or two sentences or null), source_answer (verbatim input answer), and saved_record_id (string or null). A created record is stored in a replica-owned Interviews collection. This is a Replica schema, not a published Delphi schema. Also return database_file (relative SQLite path), storage_snapshot (relative JSON path read from the persisted database), and persisted_record (the record read back by saved_record_id, or null). An optional record_id request reads that stored record without model generation. No completed snippet may be inserted for insufficient answers.",
+            "acceptance_criteria": [
+              "The output is valid JSON with every declared field and a status consistent with the answer sufficiency decision.",
+              "For a sufficient answer, follow_up_topic is relevant to the current topic and opens an answer-grounded dimension not already fully stated.",
+              "For a sufficient answer, insight_summary is concise and every factual assertion is entailed by source_answer; it must not add biography, outcomes, preferences, or reasons absent from the answer.",
+              "For an insufficient answer, status is needs_more_information, both generated fields and saved_record_id are null, and no completed snippet is persisted.",
+              "For a created snippet, source_answer is preserved verbatim and the persisted record can be retrieved by saved_record_id."
+            ],
+            "out_of_scope": [
+              "Matching Delphi's undisclosed 0-100% topic-progress formula or completion threshold",
+              "Matching Delphi's private prompts, model, exact topic titles, exact insight wording, or latency",
+              "Training or updating a real Delphi Digital Mind",
+              "Original-product voice quality, speech recognition, cookies, access groups, or account entitlements",
+              "Claiming public-scope behavioral reproduction is original-product equivalence"
+            ],
+            "evidence_level": "public",
+            "sources": [
+              {
+                "url": "https://docs.delphi.ai/build/delphi-interview/the-delphi-interview",
+                "type": "official_help_documentation",
+                "excerpt": "new ones generate automatically based on your answers",
+                "finding": "Defines the target question, follow-up-topic, insight, sufficiency, and persistence behavior.",
+                "supports_field": "replication_contract.s-01"
+              },
+              {
+                "url": "https://docs.delphi.ai/playbooks/build-your-delphi/interview-sprint-zero-to-one-content",
+                "type": "official_input_recipe",
+                "excerpt": "Use the prompt library below.",
+                "finding": "Provides public input categories from which synthetic cases are derived.",
+                "supports_field": "replication_contract.s-01"
+              },
+              {
+                "url": "https://github.com/1146345502/aural-oss",
+                "type": "official_open_source_repository",
+                "excerpt": "or any OpenAI-compatible API",
+                "finding": "Provides the MIT-licensed interview runtime and local-model route.",
+                "supports_field": "replication_contract.s-01"
+              },
+              {
+                "url": "https://docs.python.org/3/library/sqlite3.html",
+                "type": "official_documentation",
+                "excerpt": "",
+                "finding": "SQLite provides real local transactional persistence without a separate database server; selected here by Second-pass preparation.",
+                "supports_field": "second_pass.preparation"
+              }
+            ],
+            "tests": [
+              {
+                "id": "normal",
+                "input": {
+                  "current_topic": "Design critique philosophy",
+                  "active_question": "How do you decide what feedback matters first?",
+                  "answer": "I first ask who the user is and what job they are trying to do. I prioritize usability problems that block that job before visual polish, and I finish with one concrete next step.",
+                  "input_channel": "text"
+                },
+                "expected_behavior": "Return snippet_created, preserve the answer verbatim, generate a follow-up topic about how blocking usability issues are identified or prioritized, and produce a concise insight stating that the creator anchors critique in user goals, prioritizes blocking usability over polish, and ends with a concrete next step. Persist exactly one retrievable record.",
+                "reference_facts": [
+                  "The creator first identifies the user and the user's job.",
+                  "Blocking usability problems are prioritized before visual polish.",
+                  "The critique ends with one concrete next step."
+                ],
+                "kind": "normal"
+              },
+              {
+                "id": "boundary",
+                "input": {
+                  "current_topic": "Teaching beginners",
+                  "active_question": "How do you teach a difficult idea?",
+                  "answer": "I usually start with an analogy, but I stop using it when it hides an important exception. Then I show one worked example. I care more about the learner explaining the tradeoff back to me than repeating my words.",
+                  "input_channel": "text"
+                },
+                "expected_behavior": "Return snippet_created. The follow-up topic must select a grounded unexplored dimension such as recognizing when an analogy fails or checking whether a learner understands a tradeoff. The insight must preserve the tension between using analogies and abandoning misleading ones, include the worked example or teach-back preference, and invent no learner outcome or biography.",
+                "reference_facts": [
+                  "The creator begins with an analogy.",
+                  "The creator stops using an analogy when it hides an important exception.",
+                  "The creator then shows one worked example.",
+                  "The creator values explaining the tradeoff over repeating exact words."
+                ],
+                "kind": "boundary"
+              },
+              {
+                "id": "insufficient-information",
+                "input": {
+                  "current_topic": "Leadership",
+                  "active_question": "What principle guides a hard decision?",
+                  "answer": "idk",
+                  "input_channel": "text"
+                },
+                "expected_behavior": "Return needs_more_information with a concise request for a concrete belief, reason, process, example, or constraint; set follow_up_topic, insight_summary, and saved_record_id to null; preserve source_answer as 'idk'; and persist no completed snippet.",
+                "reference_facts": [
+                  "The answer supplies no leadership principle or supporting detail.",
+                  "Delphi's public documentation says 'idk' and short replies do not advance topic progress."
+                ],
+                "kind": "insufficient_information"
+              }
+            ],
+            "evaluation": {
+              "runtime": {
+                "transport": "http_json",
+                "endpoint": "/run",
+                "port_argument": "--port"
+              },
+              "repeat_policy": "contract",
+              "timeout_seconds": 180,
+              "budget": {
+                "time_limit_seconds": 2400,
+                "cost_limit": null,
+                "stop_on_blocked": true
+              },
+              "case_checks": {
+                "normal": {
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-003",
+                    "criterion-005"
+                  ],
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "snippet_created"
+                    }
+                  ]
+                },
+                "boundary": {
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-003",
+                    "criterion-005"
+                  ],
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "snippet_created"
+                    }
+                  ]
+                },
+                "insufficient-information": {
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-004"
+                  ],
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "needs_more_information"
+                    },
+                    {
+                      "type": "equals",
+                      "path": [
+                        "saved_record_id"
+                      ],
+                      "value": null
+                    }
+                  ]
+                }
+              },
+              "additional_cases": [
+                {
+                  "id": "novel-tradeoffs",
+                  "kind": "novel",
+                  "input": {
+                    "current_topic": "Community logistics",
+                    "active_question": "How do you allocate scarce shared tools?",
+                    "answer": "I reserve repair tools first for jobs that restore water or heating. Cosmetic repairs wait. If two urgent jobs compete, I choose the one with fewer alternatives, and I publish the reason so volunteers can challenge it.",
+                    "input_channel": "text"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "snippet_created"
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "Preserve urgency over cosmetics, fewer alternatives as a tie-breaker, and public challenge of reasons. Ask an answer-grounded unexplored follow-up, without invented results. Inspect the persisted record and actual SQLite evidence."
+                  ],
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-003",
+                    "criterion-005"
+                  ],
+                  "novelty": {
+                    "difference": "Multiple prioritized conditions, a tie-breaker and accountability in a new domain; not a name substitution.",
+                    "development_inputs": [
+                      {
+                        "current_topic": "Cooking lessons",
+                        "active_question": "What do you teach first?",
+                        "answer": "I teach learners to taste before adding salt. We compare a small unsalted spoonful with a lightly salted one so they can describe the difference.",
+                        "input_channel": "text"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "paraphrased-answer",
+                  "kind": "metamorphic",
+                  "input": {
+                    "current_topic": "Design critique philosophy",
+                    "active_question": "How do you decide what feedback matters first?",
+                    "answer": "Before visual polish I tackle usability barriers to the user’s job. I begin by identifying the user and that job, and end with a single actionable next step.",
+                    "input_channel": "text"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "snippet_created"
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "The paraphrase remains sufficient and preserves user goals, usability before polish and one next step; persist the actual paraphrased source verbatim."
+                  ],
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-002",
+                    "criterion-003",
+                    "criterion-005"
+                  ],
+                  "metamorphic": {
+                    "case_id": "normal",
+                    "relation": "equal",
+                    "path": [
+                      "status"
+                    ],
+                    "reason": "Meaning-preserving paraphrase retains snippet creation."
+                  }
+                },
+                {
+                  "id": "removed-information",
+                  "kind": "metamorphic",
+                  "input": {
+                    "current_topic": "Design critique philosophy",
+                    "active_question": "How do you decide what feedback matters first?",
+                    "answer": "idk",
+                    "input_channel": "text"
+                  },
+                  "deterministic_assertions": [
+                    {
+                      "type": "equals",
+                      "path": [
+                        "status"
+                      ],
+                      "value": "needs_more_information"
+                    },
+                    {
+                      "type": "equals",
+                      "path": [
+                        "saved_record_id"
+                      ],
+                      "value": null
+                    }
+                  ],
+                  "semantic_criteria": [
+                    "No completed record is inserted after the concrete rationale is removed. Do not recycle an earlier insight."
+                  ],
+                  "criterion_ids": [
+                    "criterion-001",
+                    "criterion-004"
+                  ],
+                  "metamorphic": {
+                    "case_id": "normal",
+                    "relation": "different",
+                    "path": [
+                      "status"
+                    ],
+                    "reason": "Removing all substantive information reverses the sufficiency decision."
+                  }
+                }
+              ],
+              "public_examples": [
+                {
+                  "input": {
+                    "current_topic": "Cooking lessons",
+                    "active_question": "What do you teach first?",
+                    "answer": "I teach learners to taste before adding salt. We compare a small unsalted spoonful with a lightly salted one so they can describe the difference.",
+                    "input_channel": "text"
+                  },
+                  "description": "Public cooking lesson answer with separate facts and topic."
+                }
+              ],
+              "assets": [],
+              "output_artifacts": [
+                {
+                  "path": [
+                    "database_file"
+                  ],
+                  "media_type": "application/vnd.sqlite3"
+                },
+                {
+                  "path": [
+                    "storage_snapshot"
+                  ],
+                  "media_type": "application/json"
+                }
+              ]
+            }
+          }
+        ],
+        "brief": {
+          "search_names": [
+            "Delphi Interviewer",
+            "Delphi Interview",
+            "Interview Sprint",
+            "Mind Interviews",
+            "agent",
+            "question"
+          ],
+          "names_source": "derived+checkpoint",
+          "routing": [
+            "commodity_task",
+            "workflow_orchestration"
+          ],
+          "routing_raw": "commodity_task",
+          "bucket_depth": {
+            "evidence": "deep",
+            "datasets_apis": "deep",
+            "oss_papers_patents": "deep",
+            "eval_assets": "shallow",
+            "access_license": "shallow",
+            "impl_path": "deep"
+          }
+        },
+        "run": {
+          "completed_at": "2026-08-11T16:01:44.6665427+09:00",
+          "fragment": "second_pass/creator-interview-to-mind-snippets.json"
+        },
+        "preparation": {
+          "previous_selected_scenario": "s-01",
+          "decision": "Aural/Supabase paths remain intact. The selected new scenario reproduces the same public text transformation, answer-conditioned follow-up, grounded insight and retrievable storage via native model plus SQLite; Aural is a researched reference, not claimed as an executed dependency in this alternate path. Deployment infrastructure is an implementation alternative selected in Second pass, not an Operator simplification.",
+          "sources": [
+            {
+              "url": "https://www.delphi.ai/blog/interview-mode",
+              "type": "official_documentation",
+              "excerpt": "",
+              "finding": "Official page re-opened: creators answer questions on supplied/custom topics to capture their knowledge.",
+              "supports_field": "second_pass.preparation"
+            },
+            {
+              "url": "https://github.com/1146345502/aural-oss",
+              "type": "official_documentation",
+              "excerpt": "",
+              "finding": "MIT interview reference re-opened; its hosted infrastructure is not required by Delphi public behavior.",
+              "supports_field": "second_pass.preparation"
+            },
+            {
+              "url": "https://docs.python.org/3/library/sqlite3.html",
+              "type": "official_documentation",
+              "excerpt": "",
+              "finding": "Documented local storage, transactions, SELECT and insert/readback suffice for the frozen persistence requirement.",
+              "supports_field": "second_pass.preparation"
+            }
+          ],
+          "selected_impl_path": "Validate required fields. Use a real native-model call to assess answer sufficiency and generate an unexplored, answer-grounded follow-up and concise insight for sufficient text. A deterministic empty/idk guard may reject obvious insufficient input, but a word-count heuristic cannot decide meaningful answers. Validate structured model output; persist the verbatim source and generated fields transactionally in SQLite; read back by ID and expose immutable per-call snapshot and the database as file evidence. Preserve process state across requests. No stub, fixed insight or company/test special case.",
+          "original_research_sha256": "2050c360c36bb064b81949a98048e8e499c0b65650d0e4d02c2d9606eb50dfba",
+          "prepared_before_implementation": true
+        }
+      }
+    }
+  ],
+  "deferred_resolutions": [
+    {
+      "deferred_id": "official_surfaces-deferred-001",
+      "decision": "attached_to_claim",
+      "target_id": "claim-001",
+      "rationale": "The founder's grandfather example is an early instance of the same Digital Mind conversational workflow, not a separate customer-delivered feature."
+    },
+    {
+      "deferred_id": "engineering_blog-deferred-001",
+      "decision": "excluded",
+      "rationale": "Delphi Insights is described as analytics work, but the reviewed source does not directly attribute that work to AI machinery."
+    },
+    {
+      "deferred_id": "discovered_names-deferred-001",
+      "decision": "attached_to_claim",
+      "target_id": "claim-001",
+      "rationale": "Clone Brain, the AI-first search engine, and the agent mesh are documented implementation mechanisms inside the broader Digital Mind conversation workflow."
+    }
+  ],
+  "summary": {
+    "candidate_count": 3,
+    "excluded_count": 16,
+    "deferred_count": 3,
+    "resolved_deferred_count": 3,
+    "ready_count": 2,
+    "partial_count": 1,
+    "blocked_count": 0,
+    "next_step": "build_ready_claims"
+  }
+}

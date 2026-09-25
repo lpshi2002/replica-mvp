@@ -93,7 +93,7 @@ class BundleEvaluationTest(unittest.TestCase):
             binary = root / "dagu"
             binary.write_text(f"#!{sys.executable}\nimport sys\nassert sys.argv[1:] == ['version']\nprint('dagu v2.16.2')\n")
             binary.chmod(0o755)
-            manifest = {"command": [sys.executable], "dependencies": [
+            manifest = {"command": [sys.executable], "environment_variables": [], "dependencies": [
                 {"name": "Python sqlite3", "version": sys.version.split()[0]},
                 {"name": "sqlite3", "version": sqlite3.sqlite_version},
                 {"name": "dagu", "version": "2.16.2"}]}
@@ -587,6 +587,50 @@ json.dump({'value': v['x'] * 2, 'calls': count}, sys.stdout)
             research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]["additional_cases"][0]["kind"] = "negative"
             with self.assertRaisesRegex(ValueError, "kind must be one of"):
                 prepare_agent_harness(research, Path(tmp) / "run", replica_agent_id="agent", parent_agent_id="root")
+
+    def test_state_directory_resumes_a_published_bundle_across_calls(self):
+        import os
+        source = """import json, os, sys
+from pathlib import Path
+v = json.load(sys.stdin)
+state = Path('calls.txt')
+count = int(state.read_text()) + 1 if state.exists() else 1
+state.write_text(str(count))
+json.dump({'value': v['x'] * 2, 'calls': count, 'secret': os.environ.get('REPLICA_TEST_SECRET')}, sys.stdout)
+"""
+        with TemporaryDirectory() as tmp, patch.dict(os.environ, {"REPLICA_TEST_SECRET": "ambient"}):
+            registry = _bound_bundle(Path(tmp) / "run", source=source)
+            result = evaluate_agent_bundle(registry, "claim-001", semantic_judge=_fixture_judge)
+            public = registry.parent / result["claims"][0]["final_result"]["public_run_dir"]
+            # Undeclared ambient variables never reach generated code.
+            self.assertIsNone(run_built_replica(public, {"x": 1})["secret"])
+            self.assertEqual(1, run_built_replica(public, {"x": 1})["calls"])
+            state = Path(tmp) / "state"
+            self.assertEqual(1, run_built_replica(public, {"x": 1}, state_dir=state)["calls"])
+            self.assertEqual(2, run_built_replica(public, {"x": 1}, state_dir=state)["calls"])
+            (state / "implementation" / "entry.py").write_text("print('changed')")
+            with self.assertRaisesRegex(ValueError, "implementation files changed"):
+                run_built_replica(public, {"x": 1}, state_dir=state)
+            other = Path(tmp) / "other"
+            other.mkdir()
+            (other / "notes.txt").write_text("unrelated")
+            with self.assertRaisesRegex(ValueError, "not empty"):
+                run_built_replica(public, {"x": 1}, state_dir=other)
+
+    def test_experience_commands_accept_a_published_bundle(self):
+        from replica_mvp.experience import _validate_run_evidence_level, experience_input_once
+        with TemporaryDirectory() as tmp:
+            registry = _bound_bundle(Path(tmp) / "run")
+            result = evaluate_agent_bundle(registry, "claim-001", semantic_judge=_fixture_judge)
+            public = registry.parent / result["claims"][0]["final_result"]["public_run_dir"]
+            spec = json.loads((public / "replica-spec.json").read_text())
+            self.assertEqual({"level": "public"}, spec["evidence_policy"])
+            _validate_run_evidence_level(public, {"comparison": {"evidence_level": "public"}})
+            request = Path(tmp) / "input.json"
+            request.write_text(json.dumps({"x": 21}))
+            rendered = experience_input_once(public, request)
+            self.assertIn("출력 형식: application/json", rendered)
+            self.assertIn('"value": 42', rendered)
 
 
 if __name__ == "__main__":

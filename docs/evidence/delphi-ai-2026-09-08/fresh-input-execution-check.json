@@ -1,0 +1,88 @@
+[
+  {
+    "claim_id": "claim-001",
+    "public_run": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-001/attempt-002-b5371e5b6207",
+    "input_file": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-inputs/claim-001.json",
+    "input_sha256": "89e7e48167b4b8932d631faa69b3eb0eb958d121a4166d9badc4c0e64f0583f0",
+    "candidate_sha256": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+    "started_at": "2026-09-08T07:49:27.410007+00:00",
+    "command": [
+      "/Users/cho/.pyenv/versions/3.12.12/bin/python3",
+      "-m",
+      "replica_mvp",
+      "run-replica",
+      "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-001/attempt-002-b5371e5b6207",
+      "--use-model-adapter"
+    ],
+    "exit_code": 0,
+    "status": "executed",
+    "output": {
+      "status": "answered",
+      "answer": "You can bring your lamp on Thursday between 2 pm and 5 pm. Reserve a bench in advance and bring the lamp unplugged; repairs are postponed if mains wiring insulation is damaged. Diagnosis costs 7 credits, and replacement parts are charged separately.",
+      "citations": [
+        "repair-library-booking",
+        "repair-library-hours"
+      ],
+      "applied_rules": [
+        "Use plain English and answer in no more than three sentences.",
+        "Write one short paragraph without labels or headings."
+      ]
+    },
+    "elapsed_seconds": 8.803337042001658
+  },
+  {
+    "claim_id": "claim-002",
+    "public_run": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-002/attempt-002-3f0147ff7544",
+    "input_file": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-inputs/claim-002.json",
+    "input_sha256": "117805d36c33e8a560f7a02a6c68ff85e70b680a3eb468f66b53515cad2beb79",
+    "candidate_sha256": "3f0147ff75445f45d745cdb6eab0480fa2e03df47218d054925687de700aa587",
+    "started_at": "2026-09-08T07:49:27.410377+00:00",
+    "command": [
+      "/Users/cho/.pyenv/versions/3.12.12/bin/python3",
+      "-m",
+      "replica_mvp",
+      "run-replica",
+      "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-002/attempt-002-3f0147ff7544",
+      "--use-model-adapter"
+    ],
+    "exit_code": 2,
+    "status": "execution_failed",
+    "elapsed_seconds": 9.28358970899717
+  },
+  {
+    "claim_id": "claim-003",
+    "public_run": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-003/attempt-002-5ccfd196b74c",
+    "input_file": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-inputs/claim-003.json",
+    "input_sha256": "b0f99f113f8af0a090a3b90c9cd82814e4cf77f87b5c24c72a8fc2a7f08debdb",
+    "candidate_sha256": "5ccfd196b74ca8282d119d363f4e8560253f085b2cdee4744a1cb3b4c14021ac",
+    "started_at": "2026-09-08T07:49:27.412043+00:00",
+    "command": [
+      "/Users/cho/.pyenv/versions/3.12.12/bin/python3",
+      "-m",
+      "replica_mvp",
+      "run-replica",
+      "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-003/attempt-002-5ccfd196b74c",
+      "--use-model-adapter"
+    ],
+    "exit_code": 0,
+    "status": "executed",
+    "output": {
+      "status": "snippet_created",
+      "follow_up_topic": "How you teach beginners to recognize when to stop and ask an expert",
+      "insight_summary": "You start with a reversible, low-voltage task and ask the learner to explain how they will make it safe; if they cannot explain the isolation step, you practice it before touching the device. A successful attempt includes testing the result and knowing when to stop and ask an expert.",
+      "source_answer": "I start with a reversible low-voltage task and ask the learner to explain how they will make it safe. If they cannot explain the isolation step, we practice that before touching the device. A successful attempt includes testing the result and knowing when to stop and ask an expert.",
+      "saved_record_id": "5832cc7c-96a6-4872-9b7f-456a064279e9",
+      "database_file": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/claim-003/artifact-00-000-interviews.sqlite3",
+      "storage_snapshot": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-input-results/claim-003/artifact-01-001-431c683f-299c-4c7f-8cf9-de9709abbeac.json",
+      "persisted_record": {
+        "id": "5832cc7c-96a6-4872-9b7f-456a064279e9",
+        "current_topic": "Repair workshop teaching",
+        "active_question": "How do you decide when a beginner should attempt a repair?",
+        "source_answer": "I start with a reversible low-voltage task and ask the learner to explain how they will make it safe. If they cannot explain the isolation step, we practice that before touching the device. A successful attempt includes testing the result and knowing when to stop and ask an expert.",
+        "follow_up_topic": "How you teach beginners to recognize when to stop and ask an expert",
+        "insight_summary": "You start with a reversible, low-voltage task and ask the learner to explain how they will make it safe; if they cannot explain the isolation step, you practice it before touching the device. A successful attempt includes testing the result and knowing when to stop and ask an expert."
+      }
+    },
+    "elapsed_seconds": 18.9652534580091
+  }
+]

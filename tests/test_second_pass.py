@@ -65,6 +65,7 @@ def _research():
         "boundaries": "Text only.",
         "input": "A UTF-8 document and question.",
         "output": "A cited JSON answer.",
+        "evidence_level": "public",
         "acceptance_criteria": ["Double the supplied value; arbitrary wording may vary."],
         "sources": [SOURCE],
         "step_coverage": [

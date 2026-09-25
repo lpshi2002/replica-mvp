@@ -1,0 +1,395 @@
+{
+  "artifacts": {
+    "completion-assessment.json": "afb35e1fb6137beb29e18952e2b2a9e27e9eb0722ccc8265fcac6f7bd90f3d64",
+    "implementation/manifest.json": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+    "implementation/requirements.txt": "f1075b8d518c8857f41ea6db38a95ca7bbf938a07270ad6d133b5e81960dbcf3",
+    "implementation/server.py": "5c84eb385f0fb7de7f7baa85848e75e9461349f00497d9a306092d7bd7c8e322",
+    "public-examples.json": "496de1e92291a08780bc4048e045593b5fad814e364fbed9b5a4bb828f2ad242",
+    "replica-spec.json": "467d1435d80751eb74d8b2943cc3fd2e697dd8adfaee85709b239ada01ee6224",
+    "replica.json": "1dde01d0d629f069913899f1b7e68553d3dbfa67a0a2518923ee152e2bea0e34"
+  },
+  "attempt": 2,
+  "candidate_sha256": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+  "claim_id": "claim-001",
+  "dependencies": [
+    {
+      "basis": "Installed package metadata from the candidate interpreter; not evidence of a particular call.",
+      "declared_version": "2.26.1",
+      "name": "haystack-ai",
+      "observed_version": "2.26.1",
+      "status": "matched"
+    },
+    {
+      "basis": "Installed CLI version command observation.",
+      "declared_version": "0.153.4",
+      "name": "codex-cli",
+      "observed_version": "0.153.4",
+      "status": "matched"
+    }
+  ],
+  "development_attempts": [
+    {
+      "correction_number": 0,
+      "decision": "RETRY",
+      "resources": {
+        "human_interventions": [],
+        "measurements": [
+          {
+            "basis": "Three additional live HTTP requests generated through codex exec.",
+            "metric": "supplemental_model_requests",
+            "phase": "development",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "measured",
+            "unit": "requests",
+            "value": 3
+          },
+          {
+            "basis": "CLI subscription/account pricing was not exposed by the runtime.",
+            "metric": "economic_cost",
+            "phase": "development",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "unknown",
+            "unit": "currency",
+            "value": null
+          }
+        ]
+      },
+      "stop_reason": null,
+      "submission": 1
+    },
+    {
+      "correction_number": 1,
+      "decision": "PASS",
+      "resources": {
+        "human_interventions": [],
+        "measurements": [
+          {
+            "basis": "One repeated-history live HTTP response generated through codex exec.",
+            "metric": "correction_1_model_requests",
+            "phase": "development",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "measured",
+            "unit": "requests",
+            "value": 1
+          },
+          {
+            "basis": "CLI subscription/account pricing was not exposed by the runtime.",
+            "metric": "economic_cost",
+            "phase": "development",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "unknown",
+            "unit": "currency",
+            "value": null
+          }
+        ]
+      },
+      "stop_reason": null,
+      "submission": 1
+    },
+    {
+      "correction_number": 0,
+      "decision": "PASS",
+      "resources": {
+        "human_interventions": [],
+        "measurements": [
+          {
+            "basis": "One long-source plus nine copied-bundle live model responses.",
+            "metric": "model_requests",
+            "phase": "submission_002_development",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "measured",
+            "unit": "requests",
+            "value": 10
+          },
+          {
+            "basis": "CLI subscription/account pricing was not exposed by the runtime.",
+            "metric": "economic_cost",
+            "phase": "submission_002_development",
+            "recorded_at": "2026-09-08T00:00:00+09:00",
+            "status": "unknown",
+            "unit": "currency",
+            "value": null
+          }
+        ]
+      },
+      "stop_reason": null,
+      "submission": 2
+    }
+  ],
+  "evaluation": {
+    "by_kind": {
+      "boundary": {
+        "passed": 1,
+        "total": 1
+      },
+      "insufficient_information": {
+        "passed": 1,
+        "total": 1
+      },
+      "metamorphic": {
+        "passed": 1,
+        "total": 2
+      },
+      "normal": {
+        "passed": 0,
+        "total": 1
+      },
+      "novel": {
+        "passed": 1,
+        "total": 1
+      }
+    },
+    "candidate_sha256": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+    "judge_identity": "codex-cli-final-evaluator",
+    "judge_mode": "same_session",
+    "passed": 4,
+    "plan_sha256": "9243b221552b3e7f21a7db3974b40ef4cf53a42d31dd5feead507a310fcb077d",
+    "status": "FAILED",
+    "total": 6
+  },
+  "failure_category": "quality_gap",
+  "max_attempts": 3,
+  "plan_sha256": "9243b221552b3e7f21a7db3974b40ef4cf53a42d31dd5feead507a310fcb077d",
+  "private_evidence": {
+    "artifact-receipts.json": "1dab5e178faae6025fd4212b5d7724451e9a812d5e700e7aa6f0c887468ae423",
+    "completion-assessment.json": "b73e57f7c0357be9b0772bf6aa9dad3a1d9d7988cb4d4746e59a04c12d33ab6f",
+    "evaluation-summary.json": "90fee5874a74096c6844e8be61bc2c2071e34a4d89abb7ea9866fd237575b397",
+    "execution-records.jsonl": "050eb7e8550c3086e0fa662ecfcb883e0e2d0665f6b325f8eb72dcfcab4fa1f8",
+    "implementation-review.json": "802ba5fa0ff62ec23393e0a60f32baef7b0ed7c5fee2cf029dade68f00465335",
+    "repeated_outputs.jsonl": "81b7555d6c21226cb8f91b2506f8eb7b318ef1d7c348ab9b9610f4f558432a9b",
+    "replica_outputs.jsonl": "4ca290db58ae4607c6c5238441731469b011c41783a350f5834024e77378a675",
+    "results.jsonl": "b2f74b4a91ee927c66f1d5f8e6eade39ead0dda52fea76251ec87dcfb2f7cb71",
+    "submitted-execution-state.json": "9e207a897ed55297cb1c5b1d26fdc54e0edb475a0db382ee3983436788d646c9",
+    "submitted-implementation/manifest.json": "b5371e5b6207e274968f55592204ee5b03d8f18f5584a619be6690b70fb49dde",
+    "submitted-implementation/requirements.txt": "f1075b8d518c8857f41ea6db38a95ca7bbf938a07270ad6d133b5e81960dbcf3",
+    "submitted-implementation/server.py": "5c84eb385f0fb7de7f7baa85848e75e9461349f00497d9a306092d7bd7c8e322",
+    "test-suite-lock.json": "570191e607520e5951f758c141a9bf069112ef8c98f9acf2ffea1c96a5b3dee2",
+    "tests.json": "cd1e78445591906c7886b76c07327f9422b86ac20cbb5c53d3ea4358711f647d"
+  },
+  "reproduction_status": "partially_reproduced",
+  "resources": {
+    "human_interventions": [],
+    "measurements": [
+      {
+        "basis": "Not measured; subscription billing is not execution cost.",
+        "metric": "economic_cost",
+        "phase": "execution",
+        "recorded_at": "2026-09-08T07:21:06.062871+00:00",
+        "status": "unknown",
+        "unit": "unknown_currency",
+        "value": null
+      },
+      {
+        "basis": "Not measured; subscription billing is not execution cost.",
+        "metric": "tokens",
+        "phase": "execution",
+        "recorded_at": "2026-09-08T07:21:06.062873+00:00",
+        "status": "unknown",
+        "unit": "tokens",
+        "value": null
+      },
+      {
+        "basis": "Measured with a monotonic clock; includes runtime waiting.",
+        "metric": "elapsed_time",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:21:06.062883+00:00",
+        "status": "measured",
+        "unit": "seconds",
+        "value": 180.41490745799092
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:13.426091+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 17837
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:13.426122+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 0
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:13.426126+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 74
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:22.057702+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 17844
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:22.057731+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 14976
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:22.057734+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 89
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:30.816059+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 17770
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:30.816089+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 14976
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:30.816099+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 64
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:39.432923+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 17945
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:39.432952+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 14976
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:39.432955+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 85
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:48.501034+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 17836
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:48.501068+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 14976
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:48.501072+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 54
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:55.798463+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 17779
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:55.798496+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 0
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:20:55.798501+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 71
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:21:06.055845+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 27946
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "cached_input_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:21:06.055875+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 0
+      },
+      {
+        "basis": "codex CLI usage event",
+        "metric": "output_tokens",
+        "phase": "final_evaluation",
+        "recorded_at": "2026-09-08T07:21:06.055879+00:00",
+        "status": "measured",
+        "unit": "tokens",
+        "value": 126
+      }
+    ]
+  },
+  "scenario_id": "s-01",
+  "schema_version": "replica-bundle-result/v1",
+  "status": "FAILED",
+  "stop_reason": "quality_or_evaluation_gap"
+}

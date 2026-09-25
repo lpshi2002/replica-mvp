@@ -1,18 +1,23 @@
 # Replica MVP
 
 기업이 고객에게 제공한다고 공개적으로 주장하는 AI 기능을 넓게 조사하고, 기능마다
-전체 워크플로를 심층 검증한 뒤 테스트 가능한 입출력 계약과 프롬프트 기반 Replica로
-구현 가능성을 평가하는 Codex 운영 하네스입니다.
+전체 워크플로를 심층 검증한 뒤 테스트 가능한 계약과 실행 가능한 Replica 구현으로
+재현 가능성을 평가하는 Codex·Claude 운영 하네스입니다.
 
 사용자는 현재 Codex 대화에 기업명이나 공식 URL만 입력합니다. Codex가 공개
 자료 조사, 기능 선정, 사양 작성, 테스트 설계, Replica 실행, Judge 판정,
 보고서 생성을 맡습니다.
 
 > [!IMPORTANT]
-> 새 Second-pass Builder 경로의 Replica는 검증된 operation과 실행 계획을 담은
-> `replica.json`이며 별도 프로세스에서 실제 출력을 생성합니다. 기존
-> `init/build/evaluate` 프롬프트 하네스도 호환을 위해 남아 있습니다. 어느 경로의
-> 테스트 통과도 원제품 전체를 복제했다는 의미는 아닙니다.
+> 구현 경로는 세 가지가 공존합니다.
+>
+> | 경로 | 입력 | 상태 |
+> |---|---|---|
+> | Sol/Terra(Operator/Builder) Agent 번들 | 완료된 회사 `research.json` | 회사 조사의 기본 구현 경로. 봉인 평가 후 `final-results/`에 공개 |
+> | JSON 전용 부품(`build-replica-operator`) | 단일 `replica-second-pass-result/v1` | 파일·네트워크가 필요 없는 순수 JSON 변환만 |
+> | `init/build/evaluate` 프롬프트 하네스 | 수동 작성한 run 디렉터리 | 호환용으로만 유지 |
+>
+> 어느 경로의 테스트 통과도 원제품 전체를 복제했다는 의미는 아닙니다.
 
 ## 어떻게 작동하는가
 
@@ -39,20 +44,33 @@
 → 조사 시작과 함께 research.json 생성
 → 5개 1차 조사 에이전트가 주장 발견 즉시 체크포인트 저장
 → 컨트롤러가 중복 정리·병합하고 research.json 확정
-→ 선택된 주장에 2차 결과와 복제 계약 추가
-→ 사용자가 복제를 요청한 ready 주장만 실행
+→ 모든 주장에 2차 결과, ready 주장에 복제 계약·단계 대응표·평가 데이터 추가
+→ 사용자가 복제를 요청한 ready 주장만 구현·봉인 평가
 ```
 
-Skill은 코드로 구현된 상태 머신이 아니라 Codex가 따라야 하는 절차와 완료 조건을
-정의합니다. 따라서 저장소 자체가 Codex나 모델 API를 호출하지 않습니다. 기본
-사용법은 이 저장소를 연 Codex 태스크에 기업명이나 URL을 주는 것입니다.
+Skill은 코드로 구현된 상태 머신이 아니라 에이전트가 따라야 하는 절차와 완료 조건을
+정의합니다. 조사와 Agent 조율은 현재 열린 Codex·Claude 세션이 수행하며, 저장소
+코드가 조사를 위해 모델을 호출하지는 않습니다. 다만 다음 경로는 모델을 직접
+호출합니다.
+
+- 구현 번들의 최종 평가 Judge: 하네스가 지정한 로컬 `codex` 또는 `claude` CLI
+- 생성된 구현 번들: 계약이 모델 단계를 요구하면 같은 로컬 CLI를 실행
+- `--use-model-adapter`를 명시한 grounded 대화 경로: `OPENAI_API_KEY`로 OpenAI API를
+  직접 호출(`src/replica_mvp/openai_grounded_model.py`)
+
+기본 사용법은 이 저장소를 연 Codex나 Claude Code 세션에 기업명이나 URL을 주는
+것입니다.
 
 ## 무엇을 검증하는가
 
 이 프로젝트의 질문은 다음과 같습니다.
 
-> 공개 자료에서 확인되는 기업의 AI 기능을 제한된 텍스트 입출력 기능으로
+> 공개 자료에서 확인되는 기업의 AI 기능을 UI를 제외한 고객 워크플로 전체로
 > 재구성했을 때, 명시적인 테스트 계약을 만족하는 결과를 만들 수 있는가?
+
+2차는 워크플로 단계마다 구현·외부 의존·제외·미확인을 기록합니다. 조사된 단계를
+제외한 계약은 부분 범위로 표시되고, 모든 테스트를 통과해도 최종 결과는
+`partially_reproduced`를 넘지 않습니다.
 
 예를 들어 기업이 “보험증권의 차이를 조항 근거와 함께 비교한다”고 주장한다면,
 이를 다음과 같이 좁힙니다.
@@ -104,8 +122,8 @@ URL을 모르면 기업명만 입력해도 됩니다. 특정 기능을 지정하
 - 모델 명령 또는 API 키
 - Judge 판정과 보고서
 
-이 저장소가 Codex CLI나 모델 API를 다시 호출하는 구조는 아닙니다. 현재 열려
-있는 Codex 태스크가 오케스트레이터로서 작업을 수행합니다.
+조사와 조율은 현재 열려 있는 Codex·Claude 세션이 오케스트레이터로서 수행합니다.
+모델을 직접 호출하는 구현·평가 경로는 위 "어떻게 작동하는가"에 정리했습니다.
 
 ## 전체 파이프라인
 
@@ -549,7 +567,7 @@ python -m pip install -e .
 | `replica-mvp prepare-operator SOURCE --workspace WORKSPACE --evaluation-vault VAULT` | 원본과 고정 테스트는 비공개 vault에 보관하고 Codex용 task 생성 |
 | `replica-mvp finalize-operator TASK --workspace WORKSPACE --evaluation-vault VAULT [--report]` | Operator를 격리 실행·평가하고 성공한 Replica의 공개 사본 생성 |
 | `replica-mvp agent-candidate-finalize REGISTRY CLAIM_ID CANDIDATE` | Terra의 `operator.json` 후보를 기존 평가·보고·공개 파이프라인으로 처리하고 최종 결과 경로와 해시를 Agent registry에 결속 |
-| `replica-mvp run-replica RUN_DIR` | stdin의 JSON 객체를 생성된 Replica로 실행하고 결과 JSON 반환 |
+| `replica-mvp run-replica RUN_DIR [--session] [--state-dir DIR]` | stdin의 JSON 객체를 생성된 Replica로 실행하고 결과 JSON 반환. 번들에서 `--session`은 JSON 배열을 한 세션에 순서대로 넣고, `--state-dir`는 실행 디렉터리를 보존해 다음 호출에서 같은 사용자 상태를 이어 연다 |
 | `replica-mvp experience RUN_DIR [--question QUESTION]` | 대화형 Replica를 직접 실행하고 답변·출처·규칙·비교 수준 표시 |
 | `replica-mvp experience RUN_DIR --input INPUT.json [--output PREVIEW.html]` | 구조화·문서·HTML Replica를 입력 파일로 실행해 결과 표시 |
 

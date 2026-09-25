@@ -1,0 +1,19 @@
+{
+  "claim_id": "claim-002",
+  "public_run": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-002/attempt-002-3f0147ff7544",
+  "input_file": "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/fresh-inputs/claim-002.json",
+  "input_sha256": "117805d36c33e8a560f7a02a6c68ff85e70b680a3eb468f66b53515cad2beb79",
+  "candidate_sha256": "3f0147ff75445f45d745cdb6eab0480fa2e03df47218d054925687de700aa587",
+  "started_at": "2026-09-08T07:49:27.410377+00:00",
+  "command": [
+    "/Users/cho/.pyenv/versions/3.12.12/bin/python3",
+    "-m",
+    "replica_mvp",
+    "run-replica",
+    "/Users/cho/replica-mvp/work/delphi-ai/implementation-check-2026-09-08/agent-run/final-results/runs/claim-002/attempt-002-3f0147ff7544",
+    "--use-model-adapter"
+  ],
+  "exit_code": 2,
+  "status": "execution_failed",
+  "elapsed_seconds": 9.28358970899717
+}
