@@ -437,7 +437,7 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
             self.assertEqual("READY_FOR_PROTOCOL", claim["operator"]["status"])
             self.assertEqual("READY_FOR_PROTOCOL", claim["builder"]["status"])
             self.assertIsNone(ready["scheduling"]["active_claim_id"])
-            self.assertEqual(1, ready["scheduling"]["completed_claim_count"])
+            self.assertEqual(1, ready["scheduling"]["linked_pair_count"])
             next_claim = start_agent_claim(
                 registry_path,
                 "growth-labs-seat-guidance",

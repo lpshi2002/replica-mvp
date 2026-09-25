@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .bundle_runtime import bundle_session, copy_bundle, observe_dependencies, safe_relative, validate_runtime
-from .completion import assess_bundle_execution
+from .completion import EVALUATION_TEST_KINDS, assess_bundle_execution, research_test_kind
 from .evaluation import (
     _check_assertion, _is_valid_lock, _json_equal, _path_value, _read_json,
     _require_standard_json, _write_json, _write_jsonl, freeze_test_suite,
@@ -20,6 +20,7 @@ from .resources import budget_stop, measurement, unknown_resources, utc_now, val
 
 
 MAX_SUBMISSIONS = 3
+_UNSTARTED = {"PENDING", "RESEARCH_INCOMPLETE"}
 PLAN_FIELDS = {
     "runtime", "repeat_policy", "timeout_seconds", "budget", "additional_cases",
     "case_checks", "public_examples", "assets", "output_artifacts",
@@ -75,7 +76,9 @@ def _research_cases(payload: dict[str, Any], selected: dict[str, Any]) -> list[d
         raise ValueError("research tests must be a list of identified input cases")
     for source in source_cases:
         case = deepcopy(source)
-        case["kind"] = case.get("kind", case["id"].replace("-", "_"))
+        case["kind"] = research_test_kind(source)
+        if case["kind"] is None:
+            raise ValueError(f"research test {source['id']!r} needs an evaluation kind")
         if isinstance(case.get("input"), str):
             try:
                 case["input"] = json.loads(case["input"])
@@ -100,7 +103,11 @@ def _validate_case_metadata(cases: list[dict[str, Any]], criterion_ids: set[str]
     ):
         raise ValueError("evaluation cases must have identities and inputs")
     ids = {c["id"] for c in cases}
+    if len(ids) != len(cases):
+        raise ValueError("evaluation case identities must be unique")
     for case in cases:
+        if case.get("kind") not in EVALUATION_TEST_KINDS:
+            raise ValueError(f"evaluation case {case['id']!r} kind must be one of {sorted(EVALUATION_TEST_KINDS)}")
         covered = case.get("criterion_ids", [])
         if not isinstance(covered, list) or not all(isinstance(i, str) for i in covered) or not set(covered) <= criterion_ids:
             raise ValueError("evaluation case refers to an unknown acceptance criterion")
@@ -262,8 +269,9 @@ def prepare_bundle_evaluation(registry_path: Path, claim_id: str, supplement: Pa
         "schema_version": "replica-bundle-evaluation-plan/v1", "claim_id": claim_id,
         "scenario_id": selected["id"], "claim_sha256": digest(root / claim["claim_payload_path"]),
         "prepared_at": utc_now(), "prepared_before_implementation": (
-            claim["status"] == "PENDING" and not any((root / claim["builder"]["artifact_namespace"]).rglob("*"))
+            claim["status"] in _UNSTARTED and not any((root / claim["builder"]["artifact_namespace"]).rglob("*"))
         ),
+        "workflow_coverage": payload.get("workflow_coverage"),
         "revision": revision, "previous_plan_sha256": previous.get("plan_sha256") if previous else None,
         "supplement_sha256": supplement_sha256, "configuration": config,
         "runtime": runtime, "repeat_policy": repeat, "timeout_seconds": timeout,
@@ -286,6 +294,10 @@ def prepare_bundle_evaluation(registry_path: Path, claim_id: str, supplement: Pa
         "public_runtime_contract_path": public_contract_path.relative_to(root).as_posix(),
         "public_runtime_contract_sha256": digest(public_contract_path),
     }
+    if claim["status"] in _UNSTARTED:
+        # Evaluation gaps are resolved in research before any Agent spends effort on them.
+        claim["status"] = "RESEARCH_INCOMPLETE" if gaps else "PENDING"
+        claim["research_gaps"] = gaps
     _replace_registry(registry_path, registry)
     return registry
 

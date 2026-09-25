@@ -14,6 +14,22 @@ REQUIRED_TEST_KINDS = {
     "insufficient_information",
     "novel",
 }
+# The one vocabulary for frozen evaluation cases; development tests use their own.
+EVALUATION_TEST_KINDS = REQUIRED_TEST_KINDS | {"metamorphic"}
+_TEST_KINDS_BY_ID = {
+    "normal": "normal",
+    "boundary": "boundary",
+    "insufficient-information": "insufficient_information",
+}
+
+
+def research_test_kind(case: Any) -> str | None:
+    """Return an explicit evaluation kind, or the kind named by a standard test id."""
+    if not isinstance(case, dict):
+        return None
+    if "kind" in case:
+        return case["kind"] if case["kind"] in EVALUATION_TEST_KINDS else None
+    return _TEST_KINDS_BY_ID.get(case.get("id"))
 
 
 def _read_object(path: Path) -> dict[str, Any] | None:
@@ -471,6 +487,14 @@ def assess_bundle_execution(
 ) -> dict[str, Any]:
     """Technical completion only; the narrative reporting workflow is separate."""
     gaps = list(plan["gaps"])
+    coverage = plan.get("workflow_coverage")
+    if coverage is None:
+        gaps.append("The contract has no researched workflow step coverage.")
+    elif coverage["scope"] != "whole_workflow":
+        gaps.append(
+            "The contract excludes researched workflow steps, so it reproduces a partial scope of the customer workflow: "
+            + "; ".join(f"{s['claim_id']}#{s['step_index']} {s['step']} ({s['reason']})" for s in coverage["excluded_steps"])
+        )
     if not plan["prepared_before_implementation"]:
         gaps.append("Final evaluation was prepared retrospectively; pre-implementation isolation was not established.")
     if review["status"] != "PASSED":

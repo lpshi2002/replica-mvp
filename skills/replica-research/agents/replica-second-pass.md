@@ -111,7 +111,9 @@ research shows that **your output is not delivered independently to an external
 user** — it feeds the next operation instead — set `status: merged` and
 `handoff: merge`, and leave `replication_contract` null.
 
-**Do not name the parent.** That would require reading another claim.
+**Do not name the parent.** That would require reading another claim. Record
+in `readiness.reasons` which of your researched steps and sources the parent
+must absorb; the orchestrator sets `merged_into` and hands them to the parent.
 
 ### 3. Resolve all six buckets
 
@@ -124,7 +126,8 @@ user** — it feeds the next operation instead — set `status: merged` and
 - **Depth and state are different axes.** Depth arrives in the brief; state is
   your finding. `not_applicable` is a state only, never a depth, and needs a
   recorded reason.
-- `filled` with no sources is invalid.
+- `filled` with no sources is invalid. Every source needs a `url` and a
+  non-empty verbatim `excerpt`; a source without an excerpt is not evidence.
 - `impl_path` names routes that perform the full documented workflow,
   including fidelity-critical model, API, OSS, data, and side-effect
   dependencies, limitations, and open questions. Do not present a rule-based
@@ -167,24 +170,29 @@ scenario. Two axes can create one:
 - **conditions** — `boundaries.state` is `undisclosed`;
 - **paths** — more than one viable implementation route.
 
-**Do not multiply the axes.** Split on paths and attach conditions to each path:
-an open-source-only route carries narrower conditions, a commercial-API route
-wider ones. Split on conditions separately only when one condition decides
-success within the same path.
+**Do not multiply the axes.** Split on paths and attach each path's own
+conditions to it. Split on conditions separately only when one condition decides
+success within the same path. A path's conditions never license dropping a
+customer workflow step: a simpler method for a step is a path choice, removing
+the step is a scope reduction and must be recorded in `step_coverage`.
 
 **One scenario is normal.** If the conditions are published and one route is
 obvious, the array has a single entry. Several scenarios mean unresolved
 unknowns, not diligence. **Maximum three.** If more than three routes surface,
 keep the three that differ most in self-sufficiency.
 
-The count comes from the buckets, not from a guess made before research:
-`oss_papers_patents` filled means an `oss_only` route exists; `datasets_apis`
-filled means a `commercial_api` route exists; a restriction in `access_license`
-kills a route.
+The count comes from confirmed routes, not from a guess made before research.
+Finding material is not the same as confirming a route: a paper or patent in
+`oss_papers_patents` is a lead until `impl_path` names a usable implementation
+(code, license, and how it runs), and a dataset in `datasets_apis` is not a
+`commercial_api` route unless an API that performs the step is available to
+the replica. A restriction in `access_license` kills a route.
 
 Order scenarios most self-sufficient first: `oss_only`, then `commercial_api`,
-then `proprietary_data`. Execution runs the first and stops once it reproduces.
-Leave no placeholders.
+then `proprietary_data`. The harness runs exactly one scenario — the one named
+by `handoff.selected_scenario_id`, else the first of `handoff.scenario_priority`,
+else the first in this order — and does not fall back to the next after a
+failed evaluation. Leave no placeholders.
 
 Each scenario is one run directory, `runs/<slug>/<id>/`, and its fields are the
 ones the execution code reads:
@@ -201,6 +209,8 @@ ones the execution code reads:
 | `evidence_level` | `evidence.json` `evidence_level` |
 | `sources` | `evidence.json` `sources` |
 | `tests` | `tests.json` |
+| `step_coverage` | workflow fidelity check before implementation |
+| `evaluation` | frozen bundle evaluation plan (Sol/Terra route) |
 
 There is no separate `output_schema` field — `spec.json` has only
 `output_description`, so the schema goes inside `output`. The exclusions field
@@ -213,10 +223,51 @@ onto the other.
 
 `tests` needs at least the three cases the execution code creates and requires:
 `normal`, `boundary`, and `insufficient-information`. Each carries `id`,
-a non-empty `input`, `expected_behavior`, and `reference_facts`. Add
-`original_output` when a public source gives the original result — the judge
-reads it. Extra cases are allowed. **Frozen expectations are never changed after
-seeing output.**
+a non-empty `input`, `expected_behavior`, and `reference_facts`. Use those
+exact ids or set `kind` to `normal`, `boundary`, `insufficient_information`,
+`novel`, or `metamorphic`. Add `original_output` when a public source gives the
+original result — the judge reads it. Three cases are a minimum, not a scope:
+cover each implemented workflow step. **Frozen expectations are never changed
+after seeing output.**
+
+### 6. Map every workflow step — `step_coverage`
+
+Every scenario carries `step_coverage`: one entry per pass-1
+`workflow.steps` item, `{ "step_index": <1-based>, "disposition": …,
+"reason": "…" }`.
+
+| `disposition` | Meaning | `reason` |
+|---|---|---|
+| `implemented` | the replica performs this step itself | optional |
+| `external_dependency` | a named external service performs it (and the scenario uses it) | required |
+| `excluded` | the scenario leaves it out | required: why, and what the customer loses |
+| `unconfirmed` | research could not settle it | blocks implementation |
+
+Map against pass 1's steps, not a rewritten list. Moving a system step to the
+caller (the caller supplies the question the product would generate) is
+`excluded`, not `implemented`. An excluded step marks the scenario a partial
+scope of the customer workflow; the final result can then be at most
+`partially_reproduced`. Implementation refuses any `unconfirmed` step or any
+step without an entry.
+
+### 7. Prepare the bundle evaluation — Sol/Terra route
+
+The harness evaluates the selected scenario with frozen data you prepare now.
+Record in `handoff`:
+
+- `selected_scenario_id` and `selection_reason`, or `scenario_priority`;
+- `experiment_budget`: `{time_limit_seconds, cost_limit, stop_on_blocked}` for
+  development.
+
+Record in the selected scenario an `evaluation` object as described in
+`../../../docs/replica-bundle-execution.md`: `runtime`, `case_checks` linking
+every acceptance criterion to a case, `additional_cases` with a `novel` case
+and `equal` and `different` metamorphic relations, distinct `public_examples`,
+input `assets`, and conditional `output_artifacts`. For a question-answer
+capability also freeze the public `experience` object described in
+`../SKILL.md`. Missing evaluation data stops the claim as
+`RESEARCH_INCOMPLETE` before any Agent starts; it is never a reason to lower
+acceptance criteria.
 
 ## Output — write exactly one fragment
 
@@ -243,7 +294,12 @@ Write `work/<company>/second_pass/<slug>.json` and nothing else.
     "impl_path":          { "state": "…", "note": "…", "sources": [] }
   },
   "readiness": { "status": "ready|partial|blocked", "reasons": "…" },
-  "handoff":   { "action": "build|merge|evidence_request|reject" },
+  "handoff":   {
+    "action": "build|merge|evidence_request|reject",
+    "selected_scenario_id": "s-01",
+    "selection_reason": "…",
+    "experiment_budget": { "time_limit_seconds": null, "cost_limit": null, "stop_on_blocked": true }
+  },
   "replication_contract": [
     {
       "id": "s-01",
@@ -256,6 +312,10 @@ Write `work/<company>/second_pass/<slug>.json` and nothing else.
       "out_of_scope": ["…"],
       "evidence_level": "direct|public|claim_only",
       "sources": [],
+      "step_coverage": [
+        { "step_index": 1, "disposition": "implemented|external_dependency|excluded|unconfirmed", "reason": "…" }
+      ],
+      "evaluation": { "runtime": { "transport": "stdio_json" }, "…": "see docs/replica-bundle-execution.md" },
       "tests": [
         { "id": "normal", "input": "…", "expected_behavior": "…", "reference_facts": [] },
         { "id": "boundary", "input": "…", "expected_behavior": "…", "reference_facts": [] },
@@ -276,6 +336,13 @@ Every source is
 `{ "url": "…", "type": "…", "excerpt": "…", "finding": "…", "supports_field": "…" }`.
 Keep `excerpt` so the quote can be checked later. Echo the brief you were given
 into `brief`.
+
+Your fragment is the original verdict. Anyone who later changes `readiness` or
+`handoff` in `research.json` must append to `second_pass.revisions`
+`{ "previous": { "readiness": "…", "handoff": "…" }, "reason": "…",
+"revised_at": "<ISO-8601>", "sources": [ … ] }` with new sources carrying
+excerpts; implementation compares the fragment and refuses an unrecorded
+change.
 
 ## Return to the orchestrator
 

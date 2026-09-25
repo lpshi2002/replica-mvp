@@ -27,30 +27,7 @@ json.dump({'value': v['x'] * 2, 'wording': str(time.time_ns())}, sys.stdout)
 
 
 def _evaluation_research():
-    research = _research()
-    scenario = research["claims"][0]["second_pass"]["replication_contract"][1]
-    scenario["acceptance_criteria"] = ["Double the supplied value; arbitrary wording may vary."]
-    def case(name, kind, value):
-        return {"id": name, "kind": kind, "input": {"x": value},
-                "deterministic_assertions": [{"type": "equals", "path": ["value"], "value": value * 2}],
-                "semantic_criteria": [], "criterion_ids": ["criterion-001"]}
-    scenario["tests"] = [case("normal", "normal", 1), case("boundary", "boundary", -2),
-                         case("insufficient", "insufficient_information", 0)]
-    novel = case("unseen", "novel", 18)
-    novel["novelty"] = {"difference": "A new supplied numeric range with independent input data.",
-                        "development_inputs": [{"x": 7, "unrelated": ["sample"]}]}
-    # This is a plumbing test fixture, not evidence of generalization for a company claim.
-    invariant = case("invariant", "metamorphic", 1)
-    invariant["input"]["unrelated"] = ["different", "ordering"]
-    invariant["metamorphic"] = {"case_id": "normal", "relation": "equal", "path": ["value"], "reason": "Ignore unrelated metadata."}
-    changed = case("changed", "metamorphic", 8)
-    changed["metamorphic"] = {"case_id": "normal", "relation": "different", "path": ["value"], "reason": "Changed facts must change the result."}
-    scenario["evaluation"] = {
-        "runtime": {"transport": "stdio_json"}, "timeout_seconds": 2,
-        "repeat_policy": "contract", "additional_cases": [novel, invariant, changed],
-        "public_examples": [{"input": {"x": 100}, "description": "A separate public demonstration."}],
-    }
-    return research
+    return _research()
 
 
 def _bound_bundle(root, source=SOURCE, research=None, dependencies=None):
@@ -377,12 +354,26 @@ json.dump({'value':n*2},sys.stdout)
             with self.assertRaisesRegex(ValueError, "plan hash mismatch"):
                 evaluate_agent_bundle(registry, "claim-001")
 
-    def test_missing_novelty_is_not_promoted_by_a_pass_label(self):
+    def test_missing_novelty_blocks_activation_until_research_is_supplemented(self):
+        from replica_mvp.agent_harness import prepare_agent_harness, start_agent_claim
         with TemporaryDirectory() as tmp:
             research = _evaluation_research()
-            del research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]["additional_cases"][0]["novelty"]
-            result = evaluate_agent_bundle(_bound_bundle(Path(tmp) / "run", research=research), "claim-001", semantic_judge=_fixture_judge)
-            self.assertEqual("partially_reproduced", result["claims"][0]["final_result"]["reproduction_status"])
+            evaluation = research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]
+            novel = evaluation["additional_cases"].pop(0)
+            registry_path = Path(tmp) / "run" / "agent-harness.json"
+            registry = prepare_agent_harness(research, registry_path.parent, replica_agent_id="agent", parent_agent_id="root")
+            claim = registry["claims"][0]
+            self.assertEqual("RESEARCH_INCOMPLETE", claim["status"])
+            self.assertIn("research_gap: novel input differences are not prepared", claim["research_gaps"])
+            with self.assertRaisesRegex(ValueError, "research is incomplete"):
+                start_agent_claim(registry_path, "claim-001")
+
+            supplement = Path(tmp) / "supplement.json"
+            supplement.write_text(json.dumps({"additional_cases": [novel]}))
+            supplemented = prepare_bundle_evaluation(registry_path, "claim-001", supplement)
+            self.assertEqual("PENDING", supplemented["claims"][0]["status"])
+            self.assertEqual([], supplemented["claims"][0]["research_gaps"])
+            start_agent_claim(registry_path, "claim-001")
 
     def test_no_judge_cannot_claim_workflow_fidelity(self):
         with TemporaryDirectory() as tmp:

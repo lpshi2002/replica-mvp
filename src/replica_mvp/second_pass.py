@@ -3,9 +3,10 @@ from __future__ import annotations
 import copy
 import json
 import re
+from pathlib import Path
 from typing import Any
 
-from .completion import _valid_completion_contract
+from .completion import _valid_completion_contract, research_test_kind
 from .experience import validate_experience_profile
 from .resources import validate_budget
 
@@ -20,6 +21,17 @@ DEPENDENCY_ORDER = {
     "commercial_api": 1,
     "proprietary_data": 2,
 }
+FINDING_BUCKETS = (
+    "evidence",
+    "datasets_apis",
+    "oss_papers_patents",
+    "eval_assets",
+    "access_license",
+    "impl_path",
+)
+FINDING_STATES = {"filled", "unknown", "not_applicable"}
+STEP_DISPOSITIONS = {"implemented", "external_dependency", "excluded", "unconfirmed"}
+REQUIRED_SCENARIO_TEST_KINDS = {"normal", "boundary", "insufficient_information"}
 SECOND_PASS_FIELDS = {
     "schema_version",
     "replica_id",
@@ -238,10 +250,192 @@ def validate_second_pass_claim(
     return value
 
 
+class ResearchIncomplete(ValueError):
+    """A ready claim lacks research the implementation would otherwise invent."""
+
+    def __init__(self, claim_id: str, reason: str) -> None:
+        super().__init__(f"RESEARCH_INCOMPLETE: {claim_id}: {reason}")
+
+
+def _valid_sources(sources: Any, *, allow_empty: bool) -> bool:
+    return (
+        isinstance(sources, list)
+        and (allow_empty or bool(sources))
+        and all(
+            isinstance(source, dict)
+            and _is_nonempty_text(source.get("url"))
+            and _is_nonempty_text(source.get("excerpt"))
+            for source in sources
+        )
+    )
+
+
+def _validate_revisions(claim_id: str, second_pass: dict[str, Any], original: Any) -> None:
+    """A changed readiness or handoff verdict needs its prior verdict, reason, and new evidence."""
+    revisions = second_pass.get("revisions", [])
+    if not isinstance(revisions, list) or not all(
+        isinstance(revision, dict)
+        and isinstance(revision.get("previous"), dict)
+        and _is_nonempty_text(revision["previous"].get("readiness"))
+        and _is_nonempty_text(revision["previous"].get("handoff"))
+        and _is_nonempty_text(revision.get("reason"))
+        and _is_nonempty_text(revision.get("revised_at"))
+        and _valid_sources(revision.get("sources"), allow_empty=False)
+        for revision in revisions
+    ):
+        raise ResearchIncomplete(
+            claim_id,
+            "each second_pass.revisions entry needs previous readiness and handoff, "
+            "a reason, revised_at, and sources with excerpts",
+        )
+    if not isinstance(original, dict):
+        return
+    verdict = (
+        (original.get("readiness") or {}).get("status"),
+        (original.get("handoff") or {}).get("action"),
+    )
+    current = (second_pass["readiness"].get("status"), second_pass["handoff"].get("action"))
+    if verdict == current:
+        return
+    if not revisions or (
+        revisions[0]["previous"]["readiness"],
+        revisions[0]["previous"]["handoff"],
+    ) != verdict:
+        raise ResearchIncomplete(
+            claim_id,
+            f"the pass-2 fragment verdict {verdict} was changed to {current} "
+            "without a revision that records the original verdict",
+        )
+
+
+def _validate_findings(claim_id: str, second_pass: dict[str, Any]) -> None:
+    findings = second_pass.get("findings")
+    if not isinstance(findings, dict):
+        raise ResearchIncomplete(claim_id, "second_pass.findings must be an object")
+    for bucket in FINDING_BUCKETS:
+        finding = findings.get(bucket)
+        if (
+            not isinstance(finding, dict)
+            or finding.get("state") not in FINDING_STATES
+            or not _is_nonempty_text(finding.get("note"))
+            or not _valid_sources(
+                finding.get("sources", []),
+                allow_empty=finding.get("state") != "filled",
+            )
+        ):
+            raise ResearchIncomplete(
+                claim_id,
+                f"finding {bucket} must be closed with a note; filled findings need sources with excerpts",
+            )
+    boundaries = (second_pass.get("workflow") or {}).get("boundaries")
+    if not isinstance(boundaries, dict) or boundaries.get("state") not in {"stated", "undisclosed"}:
+        raise ResearchIncomplete(claim_id, "workflow.boundaries.state must be stated or undisclosed")
+
+
+def _step_coverage(
+    claim_id: str,
+    scenario: dict[str, Any],
+    workflows: dict[str, list[Any]],
+) -> dict[str, Any]:
+    """Map every researched workflow step to what the frozen scenario does with it."""
+    coverage = scenario.get("step_coverage")
+    if not isinstance(coverage, list):
+        raise ResearchIncomplete(
+            claim_id,
+            f"scenario {scenario['id']} needs step_coverage for every researched workflow step",
+        )
+    seen: set[tuple[str, int]] = set()
+    excluded, external = [], []
+    for entry in coverage:
+        if not isinstance(entry, dict):
+            raise ResearchIncomplete(claim_id, "step_coverage entries must be objects")
+        owner = entry.get("claim_id", claim_id)
+        index = entry.get("step_index")
+        disposition = entry.get("disposition")
+        steps = workflows.get(owner)
+        if (
+            steps is None
+            or isinstance(index, bool)
+            or not isinstance(index, int)
+            or not 1 <= index <= len(steps)
+            or (owner, index) in seen
+            or disposition not in STEP_DISPOSITIONS
+        ):
+            raise ResearchIncomplete(
+                claim_id,
+                "step_coverage entries need a unique 1-based step_index into this claim's or an absorbed "
+                f"claim's workflow.steps and a disposition in {sorted(STEP_DISPOSITIONS)}",
+            )
+        seen.add((owner, index))
+        step = steps[index - 1].get("step") if isinstance(steps[index - 1], dict) else None
+        if disposition == "unconfirmed":
+            raise ResearchIncomplete(claim_id, f"workflow step {owner}#{index} is unconfirmed: {step}")
+        if disposition in {"excluded", "external_dependency"}:
+            if not _is_nonempty_text(entry.get("reason")):
+                raise ResearchIncomplete(claim_id, f"{disposition} step {owner}#{index} needs a reason")
+            record = {"claim_id": owner, "step_index": index, "step": step, "reason": entry["reason"]}
+            (excluded if disposition == "excluded" else external).append(record)
+    missing = [
+        f"{owner}#{index}"
+        for owner, steps in workflows.items()
+        for index in range(1, len(steps) + 1)
+        if (owner, index) not in seen
+    ]
+    if missing:
+        raise ResearchIncomplete(claim_id, f"workflow steps without step_coverage: {', '.join(missing)}")
+    return {
+        "scope": "partial_workflow" if excluded else "whole_workflow",
+        "excluded_steps": excluded,
+        "external_dependencies": external,
+    }
+
+
+def _validate_scenario_tests(claim_id: str, scenario: dict[str, Any]) -> None:
+    tests = scenario.get("tests")
+    if not isinstance(tests, list):
+        raise ResearchIncomplete(claim_id, f"scenario {scenario['id']} tests must be a list")
+    kinds = set()
+    for case in tests:
+        kind = research_test_kind(case)
+        if kind is None or "input" not in case:
+            raise ResearchIncomplete(
+                claim_id,
+                "each scenario test needs an input and a kind, or an id of normal, boundary, "
+                "or insufficient-information",
+            )
+        kinds.add(kind)
+    missing = REQUIRED_SCENARIO_TEST_KINDS - kinds
+    if missing:
+        raise ResearchIncomplete(
+            claim_id,
+            f"scenario {scenario['id']} lacks {', '.join(sorted(missing))} tests",
+        )
+
+
+def _validate_summary(value: dict[str, Any], claims: list[Any]) -> None:
+    summary = value.get("summary")
+    if not isinstance(summary, dict):
+        return
+    counts = {"ready": 0, "partial": 0, "blocked": 0}
+    for claim in claims:
+        second_pass = claim.get("second_pass") if isinstance(claim, dict) else None
+        status = (second_pass or {}).get("readiness", {}).get("status") if isinstance(second_pass, dict) else None
+        if status in counts:
+            counts[status] += 1
+    for status, count in counts.items():
+        recorded = summary.get(f"{status}_count")
+        if recorded is not None and recorded != count:
+            raise ValueError(
+                f"research summary {status}_count is {recorded} but claims record {count}; "
+                "recompute the summary from claim readiness"
+            )
+
+
 def _research_agent_claims(
     value: dict[str, Any],
     *,
     model_runtime: str | None,
+    fragment_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     company = value.get("company")
     claims = value.get("claims")
@@ -253,11 +447,41 @@ def _research_agent_claims(
         or not claims
     ):
         raise ValueError("invalid company research contract")
+    workflow_state = value.get("workflow")
+    if (
+        not isinstance(workflow_state, dict)
+        or workflow_state.get("status") != "pass_2_complete"
+        or not _is_nonempty_text((workflow_state.get("pass_1") or {}).get("completed_at"))
+    ):
+        raise ValueError(
+            "RESEARCH_INCOMPLETE: research must pass finalize-pass-1 and reach pass_2_complete before implementation"
+        )
+    _validate_summary(value, claims)
 
-    prepared = []
+    by_id = {claim.get("id"): claim for claim in claims if isinstance(claim, dict)}
+    absorbed: dict[str, list[str]] = {}
     for claim in claims:
         if not isinstance(claim, dict):
             raise ValueError("invalid company research claim")
+        second_pass = claim.get("second_pass")
+        if not isinstance(second_pass, dict) or second_pass.get("status") != "merged":
+            continue
+        parent_id = second_pass.get("merged_into")
+        parent = by_id.get(parent_id)
+        parent_pass = parent.get("second_pass") if isinstance(parent, dict) else None
+        if (
+            parent_id == claim.get("id")
+            or not isinstance(parent_pass, dict)
+            or parent_pass.get("status") == "merged"
+        ):
+            raise ResearchIncomplete(
+                str(claim.get("id")),
+                "a merged claim needs merged_into naming a researched, unmerged parent claim",
+            )
+        absorbed.setdefault(parent_id, []).append(claim["id"])
+
+    prepared = []
+    for claim in claims:
         second_pass = claim.get("second_pass")
         if second_pass is None:
             continue
@@ -265,11 +489,21 @@ def _research_agent_claims(
             raise ValueError("invalid company research second pass")
         readiness = second_pass.get("readiness")
         handoff = second_pass.get("handoff")
+        if not isinstance(readiness, dict) or not isinstance(handoff, dict):
+            raise ValueError("invalid company research second pass")
+        original = None
+        fragment = (second_pass.get("run") or {}).get("fragment")
+        if fragment_root is not None and _is_nonempty_text(fragment):
+            fragment_path = fragment_root / fragment
+            if fragment_path.is_file():
+                try:
+                    original = json.loads(fragment_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    raise ValueError(f"invalid pass-2 fragment: {fragment_path}") from None
+        _validate_revisions(str(claim.get("id")), second_pass, original)
         if (
             second_pass.get("status") not in {"confirmed", "refined"}
-            or not isinstance(readiness, dict)
             or readiness.get("status") != "ready"
-            or not isinstance(handoff, dict)
             or handoff.get("action") != "build"
         ):
             continue
@@ -314,12 +548,29 @@ def _research_agent_claims(
             raise ValueError("conflicting second-pass scenario selection")
         selected_id = selected_id or (priority[0] if priority else scenario_ids[0])
         selected = next(s for s in scenarios if s["id"] == selected_id)
+
+        _validate_findings(claim_id, second_pass)
+        if not _valid_sources(selected.get("sources", []), allow_empty=True):
+            raise ResearchIncomplete(claim_id, "scenario sources need a url and a non-empty excerpt")
+        _validate_scenario_tests(claim_id, selected)
+        workflows = {
+            owner: ((by_id[owner].get("first_pass") or {}).get("workflow") or {}).get("steps", [])
+            for owner in (claim_id, *absorbed.get(claim_id, []))
+        }
+        if not all(isinstance(steps, list) for steps in workflows.values()):
+            raise ResearchIncomplete(claim_id, "first_pass.workflow.steps must be a list")
+        workflow_coverage = _step_coverage(claim_id, selected, workflows)
         payload = {
             "schema_version": RESEARCH_AGENT_CLAIM_SCHEMA,
             "claim_id": claim_id,
             "company": copy.deepcopy(company),
             "first_pass": copy.deepcopy(claim.get("first_pass")),
             "second_pass": copy.deepcopy(second_pass),
+            "absorbed_claims": [
+                {"claim_id": child, "first_pass": copy.deepcopy(by_id[child].get("first_pass"))}
+                for child in absorbed.get(claim_id, [])
+            ],
+            "workflow_coverage": workflow_coverage,
             "selected_scenario_id": selected["id"],
             "scenario_selection": {
                 "basis": (
@@ -367,8 +618,13 @@ def parse_second_pass(
     value: Any,
     *,
     model_runtime: str | None = None,
+    fragment_root: Path | None = None,
 ) -> dict[str, Any]:
-    """Normalize a Second-pass input to the canonical claim collection."""
+    """Normalize a Second-pass input to the canonical claim collection.
+
+    ``fragment_root`` is the company research directory; when a claim's pass-2
+    fragment is present there, a changed verdict must carry a revision.
+    """
     if model_runtime is not None and model_runtime not in MODEL_RUNTIMES:
         raise ValueError("invalid Replica model runtime")
     if not isinstance(value, dict):
@@ -377,6 +633,7 @@ def parse_second_pass(
         canonical_claims = _research_agent_claims(
             value,
             model_runtime=model_runtime,
+            fragment_root=fragment_root,
         )
         source_claims = None
     elif value.get("schema_version") == LEGACY_SECOND_PASS_SCHEMA:

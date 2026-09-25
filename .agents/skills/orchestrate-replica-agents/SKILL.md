@@ -42,6 +42,9 @@ expectations and reference facts removed. Treat the source, `claim.json`, and
 updates. Each child may write only inside its own recorded artifact namespace.
 
 Prepare pairs in research order using `agent-harness-start` before spawning.
+Skip claims registered as `RESEARCH_INCOMPLETE`: their recorded
+`research_gaps` must be closed in pass-2 research (`agent-bundle-prepare
+--supplement`) before a pair may start. Report them; never start them.
 The registry's active_claim_id serializes pair creation and peer binding only;
 it is not an execution concurrency limit. Every selected claim gets its own
 concurrent pair: max_concurrent_pairs equals claim_count. Generate a unique nonce for

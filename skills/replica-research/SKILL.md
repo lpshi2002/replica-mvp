@@ -366,12 +366,25 @@ another workflow is detected by the worker that researched it, which returns
 `status: merged` and `handoff: merge`. An orchestrator that collapses claims up
 front decides without evidence, never investigates what it collapsed, and erases
 the difference between "researched and found to be a step" and "never looked".
-Collect the `merge` results and report them instead.
+Collect the `merge` results instead, then close each one: set the merged
+claim's `second_pass.merged_into` to its parent claim ID and rerun or resume the
+parent's worker with the merged claim's researched steps and sources. A ready
+parent's `step_coverage` must then map the merged claim's pass-1 steps too
+(entries with `claim_id` set to the merged claim). Implementation refuses a
+merged claim without a researched parent, and a parent contract that does not
+cover the absorbed steps.
 
 When every worker has finished, attach each fragment to its claim's
 `second_pass`, recompute `workflow.pass_2` and `summary`
-(`ready_count`, `partial_count`, `blocked_count`), and set `workflow.status` to
-`pass_2_complete`.
+(`ready_count`, `partial_count`, `blocked_count`) from the claims, and set
+`workflow.status` to `pass_2_complete`. Implementation refuses research whose
+summary counts disagree with claim readiness.
+
+The fragment under `second_pass/` is the worker's original verdict. Never edit
+readiness or handoff silently: a later change appends a `second_pass.revisions`
+entry with the previous verdict, the reason, `revised_at`, and new sources with
+non-empty excerpts. Implementation compares the fragment and refuses an
+unrecorded change.
 
 ## Decide readiness
 
@@ -413,8 +426,16 @@ path rather than multiplying conditions against paths. The count follows from
 the resolved buckets, not from a guess made before research.
 
 Order scenarios most self-sufficient first — `oss_only`, `commercial_api`,
-`proprietary_data`. Execution runs the first and stops once it reproduces, so
-the position where a claim first reproduces is itself the finding.
+`proprietary_data`. The Sol/Terra harness runs only the selected scenario and
+does not fall back; a standalone run follows this order and stops at the first
+that reproduces (see "Execute only on request").
+
+Every scenario maps each pass-1 `workflow.steps` item in `step_coverage` as
+`implemented`, `external_dependency`, `excluded`, or `unconfirmed` (see
+`agents/replica-second-pass.md`). Choosing a simpler method for a step is a path
+decision; removing a step, or moving a system step to the caller, is `excluded`
+and makes the scenario a partial scope of the customer workflow. `unconfirmed`
+steps block implementation.
 
 Each scenario carries `id`, `self_sufficiency`, `boundaries` with
 `boundaries_origin` (`company` or `ours`), `input`, `output` including its
@@ -461,7 +482,11 @@ request when the safety rules require escalation. Keep public experience
 examples distinct from every robustness case and expected output.
 
 Pass 2 is complete when every pass-1 claim has a readiness decision and every
-ready claim contract is complete.
+ready claim contract is complete: all six findings closed, boundaries `stated`
+or `undisclosed`, every source with an excerpt, the selected scenario's
+`step_coverage` complete, and `normal`, `boundary`, and
+`insufficient-information` tests present. `agent-harness-init` checks these and
+refuses the research as `RESEARCH_INCOMPLETE` otherwise.
 
 For the Sol/Terra bundle route, also prepare the executable evaluation data described
 in `../../docs/replica-bundle-execution.md`. Reuse existing findings and cases. Add
@@ -472,7 +497,10 @@ The selected scenario may include `evaluation`; `handoff.experiment_budget` hold
 development time/cost limits and stopping policy. Freeze them before implementation.
 Generated wording may vary under a `contract` repeat policy; required deterministic
 fields still use exact assertions. Missing data is a research gap, not permission
-to lower acceptance criteria. Preserve old contracts and runs when supplementing.
+to lower acceptance criteria: a claim with evaluation gaps is registered as
+`RESEARCH_INCOMPLETE` and cannot start an Agent pair until
+`agent-bundle-prepare --supplement` closes them. Preserve old contracts and runs
+when supplementing.
 
 ## Execute only on request
 

@@ -173,6 +173,7 @@ def prepare_agent_harness(
     operator_model: str = ASTRA_MODEL,
     builder_model: str = TERRA_MODEL,
     model_runtime: str = "codex",
+    fragment_root: Path | None = None,
 ) -> dict[str, Any]:
     """Prepare deterministic state for real Agent orchestration."""
     if not _is_nonempty_text(replica_agent_id) or not _is_nonempty_text(
@@ -186,7 +187,7 @@ def prepare_agent_harness(
         raise ValueError("invalid Agent model policy")
     if model_runtime not in MODEL_RUNTIMES:
         raise ValueError("invalid Replica model runtime")
-    canonical = parse_second_pass(second_pass, model_runtime=model_runtime)
+    canonical = parse_second_pass(second_pass, model_runtime=model_runtime, fragment_root=fragment_root)
     run_dir.mkdir(parents=True, exist_ok=False)
     claims_root = run_dir / "claims"
     claims_root.mkdir()
@@ -287,8 +288,8 @@ def prepare_agent_harness(
             "max_concurrent_pairs": len(claims),
             "peak_active_pairs": 0,
             "active_claim_id": None,
-            "completed_claim_count": 0,
-            "failed_claim_count": 0,
+            "linked_pair_count": 0,
+            "creation_failed_count": 0,
         },
         "filesystem": {
             "registry_owner": "replica_agent",
@@ -335,6 +336,7 @@ def prepare_agent_harness_from_path(
         operator_model=operator_model,
         builder_model=builder_model,
         model_runtime=model_runtime,
+        fragment_root=source.parent,
     )
 
 
@@ -359,6 +361,11 @@ def start_agent_claim(registry_path: Path, claim_id: str) -> dict[str, Any]:
         ),
         None,
     )
+    if claim.get("status") == "RESEARCH_INCOMPLETE":
+        raise ValueError(
+            "claim research is incomplete; supplement it with agent-bundle-prepare before activation: "
+            + "; ".join(claim.get("research_gaps", []))
+        )
     if claim is not next_pending:
         raise ValueError("claim registration must follow research order")
     claim["status"] = "ACTIVE"
@@ -450,8 +457,8 @@ def record_agent_spawn_failure(
     else:
         claim["status"] = "CREATION_FAILED"
         scheduling["active_claim_id"] = None
-        scheduling["failed_claim_count"] = (
-            scheduling.get("failed_claim_count", 0) + 1
+        scheduling["creation_failed_count"] = (
+            scheduling.get("creation_failed_count", 0) + 1
         )
     claim["failure"] = {"reason": reason, "role": role}
     _replace_registry(registry_path, registry)
@@ -540,8 +547,8 @@ def record_direct_agent_message(
         claim["builder"]["status"] = "READY_FOR_PROTOCOL"
         claim["continuity"]["phase"] = "READY"
         scheduling["active_claim_id"] = None
-        scheduling["completed_claim_count"] = (
-            scheduling.get("completed_claim_count", 0) + 1
+        scheduling["linked_pair_count"] = (
+            scheduling.get("linked_pair_count", 0) + 1
         )
     _replace_registry(registry_path, registry)
     return registry
@@ -1489,8 +1496,9 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
            for claim in registry["claims"]):
         raise ValueError("cannot finish Agent harness with active execution pairs")
     statuses = [claim.get("status") for claim in registry["claims"]]
-    protocol_terminal_statuses = {"READY_FOR_PROTOCOL", "CREATION_FAILED"}
+    protocol_terminal_statuses = {"READY_FOR_PROTOCOL", "CREATION_FAILED", "RESEARCH_INCOMPLETE"}
     execution_terminal_statuses = {
+        "RESEARCH_INCOMPLETE",
         "IMPLEMENTATION_READY",
         "RESULT_SUCCESS",
         "RESULT_FAILED",
@@ -1537,8 +1545,14 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
         status = (
             "READY_FOR_PROTOCOL"
             if all(status == "READY_FOR_PROTOCOL" for status in statuses)
+            else "COMPLETED_WITH_RESEARCH_GAPS"
+            if "RESEARCH_INCOMPLETE" in statuses
             else "COMPLETED_WITH_CREATION_FAILURES"
         )
+    # Counted from final claim states, not from pair registration events.
+    registry["claim_status_counts"] = {
+        name: statuses.count(name) for name in sorted(set(statuses))
+    }
     registry["status"] = status
     registry["replica_agent"]["status"] = status
     _replace_registry(registry_path, registry)

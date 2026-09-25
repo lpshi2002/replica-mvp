@@ -90,7 +90,16 @@ manifest의 entrypoint는 선언된 파일이면서 command의 실제 인자여�
 
 ## 동결·평가·공개
 
+`agent-harness-init`은 먼저 조사 완료 여부를 확인한다. 1차 확정과 2차 완료 상태, 요약
+집계와 claim readiness의 일치, 여섯 findings의 종결과 출처 인용, 선택 시나리오의
+`step_coverage`와 정상·경계·정보 부족 테스트가 없으면 `RESEARCH_INCOMPLETE`로 거절한다.
+2차 fragment가 있으면 판정 변경마다 `second_pass.revisions` 기록을 요구한다.
+`step_coverage`에서 제외한 단계가 있으면 부분 범위 계약으로 기록되고, 최종 결과는
+최대 `partially_reproduced`다.
+
 `agent-harness-init`은 Builder 실행 전에 claim별 evaluator plan과 테스트를 동결한다.
+plan에 gap이 있으면 해당 claim은 `RESEARCH_INCOMPLETE`로 등록되어 Agent 쌍을 시작할
+수 없다. `agent-bundle-prepare --supplement`로 gap을 닫으면 `PENDING`으로 돌아간다.
 공개 실행 정보는 `claims/<claim-id>/runtime-contract-NNN.json`에 revision별로 남긴다.
 Sol/Terra는 가장 높은 revision의 실행 방식·공개 예제·공개 자산을 읽는다. 보완 후에도
 원래 claim과 Builder context는 덮어쓰지 않고 봉인 테스트는 전달하지 않는다.
