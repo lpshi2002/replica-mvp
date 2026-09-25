@@ -526,5 +526,38 @@ class ReplicaCompletionTest(unittest.TestCase):
         self.assertEqual("not_reproduced_on_this_path", assessment["status"])
 
 
+class BundleCompletionTest(unittest.TestCase):
+    def _assess(self, *, passed=6, status="PASSED", dependencies=(), coverage=None, has_outputs=True):
+        from replica_mvp.completion import assess_bundle_execution
+        plan = {"gaps": [], "prepared_before_implementation": True,
+                "workflow_coverage": coverage or {"scope": "whole_workflow", "excluded_steps": [], "external_dependencies": []}}
+        evaluation = {"status": status, "passed": passed, "total": 6, "source_unchanged": True,
+                      "dependencies": list(dependencies), "failure_category": None if status == "PASSED" else "implementation_defect",
+                      "candidate_sha256": "a" * 64, "plan_sha256": "b" * 64}
+        return assess_bundle_execution(plan, evaluation, {"status": "PASSED"}, has_outputs=has_outputs,
+                                       public_example_passed=True, public_assets_available=True)
+
+    def test_complete_evidence_reproduces(self):
+        self.assertEqual("reproduced", self._assess()["reproduction_status"])
+
+    def test_outputs_without_a_passing_case_are_not_partial_reproduction(self):
+        self.assertEqual("not_reproduced_on_this_path",
+                         self._assess(passed=0, status="FAILED")["reproduction_status"])
+        self.assertEqual("partially_reproduced", self._assess(passed=1, status="FAILED")["reproduction_status"])
+
+    def test_unobserved_dependency_versions_prevent_full_reproduction(self):
+        assessment = self._assess(dependencies=[{"name": "haystack-ai", "status": "unverified"}])
+        self.assertEqual("partially_reproduced", assessment["reproduction_status"])
+        self.assertIn("Declared dependency versions could not be observed: haystack-ai.", assessment["missing_conditions"])
+
+    def test_excluded_workflow_steps_cap_the_result_at_partial(self):
+        coverage = {"scope": "partial_workflow", "external_dependencies": [], "excluded_steps": [
+            {"claim_id": "claim-003", "step_index": 1, "step": "present the first question", "reason": "caller supplies it"},
+        ]}
+        assessment = self._assess(coverage=coverage)
+        self.assertEqual("partially_reproduced", assessment["reproduction_status"])
+        self.assertIn("claim-003#1 present the first question", assessment["missing_conditions"][0])
+
+
 if __name__ == "__main__":
     unittest.main()

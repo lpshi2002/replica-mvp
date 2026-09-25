@@ -77,7 +77,12 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
             terra_context_path = run_dir / claim["builder_context_path"]
             terra_context = json.loads(terra_context_path.read_text(encoding="utf-8"))
             self.assertEqual("replica-agent-claim/v2", sol_claim["schema_version"])
-            self.assertIn("tests", sol_claim["second_pass"]["replication_contract"][0])
+            # The Operator claim is public; sealed tests stay in the evaluator vault.
+            self.assertNotIn('"tests"', json.dumps(sol_claim))
+            self.assertNotIn("evaluation", sol_claim["second_pass"]["replication_contract"][1])
+            sealed = json.loads((run_dir / claim["sealed_claim_path"]).read_text(encoding="utf-8"))
+            self.assertTrue(claim["sealed_claim_path"].startswith("evaluator-vault/"))
+            self.assertIn("tests", sealed["second_pass"]["replication_contract"][0])
             self.assertEqual("replica-builder-context/v1", terra_context["schema_version"])
             self.assertEqual("s-oss", terra_context["selected_scenario"]["id"])
             self.assertEqual(

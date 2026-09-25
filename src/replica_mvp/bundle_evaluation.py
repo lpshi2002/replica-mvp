@@ -66,6 +66,18 @@ def _validate_history(root: Path, claim: dict[str, Any]) -> None:
             _validate_artifacts(vault, result["private_evidence"], "prior evaluation")
 
 
+def _sealed_claim(root: Path, claim: dict[str, Any]) -> dict[str, Any]:
+    """Read the full claim with sealed tests; older runs kept it in claim.json."""
+    path = claim.get("sealed_claim_path")
+    if path is None:
+        return _read_json(root / claim["claim_payload_path"])
+    sealed = root / path
+    if (not sealed.resolve().is_relative_to(root / "evaluator-vault") or sealed.is_symlink()
+            or digest(sealed) != claim["sealed_claim_sha256"]):
+        raise ValueError("sealed claim hash mismatch")
+    return _read_json(sealed)
+
+
 def _research_cases(payload: dict[str, Any], selected: dict[str, Any]) -> list[dict[str, Any]]:
     cases = []
     source_cases = selected.get("tests", [])
@@ -131,6 +143,12 @@ def _validate_case_metadata(cases: list[dict[str, Any]], criterion_ids: set[str]
             raise ValueError("novel input needs a documented difference from distinct development inputs")
         if not isinstance(case.get("repeat_policy", "contract"), str) or case.get("repeat_policy", "contract") not in {"exact", "contract"}:
             raise ValueError("invalid case repeat policy")
+        if "session" in case and (not isinstance(case["session"], str) or not case["session"].strip()):
+            raise ValueError("a shared case session must be a non-empty name")
+
+
+def _is_json_path(value: Any) -> bool:
+    return isinstance(value, list) and all(type(part) in {str, int} for part in value)
 
 
 def _validate_assets(assets: Any) -> None:
@@ -155,7 +173,7 @@ def prepare_bundle_evaluation(registry_path: Path, claim_id: str, supplement: Pa
     registry = _read_registry(registry_path)
     claim = _claim_record(registry, claim_id)
     root = registry_path.parent.resolve()
-    payload = _read_json(root / claim["claim_payload_path"])
+    payload = _sealed_claim(root, claim)
     selected = _selected_scenario(payload)
     if selected is None:
         raise ValueError("bundle evaluation requires a research claim")
@@ -201,7 +219,7 @@ def prepare_bundle_evaluation(registry_path: Path, claim_id: str, supplement: Pa
     acceptance = {c["id"]: c["description"] for c in payload["acceptance_criteria"]}
     for case in cases:
         extra = checks.get(case["id"], {})
-        if not isinstance(extra, dict) or set(extra) - {"deterministic_assertions", "criterion_ids", "metamorphic", "novelty"}:
+        if not isinstance(extra, dict) or set(extra) - {"deterministic_assertions", "criterion_ids", "metamorphic", "novelty", "session"}:
             raise ValueError("supplement can add checks, not replace research inputs or expectations")
         if not isinstance(extra.get("deterministic_assertions", []), list):
             raise ValueError("deterministic assertions must be a list")
@@ -228,11 +246,16 @@ def prepare_bundle_evaluation(registry_path: Path, claim_id: str, supplement: Pa
     _validate_assets(assets)
     output_artifacts = config.get("output_artifacts", [])
     if not isinstance(output_artifacts, list) or any(
-        not isinstance(a, dict) or set(a) != {"path", "media_type"}
-        or not isinstance(a["path"], list) or not all(type(p) in {str, int} for p in a["path"])
-        or not isinstance(a["media_type"], str) or "/" not in a["media_type"] for a in output_artifacts
+        not isinstance(a, dict) or not {"path", "media_type"} <= set(a) <= {"path", "media_type", "when"}
+        or not _is_json_path(a["path"])
+        or not isinstance(a["media_type"], str) or "/" not in a["media_type"]
+        or ("when" in a and (
+            not isinstance(a["when"], dict) or set(a["when"]) != {"path", "in"}
+            or not _is_json_path(a["when"]["path"]) or not isinstance(a["when"]["in"], list) or not a["when"]["in"]
+        ))
+        for a in output_artifacts
     ):
-        raise ValueError("output artifacts need a JSON path and media type")
+        raise ValueError("output artifacts need a JSON path, media type, and an optional when {path, in} condition")
     examples = config.get("public_examples", [])
     if not isinstance(examples, list) or any(
         not isinstance(e, dict) or set(e) != {"input", "description"}
@@ -265,9 +288,21 @@ def prepare_bundle_evaluation(registry_path: Path, claim_id: str, supplement: Pa
         gaps.append("research_gap: invariant and changed-fact relations are not prepared")
     if not examples:
         gaps.append("research_gap: a separate public runtime example is not prepared")
+    artifact_paths = [a["path"] for a in output_artifacts]
+    for case in cases:
+        relation = case.get("metamorphic")
+        if relation and relation["relation"] == "different" and not (
+            relation["path"] in artifact_paths
+            or case.get("repeat_policy", repeat) == "exact"
+            or any(a.get("type") == "equals" and a.get("path", []) == relation["path"]
+                   for a in case["deterministic_assertions"])
+        ):
+            # Generated wording always differs, so "different" proves nothing there.
+            gaps.append(f"research_gap: case {case['id']} compares a non-deterministic field with a different relation")
     plan = {
         "schema_version": "replica-bundle-evaluation-plan/v1", "claim_id": claim_id,
         "scenario_id": selected["id"], "claim_sha256": digest(root / claim["claim_payload_path"]),
+        "sealed_claim_sha256": claim.get("sealed_claim_sha256"),
         "prepared_at": utc_now(), "prepared_before_implementation": (
             claim["status"] in _UNSTARTED and not any((root / claim["builder"]["artifact_namespace"]).rglob("*"))
         ),
@@ -342,6 +377,21 @@ def _capture_artifacts(output: Any, specifications: list[dict[str, Any]], runtim
                        destination: Path) -> list[dict[str, Any]]:
     receipts = []
     for index, specification in enumerate(specifications):
+        condition = specification.get("when")
+        if condition is not None:
+            try:
+                state = _path_value(output, condition["path"])
+            except (KeyError, IndexError, TypeError):
+                raise RuntimeError("output artifact condition field is absent from the output") from None
+            if not any(_json_equal(state, value) for value in condition["in"]):
+                # A response without effects must not leave the effect's file behind either.
+                try:
+                    present = _path_value(output, specification["path"])
+                except (KeyError, IndexError, TypeError):
+                    present = None
+                if present is not None:
+                    raise RuntimeError("output names an artifact for a response that declares no effect")
+                continue
         try:
             name = _path_value(output, specification["path"])
         except (KeyError, IndexError, TypeError):
@@ -382,7 +432,6 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
     seconds = plan["budget"]["time_limit_seconds"]
     deadline = started + seconds if seconds is not None else float("inf")
     assets, public, output_artifacts, dependencies = [], [], [], []
-    case_artifacts: dict[str, list[list[dict[str, Any]]]] = {}
     source_unchanged = True
 
     def run_input(run: Callable, value: Any) -> tuple[Any, str | None]:
@@ -391,6 +440,9 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
         output, error = None, None
         if stop:
             return None, stop
+        # A case limited by the remaining total budget exhausts the budget; one that
+        # overruns its own per-request limit is a failed case and later cases still run.
+        budget_bound = deadline - before < timeout
         try:
             remaining = min(timeout, deadline - before)
             if remaining <= 0:
@@ -401,45 +453,73 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
             error = str(failure)
             failure_category = _failure_category(failure)
             if isinstance(failure, TimeoutError):
-                stop = "budget_exhausted"
+                if budget_bound:
+                    stop = "budget_exhausted"
+                else:
+                    failure_category = "case_timeout"
             elif plan["budget"]["stop_on_blocked"] and failure_category in {"access_missing", "data_missing", "environment_error"}:
                 stop = error
         executions.append({"input_sha256": value_digest(value), "output_sha256": value_digest(output),
                            "elapsed_seconds": time.monotonic() - before, "error": error})
         return output, error
 
+    # Each case runs in a fresh session unless research names a shared session for a stateful sequence.
+    groups: list[list[dict[str, Any]]] = []
+    named: dict[str, list[dict[str, Any]]] = {}
+    for case in cases:
+        if "session" not in case:
+            groups.append([case])
+        elif case["session"] in named:
+            named[case["session"]].append(case)
+        else:
+            named[case["session"]] = [case]
+            groups.append(named[case["session"]])
+    recorded: list[dict[str, Any]] = [{}, {}]
+    case_artifacts = {case["id"]: [[], []] for case in cases}
     errors = {}
+
+    def record_outputs() -> None:
+        for collection, values in ((outputs, recorded[0]), (repeated, recorded[1])):
+            collection[:] = [{"case_id": c["id"], "output": values[c["id"]]} for c in cases if c["id"] in values]
+        _write_jsonl(vault / "replica_outputs.jsonl", outputs)
+        _write_jsonl(vault / "repeated_outputs.jsonl", repeated)
+        _write_jsonl(vault / "execution-records.jsonl", executions)
+
     try:
         if plan["budget"]["cost_limit"] is not None:
             raise PermissionError("cost budget cannot be enforced without metered economic cost; execution blocked")
-        for collection in (outputs, repeated):
-            with bundle_session(manifest_path, plan["runtime"], min(timeout, deadline - time.monotonic()),
-                                prepare=lambda root: _copy_assets(plan["assets"], root)) as (run, runtime_root):
-                if not dependencies:
-                    dependencies = observe_dependencies(_read_json(manifest_path), runtime_root, deadline - time.monotonic())
-                assets = [{k: v for k, v in a.items() if k != "source"} for a in plan["assets"]]
-                for case in cases:
-                    output, error = run_input(run, case["input"])
-                    collection.append({"case_id": case["id"], "output": output})
-                    captured = []
-                    if not error:
-                        try:
-                            captured = _capture_artifacts(output, plan["output_artifacts"], runtime_root,
-                                                          vault / "artifacts" / str(len(executions)))
-                            output_artifacts.extend(captured)
-                        except (OSError, ValueError, RuntimeError) as failure:
-                            error = str(failure)
-                            failure_category = _failure_category(failure)
-                            executions[-1]["error"] = error
-                    case_artifacts.setdefault(case["id"], []).append(captured)
-                    if error:
-                        errors[case["id"]] = error
-                    _write_jsonl(vault / "replica_outputs.jsonl", outputs)
-                    _write_jsonl(vault / "repeated_outputs.jsonl", repeated)
-                    _write_jsonl(vault / "execution-records.jsonl", executions)
-                manifest = _read_json(manifest_path)
-                source_unchanged &= all((runtime_root / f["path"]).is_file()
-                                       and digest(runtime_root / f["path"]) == f["sha256"] for f in manifest["files"])
+        for repetition in (0, 1):
+            for group in groups:
+                if stop:
+                    for case in group:
+                        recorded[repetition][case["id"]] = None
+                        errors[case["id"]] = stop
+                    continue
+                with bundle_session(manifest_path, plan["runtime"], min(timeout, deadline - time.monotonic()),
+                                    prepare=lambda root: _copy_assets(plan["assets"], root)) as (run, runtime_root):
+                    if not dependencies:
+                        dependencies = observe_dependencies(_read_json(manifest_path), runtime_root, deadline - time.monotonic())
+                    assets = [{k: v for k, v in a.items() if k != "source"} for a in plan["assets"]]
+                    for case in group:
+                        output, error = run_input(run, case["input"])
+                        recorded[repetition][case["id"]] = output
+                        captured = []
+                        if not error:
+                            try:
+                                captured = _capture_artifacts(output, plan["output_artifacts"], runtime_root,
+                                                              vault / "artifacts" / str(len(executions)))
+                                output_artifacts.extend(captured)
+                            except (OSError, ValueError, RuntimeError) as failure:
+                                error = str(failure)
+                                failure_category = _failure_category(failure)
+                                executions[-1]["error"] = error
+                        case_artifacts[case["id"]][repetition] = captured
+                        if error:
+                            errors[case["id"]] = error
+                        record_outputs()
+                    manifest = _read_json(manifest_path)
+                    source_unchanged &= all((runtime_root / f["path"]).is_file()
+                                           and digest(runtime_root / f["path"]) == f["sha256"] for f in manifest["files"])
         # Public output must never inherit sealed files, caches or conversation state.
         with bundle_session(manifest_path, plan["runtime"], min(timeout, deadline - time.monotonic()),
                             prepare=lambda root: _copy_assets([a for a in plan["assets"] if a["visibility"] == "public"], root)) as (run, runtime_root):
@@ -459,14 +539,13 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
     except (OSError, RuntimeError, ValueError) as failure:
         stop = str(failure)
         failure_category = _failure_category(failure)
-        for collection in (outputs, repeated):
-            for case in cases[len(collection):]:
-                collection.append({"case_id": case["id"], "output": None})
-                errors[case["id"]] = stop
+        for values in recorded:
+            for case in cases:
+                if case["id"] not in values:
+                    values[case["id"]] = None
+                    errors[case["id"]] = stop
+    record_outputs()
     # All generation finishes before any grading request is made.
-    _write_jsonl(vault / "replica_outputs.jsonl", outputs)
-    _write_jsonl(vault / "repeated_outputs.jsonl", repeated)
-    _write_jsonl(vault / "execution-records.jsonl", executions)
     results = []
     for case, first, again in zip(cases, outputs, repeated, strict=True):
         checks = [_check_assertion(a, record["output"])
@@ -576,7 +655,10 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
                 or digest(public_contract_path) != prepared["public_runtime_contract_sha256"]):
             raise ValueError("public runtime contract hash mismatch")
     plan = _read_json(plan_path)
-    if plan["claim_sha256"] != digest(root / claim["claim_payload_path"]):
+    if plan["claim_sha256"] != digest(root / claim["claim_payload_path"]) or (
+        plan.get("sealed_claim_sha256") is not None
+        and plan["sealed_claim_sha256"] != digest(root / claim["sealed_claim_path"])
+    ):
         raise ValueError("evaluation no longer matches the immutable claim")
     manifest_path = root / claim["implementation_result"]["candidate_path"]
     manifest_sha256 = digest(manifest_path)

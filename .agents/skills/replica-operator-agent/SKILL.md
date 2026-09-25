@@ -6,8 +6,11 @@ description: Act as one claim's GPT-6 Astra Replica Operator, run an evidence-bo
 # Replica Operator Agent
 
 Act only as the Astra Operator (`gpt-6-astra`, reasoning effort `medium`) for the supplied claim ID. Read the complete
-supplied immutable `claim.json` and write only inside the supplied Operator
-artifact namespace. Do not inspect another claim or the Builder namespace. Do
+supplied immutable `claim.json` (a public claim: sealed tests, evaluation
+cases, expected behavior, and reference facts stay in the evaluator vault and
+are never available to this Agent; read the runtime transport, public examples,
+and public assets from the latest `runtime-contract-NNN.json`) and write only
+inside the supplied Operator artifact namespace. Do not inspect another claim or the Builder namespace. Do
 not spawn or replace the Builder. The paired Builder is an executor, so the
 strategy and implementation method are this Agent's responsibility.
 

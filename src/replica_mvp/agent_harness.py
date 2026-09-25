@@ -99,6 +99,24 @@ def _claim_record(registry: dict[str, Any], claim_id: str) -> dict[str, Any]:
     raise ValueError(f"unknown claim identity: {claim_id}")
 
 
+_SEALED_RESEARCH_FIELDS = {
+    "tests", "evaluation", "expected_behavior", "reference_facts",
+    "expected_output", "original_outputs",
+}
+
+
+def _public_research(value: Any) -> Any:
+    """Remove sealed evaluation material that no implementing Agent may read."""
+    if isinstance(value, dict):
+        return {
+            key: _public_research(item) for key, item in value.items()
+            if key not in _SEALED_RESEARCH_FIELDS
+        }
+    if isinstance(value, list):
+        return [_public_research(item) for item in value]
+    return deepcopy(value)
+
+
 def _builder_context(
     claim_id: str,
     payload: dict[str, Any],
@@ -124,19 +142,7 @@ def _builder_context(
         for scenario in scenarios
         if scenario["id"] == payload["selected_scenario_id"]
     )
-    def public_research(value: Any) -> Any:
-        if isinstance(value, dict):
-            return {
-                key: public_research(item) for key, item in value.items()
-                if key not in {
-                    "tests", "evaluation", "expected_behavior", "reference_facts",
-                    "expected_output", "original_outputs",
-                }
-            }
-        if isinstance(value, list):
-            return [public_research(item) for item in value]
-        return deepcopy(value)
-
+    public_research = _public_research
     public_scenario = public_research(selected)
     return {
         "schema_version": BUILDER_CONTEXT_SCHEMA,
@@ -202,9 +208,21 @@ def prepare_agent_harness(
         claim_namespace = f"claims/{claim_id}"
         claim_payload_path = f"{claim_namespace}/claim.json"
         builder_context_path = f"{claim_namespace}/builder-context.json"
+        payload = canonical_claim["payload"]
+        sealed = {}
+        if payload.get("schema_version") == "replica-agent-claim/v2":
+            # Sealed tests live only in the evaluator vault; the Operator reads the public claim.
+            sealed_path = run_dir / EVALUATOR_VAULT_ROOT / claim_id / "claim-sealed.json"
+            sealed_path.parent.mkdir(parents=True)
+            _write_new_json(sealed_path, payload)
+            sealed = {
+                "sealed_claim_path": _relative_path(run_dir, sealed_path),
+                "sealed_claim_sha256": _sha256(sealed_path),
+            }
+            payload = _public_research(payload)
         _write_new_json(
             run_dir / claim_payload_path,
-            canonical_claim["payload"],
+            payload,
         )
         _write_new_json(
             run_dir / builder_context_path,
@@ -219,6 +237,7 @@ def prepare_agent_harness(
                 "claim_id": claim_id,
                 "claim_payload_owner": "replica_agent",
                 "claim_payload_path": claim_payload_path,
+                **sealed,
                 "builder_context_owner": "replica_agent",
                 "builder_context_path": builder_context_path,
                 "status": "PENDING",

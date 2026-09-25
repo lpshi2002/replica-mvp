@@ -31,7 +31,10 @@ Sol은 선택된 경로를 구체적인 파일·함수·명령·수정 작업으
 
 ## 2차에서 준비할 평가 데이터
 
-기존 scenario의 `tests`와 `acceptance_criteria`를 재사용한다. 기존 `expected_behavior`와
+기존 scenario의 `tests`와 `acceptance_criteria`를 재사용한다. 모든 case는 `kind`를
+`normal`·`boundary`·`insufficient_information`·`novel`·`metamorphic` 중 하나로 명시한다.
+id가 정확히 `normal`·`boundary`·`insufficient-information`인 연구 테스트만 kind를 생략할 수
+있고, 그 밖의 id에서 kind를 추측하지 않는다. 기존 `expected_behavior`와
 `reference_facts`는 각각 의미 평가 기준과 비공개 reference로 보존한다. 새로운 형식의
 case는 기존 `replica-tests/v1`의 `id`, `kind`, `input`, `deterministic_assertions`,
 `semantic_criteria`를 사용하고, `criterion_ids`로 claim의 합격 기준과 연결한다.
@@ -73,6 +76,9 @@ scenario의 선택적 `evaluation` 예시는 다음과 같다.
   비교 대상 case와 출력 필드를 명시한다. 생성형 답변 전체 대신 유지돼야 할 결정값을
   비교하고 의미적 결정 내용도 품질 기준에 넣는다.
   비교 필드가 선언된 출력 파일 경로라면 파일명 대신 보존한 파일의 SHA-256을 비교한다.
+  `different`는 생성 문장처럼 매번 달라지는 값에서는 아무것도 증명하지 않으므로, 같은
+  경로의 `equals` assertion이 있거나 `repeat_policy: "exact"`이거나 출력 파일 경로일 때만
+  쓴다. 그 밖의 `different` 관계는 research gap으로 기록된다.
 - 봉인 입력과 다른 `public_examples: [{input, description}]`.
 - 실제 파일 입력이 필요하면 `assets`에 `path`, `source`, `sha256`, `media_type`,
   `provenance`, `usage_terms`, `visibility`를 기록한다. `source`는 준비된 로컬 파일이며
@@ -81,6 +87,14 @@ scenario의 선택적 `evaluation` 예시는 다음과 같다.
 - 최종 결과가 파일이면 `output_artifacts: [{path: ["document"], media_type: "application/pdf"}]`
   형태로 출력 JSON의 파일 경로 필드를 지정한다. 출력은 실제 상대 경로 파일이어야 한다.
   비어 있거나 실행 디렉터리를 벗어난 파일은 거절한다. 현재 파일당 한도는 100 MB다.
+  되묻기·미발동·승인 대기처럼 효과가 없어야 하는 응답이 있으면
+  `when: {path: ["status"], in: ["executed"]}`로 파일이 필요한 결과 상태를 동결한다.
+  조건에 맞으면 실제 파일을 요구하고, 조건에 맞지 않으면 파일 경로가 없어야 한다.
+  조건 필드가 출력에 없으면 실패한다. 가짜 파일로 통과시키지 않는다.
+- 각 case는 새 세션에서 격리 실행된다. 앞 case가 남긴 상태를 전제하는 흐름(중복 이벤트
+  억제, 이어지는 대화, 재개)은 관련 case에 같은 `session` 이름을 붙여 선언한다. 같은
+  이름의 case는 한 세션에서 기록 순서대로 실행된다. 기존 연구 테스트에는
+  `case_checks.<id>.session`으로 붙인다.
 
 `stdio_json`은 `{"transport":"stdio_json"}`만 지정한다. manifest의 `command`가 JSON을
 stdin으로 받아 stdout으로 JSON을 반환한다. `http_json`은 같은 command에 포트 인자를
@@ -89,6 +103,15 @@ stdin으로 받아 stdout으로 JSON을 반환한다. `http_json`은 같은 comm
 manifest의 entrypoint는 선언된 파일이면서 command의 실제 인자여야 한다.
 
 ## 동결·평가·공개
+
+Operator가 읽는 `claims/<claim-id>/claim.json`에는 봉인 테스트·평가 사례·기대값·
+reference가 없다. 전체 claim은 `evaluator-vault/<claim-id>/claim-sealed.json`에만 두고
+registry에 해시를 기록한다. 실행 방식·공개 예시·공개 자산은 revision별
+`runtime-contract-NNN.json`에서 읽는다.
+
+최종 판정의 `partially_reproduced`는 출력이 있고 봉인 case가 하나 이상 통과한 경우에만
+쓴다. 출력은 있지만 통과한 case가 없으면 `not_reproduced_on_this_path`다.
+`step_coverage`에서 단계를 제외한 계약은 모든 case가 통과해도 `partially_reproduced`다.
 
 `agent-harness-init`은 먼저 조사 완료 여부를 확인한다. 1차 확정과 2차 완료 상태, 요약
 집계와 claim readiness의 일치, 여섯 findings의 종결과 출처 인용, 선택 시나리오의
@@ -142,7 +165,10 @@ stdout으로 반환한다. 전달된 `timeout_seconds`를 지킨다. 품질 요�
 같은 필수 값·구조·품질 기준을 적용한다. 반드시 결정적이어야 하는 출력은 case 또는
 전체 plan에 `repeat_policy: "exact"`를 지정한다. 같은 candidate의 봉인 재제출을 거절하고
 scenario당 최대 세 번의 제출 한도를 적용한다. 개발 수정 횟수와 별도다.
-각 반복은 새 세션에서 같은 순서의 입력을 실행한다. 반복 내부에서는 상태를 유지한다.
+각 반복에서 case마다 새 세션을 열고, 같은 `session` 이름을 선언한 case만 한 세션에서
+순서대로 실행한다. 한 case가 자기 요청 제한 시간을 넘기면 그 case만 `case_timeout`으로
+실패하고 다음 case는 계속 실행한다. 전체 평가 예산이 제한 요인이 된 경우에만
+`budget_exhausted`로 남은 case를 건너뛴다.
 공개 예시는 공개 자산만 넣은 또 다른 세션에서 실행하므로 봉인 자료·대화·캐시를
 물려받지 않는다. 자산은 서버가 시작하기 전에 준비한다.
 
@@ -189,8 +215,9 @@ replica-mvp run-replica PUBLIC_RUN_DIR --use-model-adapter < new-input.json
 command를 implementation 디렉터리에서 실행한다. 필요한 환경변수와 원래의 의존성이
 준비돼 있어야 하며, 공개할 수 없었던 입력 자산은 별도로 준비해야 한다.
 설치된 Python 패키지와 CLI 버전은 별도로 관측해 선언된 버전과 함께 남긴다.
-관측할 수 없는 모델·자원 revision은 미확인으로 표시하며, 확인된 버전 불일치는
-완전 재현 조건을 통과하지 못한다. 버전을 자동으로 교체하지 않는다.
+관측할 수 없는 모델·자원 revision은 미확인으로 표시한다. 버전 불일치와 미확인 버전은
+모두 완전 재현 조건을 통과하지 못한다. 버전 관측은 설치 상태이지 호출 증거가 아니므로
+필수 의존성의 실제 사용은 실행 기록과 구현 검토로 확인한다. 버전을 자동으로 교체하지 않는다.
 
 ## 자원 기록과 조기 종료
 

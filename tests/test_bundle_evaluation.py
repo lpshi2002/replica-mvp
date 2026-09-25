@@ -327,8 +327,12 @@ json.dump({'value':n*2},sys.stdout)
         with TemporaryDirectory() as tmp:
             research = _evaluation_research()
             research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]["repeat_policy"] = "exact"
-            result = evaluate_agent_bundle(_bound_bundle(Path(tmp) / "run", research=research), "claim-001", semantic_judge=_fixture_judge)
-            self.assertEqual("partially_reproduced", result["claims"][0]["final_result"]["reproduction_status"])
+            registry = _bound_bundle(Path(tmp) / "run", research=research)
+            result = evaluate_agent_bundle(registry, "claim-001", semantic_judge=_fixture_judge)
+            public = registry.parent / result["claims"][0]["final_result"]["public_run_dir"]
+            # Every case fails the exact repeat, and outputs without a passing case are not partial reproduction.
+            self.assertEqual(0, json.loads((public / "replica-result.json").read_text())["evaluation"]["passed"])
+            self.assertEqual("not_reproduced_on_this_path", result["claims"][0]["final_result"]["reproduction_status"])
 
     def test_semantic_criteria_check_both_repetitions(self):
         with TemporaryDirectory() as tmp:
@@ -502,17 +506,87 @@ class Handler(BaseHTTPRequestHandler):
 p=argparse.ArgumentParser();p.add_argument('--port',type=int);a=p.parse_args()
 HTTPServer(('127.0.0.1',a.port),Handler).serve_forever()
 '''
-        for body, category in (("self.send_response(302);self.send_header('Location','http://127.0.0.1:1/other');self.end_headers()", "implementation_defect"),
-                               ("self.send_response(200);self.send_header('Content-Length','999');self.end_headers()\n  for i in range(100): self.wfile.write(b' ');self.wfile.flush();time.sleep(.03)", "budget_exhausted")):
+        slow = "self.send_response(200);self.send_header('Content-Length','999');self.end_headers()\n  for i in range(100): self.wfile.write(b' ');self.wfile.flush();time.sleep(.03)"
+        for body, category, budget in (("self.send_response(302);self.send_header('Location','http://127.0.0.1:1/other');self.end_headers()", "implementation_defect", None),
+                                       (slow, "case_timeout", None), (slow, "budget_exhausted", 1.5)):
             with self.subTest(category=category), TemporaryDirectory() as tmp:
                 research = _evaluation_research()
                 config = research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]
                 config["runtime"] = {"transport": "http_json", "endpoint": "/run", "port_argument": "--port"}
-                config["timeout_seconds"] = .3
+                config["timeout_seconds"] = .3 if budget is None else 2
+                if budget is not None:
+                    config["budget"] = {"time_limit_seconds": budget, "cost_limit": None, "stop_on_blocked": True}
                 registry = _bound_bundle(Path(tmp) / "run", source=source.replace("BODY", body), research=research)
                 result = evaluate_agent_bundle(registry, "claim-001")
-                public = registry.parent / result["claims"][0]["final_result"]["public_run_dir"]
+                final = result["claims"][0]["final_result"]
+                public = registry.parent / final["public_run_dir"]
                 self.assertEqual(category, json.loads((public / "replica-result.json").read_text())["failure_category"])
+                records = (registry.parent / final["vault_dir"] / "execution-records.jsonl").read_text().splitlines()
+                if category == "case_timeout":
+                    # Each slow case fails alone; all six cases twice plus the public example still run.
+                    self.assertEqual(13, len(records))
+
+    def test_cases_are_isolated_unless_research_declares_a_shared_session(self):
+        source = """import json, sys
+from pathlib import Path
+v = json.load(sys.stdin)
+state = Path('calls.txt')
+count = int(state.read_text()) + 1 if state.exists() else 1
+state.write_text(str(count))
+json.dump({'value': v['x'] * 2, 'calls': count}, sys.stdout)
+"""
+        with TemporaryDirectory() as tmp:
+            research = _evaluation_research()
+            scenario = research["claims"][0]["second_pass"]["replication_contract"][1]
+            scenario["tests"][1]["deterministic_assertions"].append({"type": "equals", "path": ["calls"], "value": 1})
+            follow_up = {"id": "follow-up", "kind": "boundary", "input": {"x": 5}, "session": "flow",
+                         "deterministic_assertions": [{"type": "equals", "path": ["calls"], "value": 2}],
+                         "semantic_criteria": [], "criterion_ids": ["criterion-001"]}
+            scenario["evaluation"]["case_checks"] = {"normal": {"session": "flow"}}
+            scenario["evaluation"]["additional_cases"].append(follow_up)
+            registry = _bound_bundle(Path(tmp) / "run", source=source, research=research)
+            result = evaluate_agent_bundle(registry, "claim-001", semantic_judge=_fixture_judge)
+            final = result["claims"][0]["final_result"]
+            vault = registry.parent / final["vault_dir"]
+            results = {json.loads(line)["case_id"]: json.loads(line) for line in (vault / "results.jsonl").read_text().splitlines()}
+            self.assertTrue(results["boundary"]["pass"], results["boundary"])
+            self.assertTrue(results["follow-up"]["pass"], results["follow-up"])
+
+    def test_output_artifacts_follow_the_frozen_effect_condition(self):
+        from replica_mvp.bundle_evaluation import _capture_artifacts
+        with TemporaryDirectory() as tmp:
+            root, destination = Path(tmp) / "runtime", Path(tmp) / "captured"
+            root.mkdir()
+            (root / "done.txt").write_text("sent")
+            spec = [{"path": ["document"], "media_type": "text/plain", "when": {"path": ["status"], "in": ["done"]}}]
+            self.assertEqual([], _capture_artifacts({"status": "needs_clarification"}, spec, root, destination))
+            with self.assertRaisesRegex(RuntimeError, "declares no effect"):
+                _capture_artifacts({"status": "needs_clarification", "document": "done.txt"}, spec, root, destination)
+            with self.assertRaisesRegex(RuntimeError, "absent from the output"):
+                _capture_artifacts({"status": "done"}, spec, root, destination)
+            with self.assertRaisesRegex(RuntimeError, "condition field is absent"):
+                _capture_artifacts({"document": "done.txt"}, spec, root, destination)
+            self.assertEqual(1, len(_capture_artifacts({"status": "done", "document": "done.txt"}, spec, root, destination)))
+
+    def test_different_relation_on_generated_text_is_a_research_gap(self):
+        from replica_mvp.agent_harness import prepare_agent_harness
+        with TemporaryDirectory() as tmp:
+            research = _evaluation_research()
+            changed = research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]["additional_cases"][2]
+            changed["metamorphic"]["path"] = ["wording"]
+            registry = prepare_agent_harness(research, Path(tmp) / "run", replica_agent_id="agent", parent_agent_id="root")
+            claim = registry["claims"][0]
+            self.assertEqual("RESEARCH_INCOMPLETE", claim["status"])
+            self.assertIn("research_gap: case changed compares a non-deterministic field with a different relation",
+                          claim["research_gaps"])
+
+    def test_unknown_evaluation_kind_is_rejected(self):
+        from replica_mvp.agent_harness import prepare_agent_harness
+        with TemporaryDirectory() as tmp:
+            research = _evaluation_research()
+            research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]["additional_cases"][0]["kind"] = "negative"
+            with self.assertRaisesRegex(ValueError, "kind must be one of"):
+                prepare_agent_harness(research, Path(tmp) / "run", replica_agent_id="agent", parent_agent_id="root")
 
 
 if __name__ == "__main__":

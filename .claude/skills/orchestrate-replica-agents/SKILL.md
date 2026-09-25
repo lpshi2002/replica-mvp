@@ -40,7 +40,8 @@ This command calls `parse_second_pass()`, writes `agent-harness.json`, and
 creates `claims/<claim-id>/claim.json`, `builder-context.json`, `operator/`, and
 `builder/`. For a company research input it selects only `ready` + `build`
 claims, preserves the complete Second-pass workflow, findings, and scenario
-contracts in `claim.json`, and follows the Second-pass `handoff.selected_scenario_id`
+contracts in `claim.json` with sealed tests and evaluation cases moved to
+`evaluator-vault/<claim-id>/claim-sealed.json`, and follows the Second-pass `handoff.selected_scenario_id`
 or `handoff.scenario_priority`. Without either, preserve the researched scenario
 order and record that fallback; never reorder by dependency cost or convenience.
 Claude is recorded as a narrow model-runtime overlay and does not cause an

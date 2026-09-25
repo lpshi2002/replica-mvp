@@ -503,13 +503,17 @@ def assess_bundle_execution(
         gaps.append("The implementation changed its own declared source while executing.")
     if any(d["status"] == "different" for d in evaluation.get("dependencies", [])):
         gaps.append("Observed installed dependency versions differ from the declared bundle versions.")
+    unverified = [d["name"] for d in evaluation.get("dependencies", []) if d["status"] == "unverified"]
+    if unverified:
+        gaps.append("Declared dependency versions could not be observed: " + ", ".join(unverified) + ".")
     if not public_example_passed:
         gaps.append("A separate reusable public example did not execute successfully.")
     if not public_assets_available:
         gaps.append("A required public input asset is unavailable or its hash changed.")
     if evaluation["status"] == "PASSED" and not gaps:
         status = "reproduced"
-    elif has_outputs:
+    elif has_outputs and evaluation.get("passed", 0) > 0:
+        # Output alone is not partial reproduction; at least one frozen case must pass.
         status = "partially_reproduced"
     elif evaluation["failure_category"] in {
         "environment_error", "data_missing", "access_missing", "budget_exhausted", "research_gap",
