@@ -116,7 +116,9 @@ After every source or query:
    immediately instead of waiting to merge later, add any newly documented
    stage to its `workflow.steps`, append any new replication lead, and replace
    basis evidence only when the new source states it more directly;
-4. move the source or query from `remaining` to `completed`;
+4. move the source or query from `remaining` to `completed`, or to
+   `skipped` as `{"item": …, "reason": "…"}` when it cannot be researched
+   (dead link, paywall, unreachable);
 5. append newly discovered product, system, feature, and internal technical
    names to `discovered_names`; and
 6. update `updated_at`.
@@ -145,6 +147,7 @@ reconfirmed.
   },
   "progress": {
     "completed": [],
+    "skipped": [],
     "remaining": [],
     "discovered_names": []
   },
@@ -212,7 +215,8 @@ reconfirmed.
 The same 1-based rule applies to `customer_basis`, `ai_basis`, each step, and
 each replication lead.
 
-Use `status: complete` only after `remaining` is empty. Do not rank, prioritize,
+Use `status: complete` only after `remaining` is empty and every `assigned`
+item is in `completed` or in `skipped` with a reason. Do not rank, prioritize,
 or deduplicate across workers. Do not open extra sources solely to complete
 implementation datasets or design tests; do preserve useful material already
 encountered in the assigned research.

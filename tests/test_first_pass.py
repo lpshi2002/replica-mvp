@@ -143,6 +143,15 @@ def _research():
                 "second_pass": None,
             }
         ],
+        "candidate_resolutions": [
+            {
+                "candidate_id": f"{scope}-claim-001",
+                "decision": "kept_as_claim" if scope == "official_surfaces" else "merged_into_claim",
+                "target_id": "claim-001",
+                "rationale": "Same customer goal, input, and deliverable as claim-001.",
+            }
+            for scope in FIRST_PASS_SCOPES
+        ],
         "deferred_resolutions": [],
         "summary": {
             "candidate_count": 0,
@@ -211,6 +220,128 @@ class FinalizeFirstPassTest(unittest.TestCase):
 
             current = json.loads((root / "research.json").read_text(encoding="utf-8"))
             self.assertEqual(original, current)
+
+    def test_dropped_candidate_blocks_finalize(self):
+        with TemporaryDirectory() as tmp:
+            root, _ = self._setup(tmp)
+
+            def drop(research):
+                research["claims"] = []
+                research["candidate_resolutions"] = []
+
+            self._rewrite_research(root, drop)
+
+            with self.assertRaisesRegex(ValueError, "candidate item '.*-claim-001' is unresolved"):
+                finalize_first_pass(root)
+
+    def test_candidates_can_be_excluded_with_rationale(self):
+        with TemporaryDirectory() as tmp:
+            root, _ = self._setup(tmp)
+
+            def exclude_all(research):
+                research["claims"] = []
+                for resolution in research["candidate_resolutions"]:
+                    resolution.update(decision="excluded", target_id=None, rationale="Only internal use was documented.")
+
+            self._rewrite_research(root, exclude_all)
+
+            finalized = finalize_first_pass(root)
+            self.assertEqual(10, finalized["summary"]["excluded_count"])
+            self.assertEqual("no_ai_claims", finalized["summary"]["next_step"])
+
+    def test_excluded_candidate_needs_rationale(self):
+        with TemporaryDirectory() as tmp:
+            root, _ = self._setup(tmp)
+
+            def exclude(research):
+                research["candidate_resolutions"][1].update(decision="excluded", target_id=None, rationale="")
+
+            self._rewrite_research(root, exclude)
+
+            with self.assertRaisesRegex(ValueError, "rationale must be filled"):
+                finalize_first_pass(root)
+
+    def test_final_claim_must_trace_to_a_candidate(self):
+        with TemporaryDirectory() as tmp:
+            root, _ = self._setup(tmp)
+
+            def orphan(research):
+                for resolution in research["candidate_resolutions"]:
+                    resolution.update(decision="excluded", target_id=None, rationale="Duplicate marketing copy.")
+
+            self._rewrite_research(root, orphan)
+
+            with self.assertRaisesRegex(ValueError, "not traced to any checkpoint candidate"):
+                finalize_first_pass(root)
+
+    def test_attached_deferred_evidence_does_not_originate_a_claim(self):
+        with TemporaryDirectory() as tmp:
+            root, _ = self._setup(tmp)
+            path = root / FIRST_PASS_SCOPES["official_surfaces"]
+            checkpoint = json.loads(path.read_text(encoding="utf-8"))
+            checkpoint["deferred"].append(
+                {
+                    "id": "official_surfaces-deferred-001",
+                    "claim": "One stage",
+                    "url": "https://example.com/blog",
+                    "excerpt": "The review workflow classifies attachments.",
+                    "reason": "not_workflow",
+                }
+            )
+            path.write_text(json.dumps(checkpoint, ensure_ascii=False), encoding="utf-8")
+
+            def attach_only(research):
+                for resolution in research["candidate_resolutions"]:
+                    resolution.update(decision="excluded", target_id=None, rationale="Duplicate marketing copy.")
+                research["deferred_resolutions"].append(
+                    {
+                        "deferred_id": "official_surfaces-deferred-001",
+                        "decision": "attached_to_claim",
+                        "target_id": "claim-001",
+                        "rationale": "A stage of the review workflow.",
+                    }
+                )
+
+            self._rewrite_research(root, attach_only)
+
+            with self.assertRaisesRegex(ValueError, "not traced to any checkpoint candidate"):
+                finalize_first_pass(root)
+
+    def test_unperformed_assignment_blocks_finalize(self):
+        with TemporaryDirectory() as tmp:
+            root, _ = self._setup(tmp)
+            path = root / FIRST_PASS_SCOPES["engineering_blog"]
+            checkpoint = json.loads(path.read_text(encoding="utf-8"))
+            checkpoint["assignment"]["assigned"].append("https://example.com/blog/2")
+            path.write_text(json.dumps(checkpoint), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "neither completed nor skipped"):
+                finalize_first_pass(root)
+
+            checkpoint["progress"]["skipped"] = [{"item": "https://example.com/blog/2", "reason": ""}]
+            path.write_text(json.dumps(checkpoint), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "skipped 1 needs item and reason"):
+                finalize_first_pass(root)
+
+            checkpoint["progress"]["skipped"] = [{"item": "https://example.com/blog/2", "reason": "HTTP 404"}]
+            path.write_text(json.dumps(checkpoint), encoding="utf-8")
+            finalize_first_pass(root)
+
+    def test_finalize_refuses_research_past_pass_1(self):
+        with TemporaryDirectory() as tmp:
+            root, _ = self._setup(tmp)
+            self._rewrite_research(root, lambda research: research["workflow"].update(status="pass_2_complete"))
+            before = (root / "research.json").read_text(encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "before pass 2 starts"):
+                finalize_first_pass(root)
+            self.assertEqual(before, (root / "research.json").read_text(encoding="utf-8"))
+
+    def test_finalize_is_repeatable_during_pass_1(self):
+        with TemporaryDirectory() as tmp:
+            root, _ = self._setup(tmp)
+            finalize_first_pass(root)
+            self.assertEqual("pass_1_complete", finalize_first_pass(root)["workflow"]["status"])
 
     def test_claim_without_ai_basis_is_rejected(self):
         with TemporaryDirectory() as tmp:

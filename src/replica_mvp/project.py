@@ -39,6 +39,12 @@ DEFERRED_DECISIONS = (
     "attached_to_claim",
     "excluded",
 )
+CANDIDATE_DECISIONS = (
+    "kept_as_claim",
+    "merged_into_claim",
+    "excluded",
+)
+_FINALIZABLE_STATUSES = ("pass_1_running", "pass_1_complete")
 _RETIRED_FIRST_PASS_FIELDS = ("scores", "total", "selected", "disposition")
 
 
@@ -561,6 +567,25 @@ def _validate_deferred(deferred: Any, label: str) -> str | None:
     return None
 
 
+def _scope_item_key(item: Any) -> str:
+    return json.dumps(item, ensure_ascii=False, sort_keys=True)
+
+
+def _validate_assignment_coverage(assigned: list[Any], completed: list[Any], skipped: Any) -> str | None:
+    """Every assigned item must be researched or skipped with a recorded reason."""
+    if not isinstance(skipped, list):
+        return "progress.skipped must be a list"
+    accounted = {_scope_item_key(item) for item in completed}
+    for index, entry in enumerate(skipped, start=1):
+        if not isinstance(entry, dict) or "item" not in entry or not _filled_text(entry.get("reason")):
+            return f"progress.skipped {index} needs item and reason"
+        accounted.add(_scope_item_key(entry["item"]))
+    for item in assigned:
+        if _scope_item_key(item) not in accounted:
+            return f"assigned item {item!r} is neither completed nor skipped with a reason"
+    return None
+
+
 def _validate_checkpoint(path: Path, scope: str) -> tuple[dict[str, Any], str | None]:
     checkpoint = _read_json(path, dict)
     if checkpoint.get("schema_version") != 2:
@@ -582,6 +607,13 @@ def _validate_checkpoint(path: Path, scope: str) -> tuple[dict[str, Any], str | 
         return checkpoint, f"{path}: progress.completed must be a list"
     if progress.get("remaining") != []:
         return checkpoint, f"{path}: progress.remaining must be empty"
+    error = _validate_assignment_coverage(
+        assignment["assigned"],
+        progress["completed"],
+        progress.get("skipped", []),
+    )
+    if error:
+        return checkpoint, f"{path}: {error}"
     if not isinstance(progress.get("discovered_names"), list):
         return checkpoint, f"{path}: progress.discovered_names must be a list"
     if not _filled_text(checkpoint.get("updated_at")):
@@ -657,44 +689,55 @@ def _validate_first_pass_claim(claim: Any, index: int) -> str | None:
     )
 
 
-def _validate_deferred_resolutions(
+def _validate_resolutions(
     resolutions: Any,
-    deferred_ids: set[str],
+    *,
+    kind: str,
+    id_field: str,
+    source_ids: set[str],
+    decisions: tuple[str, ...],
     claim_ids: set[str],
-) -> tuple[int, str | None]:
+) -> tuple[set[str], int, str | None]:
+    """Require exactly one recorded decision for every checkpoint item.
+
+    Returns the final claim ids that originate from these items (attached
+    evidence does not originate a claim) and the number of items excluded.
+    """
     if not isinstance(resolutions, list):
-        return 0, "research.json deferred_resolutions must be a list"
+        return set(), 0, f"research.json {kind}_resolutions must be a list"
     resolved: set[str] = set()
+    targets: set[str] = set()
     excluded_count = 0
     for position, resolution in enumerate(resolutions, start=1):
-        label = f"deferred_resolution {position}"
+        label = f"{kind}_resolution {position}"
         if not isinstance(resolution, dict):
-            return 0, f"{label} must be an object"
-        deferred_id = resolution.get("deferred_id")
-        if deferred_id not in deferred_ids:
-            return 0, f"{label}.deferred_id must reference a checkpoint deferred item"
-        if deferred_id in resolved:
-            return 0, f"{label}.deferred_id must be unique"
-        resolved.add(deferred_id)
+            return set(), 0, f"{label} must be an object"
+        item_id = resolution.get(id_field)
+        if item_id not in source_ids:
+            return set(), 0, f"{label}.{id_field} must reference a checkpoint {kind} item"
+        if item_id in resolved:
+            return set(), 0, f"{label}.{id_field} must be unique"
+        resolved.add(item_id)
         decision = resolution.get("decision")
-        if decision not in DEFERRED_DECISIONS:
-            return 0, f"{label}.decision must be one of {', '.join(DEFERRED_DECISIONS)}"
-        if not _filled_text(resolution.get("rationale")):
-            return 0, f"{label}.rationale must be filled"
+        if decision not in decisions:
+            return set(), 0, f"{label}.decision must be one of {', '.join(decisions)}"
+        if decision != "kept_as_claim" and not _filled_text(resolution.get("rationale")):
+            return set(), 0, f"{label}.rationale must be filled"
 
         target_id = resolution.get("target_id")
-        if decision in ("promoted_to_claim", "attached_to_claim"):
-            if target_id not in claim_ids:
-                return 0, f"{label}.target_id must reference a final claim"
-        elif _filled_text(target_id):
-            return 0, f"{label}.target_id must be empty when excluded"
-        else:
+        if decision == "excluded":
+            if _filled_text(target_id):
+                return set(), 0, f"{label}.target_id must be empty when excluded"
             excluded_count += 1
+        elif target_id not in claim_ids:
+            return set(), 0, f"{label}.target_id must reference a final claim"
+        elif decision != "attached_to_claim":
+            targets.add(target_id)
 
-    missing = deferred_ids - resolved
+    missing = source_ids - resolved
     if missing:
-        return 0, f"deferred item {sorted(missing)[0]!r} is unresolved"
-    return excluded_count, None
+        return set(), 0, f"{kind} item {sorted(missing)[0]!r} is unresolved"
+    return targets, excluded_count, None
 
 
 def finalize_first_pass(company_root: Path) -> dict[str, Any]:
@@ -704,8 +747,17 @@ def finalize_first_pass(company_root: Path) -> dict[str, Any]:
         raise ValueError("research.json schema_version must be 2")
     if "chains" in research:
         raise ValueError("research.json chains is retired; one claim must contain the whole workflow")
+    workflow = research.get("workflow")
+    if not isinstance(workflow, dict):
+        raise ValueError("research.json workflow must be an object")
+    if workflow.get("status") not in _FINALIZABLE_STATUSES:
+        raise ValueError(
+            f"research.json workflow.status is {workflow.get('status')!r}; "
+            "pass 1 can only be finalized before pass 2 starts"
+        )
     checkpoints: dict[str, dict[str, Any]] = {}
     deferred_ids: set[str] = set()
+    candidate_ids: set[str] = set()
     for scope, relative_path in FIRST_PASS_SCOPES.items():
         checkpoint, error = _validate_checkpoint(company_root / relative_path, scope)
         if error:
@@ -715,6 +767,10 @@ def finalize_first_pass(company_root: Path) -> dict[str, Any]:
             if entry["id"] in deferred_ids:
                 raise ValueError(f"deferred id {entry['id']!r} must be unique across checkpoints")
             deferred_ids.add(entry["id"])
+        for candidate in checkpoint["claims"]:
+            if candidate["id"] in candidate_ids:
+                raise ValueError(f"candidate id {candidate['id']!r} must be unique across checkpoints")
+            candidate_ids.add(candidate["id"])
 
     claims = research.get("claims")
     if not isinstance(claims, list):
@@ -731,17 +787,32 @@ def finalize_first_pass(company_root: Path) -> dict[str, Any]:
             raise ValueError(f"claim {index} duplicates an id or slug")
         ids.add(claim_id)
         slugs.add(slug)
-    deferred_excluded_count, error = _validate_deferred_resolutions(
-        research.get("deferred_resolutions"),
-        deferred_ids,
-        ids,
+    candidate_targets, candidate_excluded_count, error = _validate_resolutions(
+        research.get("candidate_resolutions"),
+        kind="candidate",
+        id_field="candidate_id",
+        source_ids=candidate_ids,
+        decisions=CANDIDATE_DECISIONS,
+        claim_ids=ids,
     )
     if error:
         raise ValueError(error)
+    deferred_targets, deferred_excluded_count, error = _validate_resolutions(
+        research.get("deferred_resolutions"),
+        kind="deferred",
+        id_field="deferred_id",
+        source_ids=deferred_ids,
+        decisions=DEFERRED_DECISIONS,
+        claim_ids=ids,
+    )
+    if error:
+        raise ValueError(error)
+    untraced = ids - candidate_targets - deferred_targets
+    if untraced:
+        raise ValueError(
+            f"final claim {sorted(untraced)[0]!r} is not traced to any checkpoint candidate or deferred item"
+        )
 
-    workflow = research.get("workflow")
-    if not isinstance(workflow, dict):
-        raise ValueError("research.json workflow must be an object")
     pass_1 = workflow.get("pass_1")
     if not isinstance(pass_1, dict):
         raise ValueError("research.json workflow.pass_1 must be an object")
@@ -761,6 +832,7 @@ def finalize_first_pass(company_root: Path) -> dict[str, Any]:
 
     excluded_count = (
         sum(len(checkpoint.get("excluded", [])) for checkpoint in checkpoints.values())
+        + candidate_excluded_count
         + deferred_excluded_count
     )
     pass_2 = workflow.get("pass_2")

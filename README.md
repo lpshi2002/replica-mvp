@@ -219,10 +219,14 @@ URL, `customer_basis`, `ai_basis`, `workflow`, `replication_leads`, `deferred`�
 유형 변형은 상위 워크플로의 `sources`, `workflow.steps`, `merged_from`으로
 병합합니다. 사용자·입력·목적·최종 산출물이 다른 독립 업무만 분리합니다.
 정규화 후 C0·C1·A1·A2와 모든 출처 인덱스를 다시 확인합니다. 채점이나 선별은
-하지 않으며, 정리된 claim 전부가 2차로 넘어갑니다.
-`replica-mvp finalize-pass-1 work/<company>`가 체크포인트 완료 여부, 근거와
-고객 전달 근거, AI 직접 인용, workflow 단계와 deferred 처리 완료를 검증한 뒤
-`research.json`을 `pass_1_complete`로 확정합니다.
+하지 않으며, 정리된 claim 전부가 2차로 넘어갑니다. 체크포인트의 모든 후보는
+`candidate_resolutions`에 유지·병합·제외(사유) 중 하나로 남겨, 수집한 후보가
+기록 없이 사라지지 않게 합니다.
+`replica-mvp finalize-pass-1 work/<company>`가 체크포인트 완료 여부, 배정 항목의
+완료·사유 있는 생략, 근거와 고객 전달 근거, AI 직접 인용, workflow 단계, 후보와
+deferred 처리 완료, 최종 claim의 출처 후보를 검증한 뒤 `research.json`을
+`pass_1_complete`로 확정합니다. 2차가 시작된 research에는 다시 실행할 수
+없습니다.
 
 ### 2. 2차 복제 자료 수집
 

@@ -257,9 +257,11 @@ After all five scopes are complete, read their checkpoints and:
 7. re-apply C0, C1, A1, and A2 after normalization;
 8. keep the strongest `customer_basis` and `ai_basis` evidence and repoint all
    source indexes after combining sources;
-9. write the normalized claims and deferred resolutions to
-   `research.json`; and
-10. run `replica-mvp finalize-pass-1 work/<company>` to validate the result and
+9. record one `candidate_resolutions` decision for every checkpoint claim so
+   no collected candidate disappears without a recorded outcome;
+10. write the normalized claims and both resolution lists to `research.json`;
+    and
+11. run `replica-mvp finalize-pass-1 work/<company>` to validate the result and
     mark pass 1 complete.
 
 Two claims are the same claim when they describe the same customer goal,
@@ -272,6 +274,20 @@ Each `deferred_resolutions` item contains `deferred_id`, `decision`, optional
 `target_id`, and `rationale`. Use `promoted_to_claim` or `attached_to_claim`
 with a final claim ID, or `excluded` without a target. Finalization fails if any
 checkpoint deferred ID is missing, duplicated, or points at a missing target.
+
+Each `candidate_resolutions` item contains `candidate_id` (a checkpoint claim
+ID), `decision`, optional `target_id`, and `rationale`. Use `kept_as_claim` or
+`merged_into_claim` with a final claim ID, or `excluded` without a target.
+`merged_into_claim` and `excluded` need a rationale. Finalization fails if any
+checkpoint candidate is missing, duplicated, or points at a missing target, and
+if a final claim is not originated by at least one candidate or promoted
+deferred item. Excluded candidates count toward `summary.excluded_count`.
+
+Finalization also fails when a checkpoint's `assignment.assigned` item is
+neither in `progress.completed` nor in `progress.skipped` with a reason, and
+it refuses research whose `workflow.status` is past pass 1. Re-running it
+during pass 1 is safe; changing pass-1 results after pass 2 starts needs a new
+research version.
 
 Do not open extra sources solely to complete implementation datasets, freeze
 final contracts, design final tests, or create per-capability projects during

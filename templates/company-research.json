@@ -47,9 +47,11 @@
       "no_customer_delivery": "현재 범위에는 공개 제품·고객 배포 근거가 없어서 컨트롤러가 재판정",
       "not_workflow": "현재는 속성·UI·메커니즘으로 보여 상위 claim의 단계나 근거인지 컨트롤러가 재판정"
     },
+    "candidate_resolutions": "체크포인트의 모든 후보 claim은 kept_as_claim·merged_into_claim(대상 claim)·excluded(사유) 중 하나로 처리를 기록한다",
     "no_scoring": "1차는 채점·선별하지 않는다. 중복 정리 후 전부 2차로 넘긴다"
   },
   "claims": [],
+  "candidate_resolutions": [],
   "deferred_resolutions": [],
   "summary": {
     "candidate_count": 0,
