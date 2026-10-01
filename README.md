@@ -45,7 +45,8 @@
 → 5개 1차 조사 에이전트가 주장 발견 즉시 체크포인트 저장
 → 컨트롤러가 중복 정리·병합하고 research.json 확정
 → 모든 주장에 2차 결과, ready 주장에 복제 계약·단계 대응표·평가 데이터 추가
-→ 사용자가 복제를 요청한 ready 주장만 구현·봉인 평가
+→ ready 주장을 Agent 번들로 구현·봉인 평가 (조사만 요청하면 2차에서 종료)
+→ 모든 주장의 판정·미실행 사유·결과를 final-results/company-claims.json에 기록
 ```
 
 Skill은 코드로 구현된 상태 머신이 아니라 에이전트가 따라야 하는 절차와 완료 조건을
@@ -569,7 +570,7 @@ python -m pip install -e .
 | `replica-mvp agent-candidate-finalize REGISTRY CLAIM_ID CANDIDATE` | Terra의 `operator.json` 후보를 기존 평가·보고·공개 파이프라인으로 처리하고 최종 결과 경로와 해시를 Agent registry에 결속 |
 | `replica-mvp run-replica RUN_DIR [--session] [--state-dir DIR]` | stdin의 JSON 객체를 생성된 Replica로 실행하고 결과 JSON 반환. 번들에서 `--session`은 JSON 배열을 한 세션에 순서대로 넣고, `--state-dir`는 실행 디렉터리를 보존해 다음 호출에서 같은 사용자 상태를 이어 연다 |
 | `replica-mvp experience RUN_DIR [--question QUESTION]` | 대화형 Replica를 직접 실행하고 답변·출처·규칙·비교 수준 표시 |
-| `replica-mvp experience RUN_DIR --input INPUT.json [--output PREVIEW.html]` | 구조화·문서·HTML Replica를 입력 파일로 실행해 결과 표시 |
+| `replica-mvp experience RUN_DIR --input INPUT.json [--output PREVIEW.html] [--state-dir DIR]` | 구조화·문서·HTML Replica를 입력 파일로 실행해 결과 표시. 번들에서 `--state-dir`는 호출 사이 저장 상태를 이어가며, 대화형 번들 체험은 턴마다 같은 임시 상태를 공유 |
 
 `prepare-operator`, `finalize-operator`, `run-replica`는 성공 시 exit code
 `0`과 JSON을 stdout에 반환합니다. `experience`는 사람이 읽는 체험

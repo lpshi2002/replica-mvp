@@ -6,8 +6,18 @@ selection, replication readiness, or Replica execution, read and follow
 as the authoritative workflow instead of loading the same rules through
 team-ai.
 
-When the user asks to create or run the multi-claim Replica Agent harness,
-spawn one dedicated Replica Agent with `model=gpt-6-astra`,
+A company evaluation request — a company name, URL, or description — runs the
+full route by default: both research passes, then `agent-harness-init` on the
+completed `research.json`, the Operator/Builder protocol for every selected
+claim, sealed bundle evaluation, and `agent-harness-finish`, which writes
+`final-results/company-claims.json` for every researched claim. The request
+itself approves this full run; stop after pass 2 only when the user asks for
+research only. Research with no executable claim still ends with that company
+result.
+
+For the implementation step of a company evaluation, or when the user asks to
+create or run the multi-claim Replica Agent harness, spawn one dedicated
+Replica Agent with `model=gpt-6-astra`,
 `reasoning_effort=medium`, and `fork_turns=none`. Give it only the Second JSON path, run directory, canonical
 parent identity, and an instruction to follow
 `.agents/skills/orchestrate-replica-agents/SKILL.md`. The root may wait for and
@@ -19,8 +29,8 @@ when spawning the pair. For actual implementation, create one pair for every
 selected function and activate all pairs concurrently: N functions mean N pairs.
 Do not wait for another feature to finish before activating the next pair.
 
-When the user explicitly asks to run the direct Operator/Builder protocol on a
-ready harness, resume the same dedicated Replica Agent and existing child
+When a company evaluation reaches a ready harness, or the user asks to run the
+direct Operator/Builder protocol on one, resume the same dedicated Replica Agent and existing child
 identities instead of spawning a new pair. Give it only the harness registry
 path and an instruction to follow
 `.agents/skills/run-replica-agent-protocol/SKILL.md`. The root and Replica
@@ -28,19 +38,16 @@ Agent may send identity-only activation controls and receive control metadata,
 but neither may relay, summarize, rewrite, or persist the semantic instruction
 or feedback.
 
-When a ready `replica-second-pass-result/v1` JSON has arrived, or the user asks
-to implement, repair, test, or run the actual Replica, use the JSON-only
-implementation Skill:
+The JSON-only implementation Skill is a separate route for a standalone
+`replica-second-pass-result/v1` JSON, not for company research:
 
-- Use `.agents/skills/build-replica-operator/SKILL.md` when JSON input alone can
+- Use `.agents/skills/build-replica-operator/SKILL.md` when that JSON alone can
   satisfy the full contract without file, network, or external-tool access.
 
-The explicit Sol/Terra direct protocol route above is the exception to this
-JSON-only implementation route. Do not select it unless the user asks for that
-Agent protocol or supplies its ready harness registry.
-
-Contracts that require PDF, XLSX, CSV, image, OCR, retrieval, network, or
-external API access are outside the current implementation scope.
+Only that JSON-only route excludes contracts that require PDF, XLSX, CSV,
+image, OCR, retrieval, network, or external API access. The bundle route runs
+such contracts, so never narrow a company claim to a JSON demo because it
+needs files or search.
 
 These are direct implementation routes even if the Skills are not shown in the
 current session's selector. Never route this work through a registered

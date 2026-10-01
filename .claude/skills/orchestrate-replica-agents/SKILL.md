@@ -46,6 +46,11 @@ or `handoff.scenario_priority`. Without either, preserve the researched scenario
 order and record that fallback; never reorder by dependency cost or convenience.
 Claude is recorded as a narrow model-runtime overlay and does not cause an
 unrelated commercial retrieval, storage, or side-effect scenario to be chosen.
+Every researched claim, executed or not, is listed in the registry's
+`company_claims` with its verdict and not-executed reason, and
+`research_source` binds the research file's hash. When no claim is executable,
+init finishes the harness as `COMPLETED_WITHOUT_EXECUTION` and writes the
+company result at once; report it and stop.
 Explicit modality-specific dependencies remain unchanged.
 `builder-context.json` contains the public implementation context with test
 expectations and reference facts removed. Treat the source, `claim.json`, and

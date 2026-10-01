@@ -150,6 +150,9 @@ development claims have final results and all others have their execution
 terminal, finish the harness. Its aggregate is `EXECUTION_SUCCESS` only when all
 claims have passing published results; otherwise `EXECUTION_COMPLETED_WITH_FAILURES`.
 Never change one claim's result because another claim failed.
+For company research, finish also writes `final-results/company-claims.json`
+with every researched claim; report the run from that file so unexecuted and
+blocked claims keep their reasons and the denominator stays visible.
 
 Do not receive, forward, summarize, rewrite, or persist the instruction or
 feedback in the Replica Agent registry. After a direct terminal exchange and

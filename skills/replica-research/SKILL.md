@@ -18,8 +18,10 @@ code, training data, customer data, or internal systems.
 - Keep this repository from calling Codex or a model API unless the user
   explicitly requests a standalone automated runner or starts the Agent harness
   with its explicit `--model-runtime` setting.
-- Perform company research in two passes. Stop after pass 2 unless the user
-  asks to build, run, or evaluate a Replica.
+- Perform company research in two passes, then implement and evaluate every
+  ready claim through the Agent harness (see "Execute"). A company request
+  approves this full run; stop after pass 2 only when the user asks for
+  research only.
 - Create the authoritative `work/<company-slug>/research.json` from
   `../../templates/company-research.json` when research starts.
 - During pass 1, workers continuously checkpoint their assigned scope under
@@ -432,14 +434,19 @@ the resolved buckets, not from a guess made before research.
 Order scenarios most self-sufficient first — `oss_only`, `commercial_api`,
 `proprietary_data`. The Sol/Terra harness runs only the selected scenario and
 does not fall back; a standalone run follows this order and stops at the first
-that reproduces (see "Execute only on request").
+that reproduces (see "Execute").
 
-Every scenario maps each pass-1 `workflow.steps` item in `step_coverage` as
+Every scenario maps each step of the confirmed workflow in `step_coverage` as
 `implemented`, `external_dependency`, `excluded`, or `unconfirmed` (see
-`agents/replica-second-pass.md`). Choosing a simpler method for a step is a path
-decision; removing a step, or moving a system step to the caller, is `excluded`
-and makes the scenario a partial scope of the customer workflow. `unconfirmed`
-steps block implementation.
+`agents/replica-second-pass.md`). The confirmed workflow is pass 2's
+`workflow.steps` when research changed the steps, else pass 1's. A pass-2 step
+keeps a pass-1 step (`first_pass_step` or identical text) or is an added step
+with sourced excerpts, and a dropped pass-1 step goes in
+`workflow.removed_steps` with a reason and sources. Choosing a simpler method
+for a step is a path decision; removing a step, or moving a system step to the
+caller, is `excluded` and makes the scenario a partial scope of the customer
+workflow. `unconfirmed` steps block implementation, and a workflow with no
+steps cannot be whole-workflow scope.
 
 Each scenario carries `id`, `self_sufficiency`, `boundaries` with
 `boundaries_origin` (`company` or `ours`), `input`, `output` including its
@@ -506,9 +513,25 @@ to lower acceptance criteria: a claim with evaluation gaps is registered as
 `agent-bundle-prepare --supplement` closes them. Preserve old contracts and runs
 when supplementing.
 
-## Execute only on request
+## Execute
 
-For a standalone run, when the user asks to start actual replication, expand
+The default route after pass 2 is the Agent harness below. Pass the completed
+`research.json` to `agent-harness-init`; research without an executable claim
+finishes at once. If `finalize-pass-1` completes with `claims: []` and
+`summary.next_step: no_ai_claims`, pass that finalized research directly to
+init: there is no pass-2 claim to research. Keep the candidate exclusions and
+their reasons; do not fabricate a claim or completion status.
+`agent-harness-finish` writes
+`final-results/company-claims.json`: every researched claim with its verdict,
+its not-executed reason or result path, and an outcome. Report from that file
+so the denominator and every unexecuted reason stay visible. Stops before
+final evaluation also carry a `failure_reason`. Research, Agent creation or
+protocol, environment, access, and budget blocks are `experiment_blocked`,
+never evidence of the company's technical barrier. Once final evaluation has
+produced a reproduction verdict, preserve it; an individual case timeout must
+not turn partial reproduction into an experiment block.
+
+For a standalone run, when the user asks for one, expand
 **one scenario** of a ready claim contract into
 `work/<company-slug>/runs/<capability-slug>/<scenario-id>/evidence.json`,
 `spec.json`, and `tests.json`, then build `replica.json`. One scenario is one
