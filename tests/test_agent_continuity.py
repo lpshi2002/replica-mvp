@@ -361,6 +361,67 @@ def _write_candidate(registry_path: Path, claim_id: str = CLAIM_ID) -> Path:
 
 
 class AgentContinuityTest(unittest.TestCase):
+    def test_company_result_distinguishes_blocked_development_from_failed_checks(self):
+        for category in ("access_missing", "budget_exhausted", "development_checks_failed"):
+            with self.subTest(category=category), TemporaryDirectory() as tmp:
+                registry, binding = _prepare_rich_ready_pair(Path(tmp) / "run")
+                start_agent_continuity(registry, **binding)
+                corrections = 3 if category == "development_checks_failed" else 0
+                for round_number in range(corrections + 1):
+                    record_agent_continuity_round(registry, **binding, round_number=round_number,
+                                                  operator_to_builder_direct=True, builder_to_operator_direct=True)
+                if category == "development_checks_failed":
+                    state_path = _write_execution_state(registry, binding, terminal_state="FAILED", correction_count=corrections)
+                else:
+                    payload = json.loads((registry.parent / "claims/claim-001/claim.json").read_text())
+                    state = create_agent_execution_state(claim=payload, claim_id=binding["claim_id"],
+                                                         operator_agent_id=binding["operator_agent_id"],
+                                                         builder_agent_id=binding["builder_agent_id"], pair_nonce=binding["nonce"])
+                    messages = {"claim": payload, "claim_id": binding["claim_id"], "operator_id": binding["operator_agent_id"],
+                                "builder_id": binding["builder_agent_id"], "nonce": binding["nonce"]}
+                    feedback = _feedback(passed=False, **messages)
+                    reason = f"Execution stopped because of {category}."
+                    feedback.update(execution_status="blocked", stop_reason={
+                        "category": category, "reason": reason, "evidence": ["Private development diagnostic."],
+                    })
+                    state = advance_agent_execution(state, _instruction(**messages), feedback)
+                    state_path = registry.parent / "claims/claim-001/operator/execution-state.json"
+                    state_path.write_text(json.dumps(state))
+                finish_agent_continuity(registry, **binding, terminal_state="FAILED",
+                                        terminal_acknowledged_directly=True, execution_state_path=state_path)
+                finished = finish_agent_harness(registry)
+                result_path = registry.parent / finished["company_result"]["path"]
+                result = json.loads(result_path.read_text())["claims"][0]
+                self.assertEqual(category, result["failure_category"])
+                self.assertIsNone(result["reproduction_status"])
+                self.assertIsNone(result["result_path"])
+                if category == "development_checks_failed":
+                    self.assertEqual("experiment_incomplete", result["outcome"])
+                    self.assertIn("3 corrections", result["failure_reason"])
+                else:
+                    self.assertEqual("experiment_blocked", result["outcome"])
+                    self.assertEqual(reason, result["failure_reason"])
+                    self.assertNotIn("Private development diagnostic", result_path.read_text())
+                state_path.write_text(state_path.read_text() + "\n")
+                previous_result = result_path.read_bytes()
+                with self.assertRaisesRegex(ValueError, "failed development state changed"):
+                    finish_agent_harness(registry)
+                self.assertEqual(previous_result, result_path.read_bytes())
+
+    def test_company_result_keeps_protocol_interruption_reason(self):
+        with TemporaryDirectory() as tmp:
+            registry, binding = _prepare_rich_ready_pair(Path(tmp) / "run")
+            start_agent_continuity(registry, **binding)
+            reason = "The Builder stopped before acknowledging a terminal result."
+            record_agent_premature_completion(registry, binding["claim_id"],
+                                             completed_agent_id=binding["builder_agent_id"], reason=reason)
+            finished = finish_agent_harness(registry)
+            result = json.loads((registry.parent / finished["company_result"]["path"]).read_text())["claims"][0]
+            self.assertEqual("experiment_blocked", result["outcome"])
+            self.assertEqual("agent_protocol_interrupted", result["failure_category"])
+            self.assertEqual(reason, result["failure_reason"])
+            self.assertIsNone(result["reproduction_status"])
+
     def test_delivery_resume_allows_received_feedback_awaiting_operator_decision(self):
         with TemporaryDirectory() as tmp:
             registry, binding = _prepare_rich_ready_pair(Path(tmp) / "run")

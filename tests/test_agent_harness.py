@@ -37,6 +37,88 @@ def _multi_claim_input():
 
 
 class ReplicaAgentHarnessTest(unittest.TestCase):
+    def test_empty_research_finishes_from_the_real_first_pass_and_completed_second_pass(self):
+        from replica_mvp import finalize_first_pass
+        from tests.test_first_pass import FinalizeFirstPassTest
+
+        with TemporaryDirectory() as tmp:
+            root, _ = FinalizeFirstPassTest()._setup(tmp)
+            source = root / "research.json"
+            research = json.loads(source.read_text())
+            research["claims"] = []
+            for resolution in research["candidate_resolutions"]:
+                resolution.update(decision="excluded", target_id=None, rationale="Only internal use was documented.")
+            source.write_text(json.dumps(research))
+            research = finalize_first_pass(root)
+            self.assertEqual("no_ai_claims", research["summary"]["next_step"])
+            for status in ("pass_1_complete", "pass_2_complete"):
+                with self.subTest(status=status):
+                    research["workflow"]["status"] = status
+                    source.write_text(json.dumps(research))
+                    run = root / status
+                    with redirect_stdout(io.StringIO()):
+                        self.assertEqual(0, main([
+                            "agent-harness-init", str(source), str(run),
+                            "--replica-agent-id", "/root/replica_agent", "--parent-agent-id", "/root",
+                        ]))
+                    registry = json.loads((run / "agent-harness.json").read_text())
+                    self.assertEqual("COMPLETED_WITHOUT_EXECUTION", registry["status"])
+                    result = json.loads((run / registry["company_result"]["path"]).read_text())
+                    self.assertEqual((0, 0, [], {}), (result["claim_total"], result["selected_for_execution"],
+                                                    result["claims"], result["outcome_counts"]))
+                    self.assertEqual(str(source.resolve()), result["research_source"]["path"])
+
+    def test_empty_research_does_not_bypass_completion_or_contract_checks(self):
+        for invalid in ("missing_claims", "null_claims", "unfinished", "unfinalized", "unexplained_empty", "wrong_counts"):
+            with self.subTest(invalid=invalid), TemporaryDirectory() as tmp:
+                research = _research()
+                research["claims"] = []
+                research["summary"].update(ready_count=0, partial_count=0, blocked_count=0, next_step="no_ai_claims")
+                if invalid == "missing_claims":
+                    del research["claims"]
+                elif invalid == "null_claims":
+                    research["claims"] = None
+                elif invalid == "unfinished":
+                    research["workflow"]["status"] = "pass_1_running"
+                elif invalid == "unfinalized":
+                    research["workflow"]["pass_1"]["completed_at"] = None
+                elif invalid == "unexplained_empty":
+                    research["workflow"]["status"] = "pass_1_complete"
+                    research["summary"]["next_step"] = "run_pass_2"
+                else:
+                    research["summary"]["ready_count"] = 1
+                with self.assertRaises(ValueError):
+                    prepare_agent_harness(research, Path(tmp) / "run",
+                                          replica_agent_id="/root/replica_agent", parent_agent_id="/root")
+
+    def test_company_result_keeps_research_and_creation_failure_reasons(self):
+        for failure in ("research", "creation"):
+            with self.subTest(failure=failure), TemporaryDirectory() as tmp:
+                research = _research()
+                if failure == "research":
+                    evaluation = research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]
+                    evaluation["additional_cases"] = [c for c in evaluation["additional_cases"] if c["kind"] != "novel"]
+                root = Path(tmp) / "run"
+                prepared = prepare_agent_harness(research, root,
+                                                replica_agent_id="/root/replica_agent", parent_agent_id="/root")
+                registry = root / "agent-harness.json"
+                if failure == "creation":
+                    reason = "Requested model is unavailable in this execution environment."
+                    start_agent_claim(registry, "claim-001")
+                    record_agent_spawn_failure(registry, "claim-001", role="operator", reason=reason)
+                else:
+                    reason = "; ".join(prepared["claims"][0]["research_gaps"])
+                    self.assertIn("novel", reason)
+                finished = finish_agent_harness(registry)
+                result = json.loads((root / finished["company_result"]["path"]).read_text())["claims"][0]
+                self.assertEqual("experiment_blocked", result["outcome"])
+                self.assertEqual(reason, result["failure_reason"])
+                self.assertEqual(reason, result["not_executed_reason"])
+                self.assertEqual("research_gap" if failure == "research" else "agent_creation_failed", result["failure_category"])
+                self.assertIsNotNone(result["stop_reason"])
+                self.assertIsNone(result["result_path"])
+                self.assertIsNone(result["reproduction_status"])
+
     def test_astra_and_terra_spawns_require_their_explicit_efforts(self):
         with TemporaryDirectory() as tmp:
             run_dir = Path(tmp) / "run"
@@ -97,6 +179,32 @@ class ReplicaAgentHarnessTest(unittest.TestCase):
             self.assertNotIn("expected_behavior", serialized)
             self.assertNotIn("reference_facts", serialized)
             self.assertNotIn('"tests"', serialized)
+
+    def test_research_without_executable_claims_is_a_complete_company_result(self):
+        research = _research()
+        research["claims"][0]["second_pass"]["readiness"] = {"status": "blocked", "reasons": "No public input."}
+        research["summary"].update(ready_count=0, blocked_count=1)
+        with TemporaryDirectory() as tmp:
+            source = Path(tmp) / "research.json"
+            (Path(tmp) / "second_pass").mkdir()
+            for claim in research["claims"]:
+                claim["second_pass"]["run"] = {"fragment": f"second_pass/{claim['id']}.json"}
+                (Path(tmp) / claim["second_pass"]["run"]["fragment"]).write_text(json.dumps(claim["second_pass"]))
+            source.write_text(json.dumps(research))
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(0, main([
+                    "agent-harness-init", str(source), str(Path(tmp) / "run"),
+                    "--replica-agent-id", "/root/replica_agent", "--parent-agent-id", "/root",
+                ]))
+            registry = json.loads((Path(tmp) / "run" / "agent-harness.json").read_text())
+            self.assertEqual("COMPLETED_WITHOUT_EXECUTION", registry["status"])
+            self.assertEqual([], registry["claims"])
+            result = json.loads((Path(tmp) / "run" / registry["company_result"]["path"]).read_text())
+            self.assertEqual(2, result["claim_total"])
+            self.assertEqual(0, result["selected_for_execution"])
+            self.assertEqual({"not_executed": 2}, result["outcome_counts"])
+            self.assertEqual("No public input.", result["claims"][0]["readiness_reasons"])
+            self.assertEqual(str(source.resolve()), result["research_source"]["path"])
 
     def test_legacy_single_claim_prepares_one_sol_terra_pair(self):
         with TemporaryDirectory() as tmp:

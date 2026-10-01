@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 from .agent_execution import (
@@ -34,7 +36,7 @@ from .builder import run_built_replica
 from .bundle_evaluation import evaluate_agent_bundle, prepare_bundle_evaluation, retry_agent_bundle
 from .bundle_runtime import native_model_judge, run_json_command
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
-from .experience import experience_input_once, experience_once
+from .experience import experience_input_once, experience_once, is_bundle_run
 from .intake import receive_second_pass
 from .project import build_project, evaluate_project, finalize_first_pass, init_project, write_report
 from .second_pass import MODEL_RUNTIMES
@@ -399,6 +401,14 @@ def _parser() -> argparse.ArgumentParser:
         help="Write an HTML Replica result to a new preview file.",
     )
     experience.add_argument(
+        "--state-dir",
+        type=Path,
+        help=(
+            "Keep an implementation bundle's runtime directory here so later calls continue "
+            "its stored state. An interactive bundle session uses a temporary one by default."
+        ),
+    )
+    experience.add_argument(
         "--use-model-adapter",
         action="store_true",
         help="Allow the optional external grounded-model adapter.",
@@ -637,6 +647,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(output, ensure_ascii=False, allow_nan=False))
         elif args.command == "experience":
             profile = args.profile or args.path / "experience.json"
+            state_options = {} if args.state_dir is None else {"state_dir": args.state_dir}
             if args.input_path is not None:
                 if (
                     args.question is not None
@@ -652,6 +663,7 @@ def main(argv: list[str] | None = None) -> int:
                         args.input_path,
                         args.output,
                         use_model_adapter=args.use_model_adapter,
+                        **state_options,
                     )
                 )
                 return 0
@@ -672,26 +684,35 @@ def main(argv: list[str] | None = None) -> int:
                         args.question,
                         args.original_observations,
                         use_model_adapter=args.use_model_adapter,
+                        **state_options,
                     )
                 )
             else:
-                while True:
-                    try:
-                        question = input("질문> ")
-                    except EOFError:
-                        break
-                    if question.strip().lower() in {"/quit", "/exit"}:
-                        break
-                    if not question.strip():
-                        continue
-                    print(
-                        experience_once(
-                            args.path,
-                            profile,
-                            question,
-                            use_model_adapter=args.use_model_adapter,
+                with contextlib.ExitStack() as stack:
+                    # Turns of one interactive bundle session continue the same runtime state.
+                    if not state_options and is_bundle_run(args.path):
+                        state_options["state_dir"] = Path(
+                            stack.enter_context(tempfile.TemporaryDirectory(prefix="replica-experience-"))
+                        ) / "state"
+                        print(f"세션 상태: {state_options['state_dir']} (종료 시 삭제, 유지하려면 --state-dir)")
+                    while True:
+                        try:
+                            question = input("질문> ")
+                        except EOFError:
+                            break
+                        if question.strip().lower() in {"/quit", "/exit"}:
+                            break
+                        if not question.strip():
+                            continue
+                        print(
+                            experience_once(
+                                args.path,
+                                profile,
+                                question,
+                                use_model_adapter=args.use_model_adapter,
+                                **state_options,
+                            )
                         )
-                    )
         elif args.command == "finalize-pass-1":
             finalize_first_pass(args.path)
         else:

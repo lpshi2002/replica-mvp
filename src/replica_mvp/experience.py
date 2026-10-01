@@ -23,16 +23,27 @@ def run_built_replica(
     runtime_input: dict[str, Any],
     *,
     allow_model_adapter: bool = False,
+    state_dir: Path | None = None,
 ) -> Any:
     from .builder import run_built_replica as execute
 
-    if allow_model_adapter:
-        return execute(
-            run_dir,
-            runtime_input,
-            allow_model_adapter=True,
-        )
-    return execute(run_dir, runtime_input)
+    return execute(run_dir, runtime_input, **_run_options(allow_model_adapter, state_dir))
+
+
+def _run_options(use_model_adapter: bool, state_dir: Path | None) -> dict[str, Any]:
+    options: dict[str, Any] = {}
+    if use_model_adapter:
+        options["allow_model_adapter"] = True
+    if state_dir is not None:
+        options["state_dir"] = state_dir
+    return options
+
+
+def is_bundle_run(run_dir: Path) -> bool:
+    """A published implementation bundle can keep runtime state across calls."""
+    return (run_dir / "replica.json").is_file() and _read_json_object(
+        run_dir / "replica.json", "Replica"
+    ).get("schema_version") == "replica-bundle/v1"
 
 
 def validate_experience_profile(value: Any) -> dict[str, Any]:
@@ -214,6 +225,7 @@ def experience_once(
     original_observations_path: Path | None = None,
     *,
     use_model_adapter: bool = False,
+    state_dir: Path | None = None,
 ) -> str:
     profile = _read_profile(profile_path)
     if not question.strip():
@@ -245,15 +257,7 @@ def experience_once(
     _validate_run_evidence_level(run_dir, profile)
     runtime_input = deepcopy(profile["runtime_input"])
     runtime_input[profile["interaction"]["question_field"]] = question
-    result = (
-        run_built_replica(
-            run_dir,
-            runtime_input,
-            allow_model_adapter=True,
-        )
-        if use_model_adapter
-        else run_built_replica(run_dir, runtime_input)
-    )
+    result = run_built_replica(run_dir, runtime_input, **_run_options(use_model_adapter, state_dir))
     if (
         not isinstance(result, dict)
         or not isinstance(result.get("status"), str)
@@ -336,6 +340,7 @@ def experience_input_once(
     output_path: Path | None = None,
     *,
     use_model_adapter: bool = False,
+    state_dir: Path | None = None,
 ) -> str:
     runtime_input = _read_json_object(input_path, "experience input")
     replica_spec = _read_json_object(
@@ -343,12 +348,7 @@ def experience_input_once(
         "Replica spec",
     )
     output_contract = replica_spec.get("output_contract")
-    if (
-        isinstance(output_contract, str)
-        and output_contract.strip()
-        and (run_dir / "replica.json").is_file()
-        and _read_json_object(run_dir / "replica.json", "Replica").get("schema_version") == "replica-bundle/v1"
-    ):
+    if isinstance(output_contract, str) and output_contract.strip() and is_bundle_run(run_dir):
         # An implementation bundle always answers in JSON; its contract is a researched description.
         output_contract = {"type": "json", "format": "application/json"}
     if (
@@ -373,15 +373,7 @@ def experience_input_once(
             )
     elif output_path is not None:
         raise ValueError("--output is supported only for HTML experience")
-    result = (
-        run_built_replica(
-            run_dir,
-            runtime_input,
-            allow_model_adapter=True,
-        )
-        if use_model_adapter
-        else run_built_replica(run_dir, runtime_input)
-    )
+    result = run_built_replica(run_dir, runtime_input, **_run_options(use_model_adapter, state_dir))
     lines = [
         "Replica 체험",
         f"출력 형식: {output_format}",

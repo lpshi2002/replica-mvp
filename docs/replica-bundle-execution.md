@@ -97,7 +97,9 @@ scenario의 선택적 `evaluation` 예시는 다음과 같다.
 - 각 case는 새 세션에서 격리 실행된다. 앞 case가 남긴 상태를 전제하는 흐름(중복 이벤트
   억제, 이어지는 대화, 재개)은 관련 case에 같은 `session` 이름을 붙여 선언한다. 같은
   이름의 case는 한 세션에서 기록 순서대로 실행된다. 기존 연구 테스트에는
-  `case_checks.<id>.session`으로 붙인다.
+  `case_checks.<id>.session`으로 붙인다. 독립 case끼리는 입력이 달라야 하지만, 같은
+  `session`의 case는 같은 입력을 다시 보낼 수 있다(첫 요청은 실행, 재전송은 중복 방지).
+  선행 상태가 다르므로 별개의 단계다. 다른 세션의 같은 입력은 여전히 거절한다.
 
 `stdio_json`은 `{"transport":"stdio_json"}`만 지정한다. manifest의 `command`가 JSON을
 stdin으로 받아 stdout으로 JSON을 반환한다. `http_json`은 같은 command에 포트 인자를
@@ -124,7 +126,32 @@ registry에 해시를 기록한다. 실행 방식·공개 예시·공개 자산�
 판정을 검증할 수 없으므로 거절한다. 원본과 판정이 다르면 `second_pass.revisions` 기록을
 요구한다. `research.json`을 옮길 때는 `second_pass/`도 함께 옮긴다.
 `step_coverage`에서 제외한 단계가 있으면 부분 범위 계약으로 기록되고, 최종 결과는
-최대 `partially_reproduced`다.
+최대 `partially_reproduced`다. 대응 기준은 구현 전에 확정된 워크플로다. 2차의
+`workflow.steps`가 비어 있지 않으면 그 목록이고, 아니면 1차 목록이다. 2차 단계는
+`first_pass_step`(또는 같은 문구)로 1차 단계를 잇거나, 출처 인용이 있는 추가 단계여야
+한다. 2차가 뺀 1차 단계는 `workflow.removed_steps`에 이유와 출처를 남긴다. 추가·삭제
+내역은 `workflow_coverage.workflows`에 보존된다. 단계가 하나도 없는 워크플로는 전체
+범위로 인정하지 않는다. 2차 원본의 `claim_id`가 해당 claim과 다르면 거절한다.
+
+조사한 모든 claim은 실행 여부와 관계없이 registry의 `company_claims`에 판정·미실행
+사유와 함께 남고, `research_source`에 원본 `research.json`의 경로와 SHA-256을 결속한다.
+실행할 claim이 없으면 init이 곧바로 `COMPLETED_WITHOUT_EXECUTION`으로 끝난다.
+`claims: []`인 완료된 조사도 회사 결과를 만든다. `finalize-pass-1`이
+`pass_1_complete`·`next_step: no_ai_claims`로 마친 조사는 2차 대상이 없으므로
+그 상태에서 종료할 수 있다. 필드 누락, 미완료 조사, 준비 상태 집계 불일치는 거절한다.
+`agent-harness-finish`는 `final-results/company-claims.json`에 전체 claim 수, 실행 수,
+claim별 결과 경로와 `outcome`(`reproduced`, `partially_reproduced`,
+`not_reproduced_on_this_path`, `experiment_blocked`, `experiment_incomplete`,
+`not_executed`)을 쓴다. 최종 평가 전 중단은 `harness_status`, `failure_category`,
+`stop_reason`, `failure_reason`에 단계와 이유를 남긴다. 조사 부족·Agent 생성 실패는
+`not_executed_reason`도 채운다. 개발 중단 사유는 해시로 결속된 실행 상태에서 읽으며,
+동료 간 메시지와 평가 사례는 회사 결과에 복사하지 않는다.
+조사·Agent 생성·통신·환경·접근·예산 문제로 평가가 막히면 `experiment_blocked`다.
+개발 검사 실패만 있고 최종 평가를 받지 못한 경우는 `experiment_incomplete`로 남긴다.
+두 상태 모두 기업의 기술 장벽 근거로 쓰지 않는다.
+최종 평가가 끝나면 그 재현 판정을 보존한다. `execution_blocked`만 회사 결과의
+`experiment_blocked`로 대응하며, 일부 사례의 `case_timeout`이나 환경 오류만으로
+`partially_reproduced`를 덮어쓰지 않는다.
 
 `agent-harness-init`은 Builder 실행 전에 claim별 evaluator plan과 테스트를 동결한다.
 plan에 gap이 있으면 해당 claim은 `RESEARCH_INCOMPLETE`로 등록되어 Agent 쌍을 시작할
@@ -201,7 +228,16 @@ scenario당 최대 세 번의 제출 한도를 적용한다. 개발 수정 횟�
   사례별 결과, 구현 검토와 평가 요약. 공개 예시의 파일만 공개 run으로 복사한다.
 
 구현·평가·출력·자산 해시를 결속하며 실패한 실행도 부분 코드와 기술 판정을 보존한다.
-기술 판정과 별개인 투자 판단 보고서와 회사 전체 미평가 claim 보고는 이번에 변경하지 않는다.
+`replica-result.json`의 `experiment_record`는 실행 환경·요청 모델, 선택 시나리오와
+워크플로 범위·봉인 case 수, 개발 시작부터 제출까지와 최종 평가 시간, 개발 시도·수정
+횟수, 사람 개입, 관측 의존성과 사용 자산, 미측정 항목을 같은 형식으로 남긴다. 과금
+정보가 없으면 `unmeasured`에 남고 실행을 막지 않는다.
+`corrections.current_submission_correction_count`는 현재 제출 안의 수정 횟수,
+`total_correction_count`는 `development_attempts`에 보존된 제출 이력 전체에서
+초기 시도(`correction_number: 0`)를 제외한 수정 횟수다. `development_attempts`는
+초기 시도를 포함한 기록 수이고 `sealed_submission`은 봉인 제출 번호로 따로 유지한다.
+기술 판정과 별개인 투자 판단 보고서는 이번에 변경하지 않는다. 회사 단위 보고는
+`company-claims.json`을 입력으로 삼는다.
 
 공개 번들에 새로운 JSON 입력을 주려면 기존 명령을 사용한다.
 
@@ -230,6 +266,11 @@ replica-mvp run-replica PUBLIC_RUN_DIR --use-model-adapter < new-input.json
 체험 명령도 공개 번들에서 동작한다. 공개 `replica-spec.json`에는 선택 시나리오의
 `evidence_policy`가 들어가고, 시나리오에 `experience`가 있으면 `experience.json`이 함께
 공개된다. `experience RUN_DIR --input INPUT.json`은 번들 출력을 JSON으로 표시한다.
+`--state-dir DIR`을 함께 주면 `run-replica`와 같은 방식으로 호출 사이의 저장 상태를
+이어가므로, 후속 입력과 최종 저장 결과(DIR/implementation 아래)를 직접 확인할 수 있다.
+번들의 대화형 `experience`는 기본으로 임시 상태 디렉터리 하나를 전 턴에 공유하며 종료 시
+삭제한다. 질문형 체험은 질문 필드만 바꿔 보내므로 대화 이력 필드를 자동으로 채우지 않는다.
+이어지는 동작은 번들이 실행 디렉터리에 저장한 상태로만 연결된다.
 생성된 코드에는 PATH·HOME·로케일·TMPDIR 같은 기본 변수와 manifest에 선언한
 `environment_variables`만 전달한다.
 계속 켜 둔 서버가 필요한 경우 공개 manifest의

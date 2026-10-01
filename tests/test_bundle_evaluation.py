@@ -6,7 +6,7 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from replica_mvp.agent_harness import (
     finalize_agent_candidate, finish_agent_continuity, finish_agent_harness,
@@ -30,17 +30,18 @@ def _evaluation_research():
     return _research()
 
 
-def _bound_bundle(root, source=SOURCE, research=None, dependencies=None):
+def _bound_bundle(root, source=SOURCE, research=None, dependencies=None, correction_count=0):
     with patch("tests.test_agent_continuity._research", return_value=research or _evaluation_research()):
         registry, binding = _prepare_rich_ready_pair(root)
     claim_id = binding["claim_id"]
     start_agent_continuity(registry, claim_id, operator_agent_id=binding["operator_agent_id"],
                            builder_agent_id=binding["builder_agent_id"], nonce=binding["nonce"])
-    record_agent_continuity_round(registry, claim_id, round_number=0,
-                                  operator_agent_id=binding["operator_agent_id"], builder_agent_id=binding["builder_agent_id"],
-                                  nonce=binding["nonce"], operator_to_builder_direct=True, builder_to_operator_direct=True)
+    for round_number in range(correction_count + 1):
+        record_agent_continuity_round(registry, claim_id, round_number=round_number,
+                                      operator_agent_id=binding["operator_agent_id"], builder_agent_id=binding["builder_agent_id"],
+                                      nonce=binding["nonce"], operator_to_builder_direct=True, builder_to_operator_direct=True)
     candidate_relative = f"claims/{claim_id}/builder/implementation/manifest.json"
-    state = _write_execution_state(registry, binding, terminal_state="SUCCESS", correction_count=0,
+    state = _write_execution_state(registry, binding, terminal_state="SUCCESS", correction_count=correction_count,
                                   candidate_path=candidate_relative)
     finish_agent_continuity(registry, claim_id, terminal_state="SUCCESS", execution_state_path=state,
                            operator_agent_id=binding["operator_agent_id"], builder_agent_id=binding["builder_agent_id"],
@@ -67,6 +68,38 @@ def _fixture_judge(request):
 
 
 class BundleEvaluationTest(unittest.TestCase):
+    def test_completed_process_cleanup_does_not_discard_output_on_permission_race(self):
+        from replica_mvp.bundle_runtime import stop_process
+        process = Mock(pid=1234)
+        process.poll.return_value = 0
+        with patch("replica_mvp.bundle_runtime.os.name", "posix"), patch(
+            "replica_mvp.bundle_runtime.os.killpg", side_effect=PermissionError("Operation not permitted")
+        ):
+            stop_process(process)
+            process.wait.assert_called_once()
+            process.poll.return_value = None
+            with self.assertRaises(PermissionError):
+                stop_process(process)
+
+    def test_company_result_preserves_partial_reproduction_after_one_case_timeout(self):
+        source = SOURCE.replace("json.dump(", "if v['x'] == -2: time.sleep(2)\njson.dump(")
+        research = _evaluation_research()
+        research["claims"][0]["second_pass"]["replication_contract"][1]["evaluation"]["timeout_seconds"] = 0.5
+        with TemporaryDirectory() as tmp:
+            registry = _bound_bundle(Path(tmp) / "run", source=source, research=research)
+            evaluated = evaluate_agent_bundle(registry, "claim-001", semantic_judge=_fixture_judge)
+            public = registry.parent / evaluated["claims"][0]["final_result"]["public_run_dir"]
+            result = json.loads((public / "replica-result.json").read_text())
+            self.assertEqual((5, 6), (result["evaluation"]["passed"], result["evaluation"]["total"]))
+            self.assertEqual("partially_reproduced", result["reproduction_status"])
+            self.assertEqual("case_timeout", result["failure_category"])
+            finished = finish_agent_harness(registry)
+            company = json.loads((registry.parent / finished["company_result"]["path"]).read_text())
+            claim = company["claims"][0]
+            self.assertEqual("partially_reproduced", claim["outcome"])
+            self.assertEqual(result["failure_category"], claim["failure_category"])
+            self.assertEqual(result["stop_reason"], claim["stop_reason"])
+
     def test_generated_bytecode_is_excluded_without_relaxing_package_limits(self):
         from replica_mvp.agent_harness import _validate_implementation_bundle
         with TemporaryDirectory() as tmp:
@@ -216,7 +249,7 @@ json.dump({'value':n*2},sys.stdout)
         from replica_mvp.agent_execution import advance_agent_execution
         from tests.test_agent_execution import _instruction, _feedback
         with TemporaryDirectory() as tmp:
-            registry = _bound_bundle(Path(tmp) / "run", source=SOURCE.replace("* 2", "* 3"))
+            registry = _bound_bundle(Path(tmp) / "run", source=SOURCE.replace("* 2", "* 3"), correction_count=1)
             first = evaluate_agent_bundle(registry, "claim-001", semantic_judge=_fixture_judge)["claims"][0]
             previous_public = registry.parent / first["final_result"]["public_run_dir"]
             previous_bytes = (previous_public / "replica-result.json").read_bytes()
@@ -227,7 +260,7 @@ json.dump({'value':n*2},sys.stdout)
             self.assertEqual(first["operator"]["agent_id"], binding["operator_agent_id"])
             state_path = registry.parent / ready["operator"]["artifact_namespace"] / "execution-state.json"
             state = json.loads(state_path.read_text())
-            self.assertEqual(1, len(state["prior_resources"]))
+            self.assertEqual(2, len(state["prior_resources"]))
             start_agent_continuity(registry, "claim-001", **binding)
             record_agent_continuity_round(registry, "claim-001", round_number=0, **binding,
                                           operator_to_builder_direct=True, builder_to_operator_direct=True)
@@ -252,7 +285,13 @@ json.dump({'value':n*2},sys.stdout)
             self.assertEqual(2, len(second["bundle_submissions"]))
             self.assertEqual(previous_bytes, (previous_public / "replica-result.json").read_bytes())
             public = registry.parent / second["final_result"]["public_run_dir"]
-            self.assertEqual(2, len(json.loads((public / "replica-result.json").read_text())["development_attempts"]))
+            result = json.loads((public / "replica-result.json").read_text())
+            self.assertEqual([(1, 0), (1, 1), (2, 0)],
+                             [(a["submission"], a["correction_number"]) for a in result["development_attempts"]])
+            self.assertEqual({"development_attempts": 3, "current_submission_correction_count": 0,
+                              "total_correction_count": 1, "sealed_submission": 2},
+                             result["experiment_record"]["corrections"])
+            self.assertEqual(1, json.loads(previous_bytes)["experiment_record"]["corrections"]["current_submission_correction_count"])
             self.assertEqual("EXECUTION_SUCCESS", finish_agent_harness(registry)["status"])
             archive = registry.parent / second["bundle_submissions"][0]["development_archive"]["path"]
             (archive / "execution-state.json").write_text("{}")
@@ -301,9 +340,24 @@ json.dump({'value':n*2},sys.stdout)
             unknown = [m for m in value["resources"]["measurements"] if m["status"] == "unknown"]
             self.assertTrue(unknown)
             self.assertTrue(all(m["value"] is None for m in unknown))
+            record = value["experiment_record"]
+            self.assertEqual("s-oss", record["scope"]["scenario_id"])
+            self.assertEqual("whole_workflow", record["scope"]["workflow_coverage"]["scope"])
+            self.assertEqual(6, record["scope"]["sealed_cases"]["total"])
+            self.assertEqual(1, record["corrections"]["sealed_submission"])
+            self.assertIn("execution:economic_cost", record["unmeasured"])
+            self.assertGreaterEqual(record["time"]["final_evaluation_seconds"], 0)
             with self.assertRaisesRegex(ValueError, "IMPLEMENTATION_READY"):
                 evaluate_agent_bundle(registry, "claim-001")
-            self.assertEqual("EXECUTION_SUCCESS", finish_agent_harness(registry)["status"])
+            finished = finish_agent_harness(registry)
+            self.assertEqual("EXECUTION_SUCCESS", finished["status"])
+            # The company result keeps the unexecuted claim and its reason beside the executed one.
+            company = json.loads((root / finished["company_result"]["path"]).read_text())
+            self.assertEqual(2, company["claim_total"])
+            self.assertEqual({"not_executed": 1, "reproduced": 1}, company["outcome_counts"])
+            executed, skipped = company["claims"]
+            self.assertEqual(f"{claim['final_result']['public_run_dir']}/replica-result.json", executed["result_path"])
+            self.assertIn("readiness partial", skipped["not_executed_reason"])
             (public / "implementation/entry.py").write_text("print('tampered')")
             with self.assertRaisesRegex(ValueError, "hash mismatch"):
                 run_built_replica(public, {"x": 13})
@@ -449,9 +503,14 @@ json.dump({'value':v['x'] * 2,'document':'answer.txt'},sys.stdout)
                 "media_type": "text/plain", "provenance": "Permitted test fixture", "usage_terms": "Synthetic fixture",
                 "visibility": "public",
             }]
-            result = evaluate_agent_bundle(_bound_bundle(Path(tmp) / "run", research=research), "claim-001")
+            registry = _bound_bundle(Path(tmp) / "run", research=research)
+            result = evaluate_agent_bundle(registry, "claim-001")
             self.assertEqual("execution_blocked", result["claims"][0]["final_result"]["reproduction_status"])
             self.assertTrue((Path(tmp) / "run" / result["claims"][0]["final_result"]["public_run_dir"] / "replica-result.json").is_file())
+            finished = finish_agent_harness(registry)
+            company = json.loads((registry.parent / finished["company_result"]["path"]).read_text())
+            self.assertEqual("experiment_blocked", company["claims"][0]["outcome"])
+            self.assertEqual("data_missing", company["claims"][0]["failure_category"])
 
     def test_installed_dependency_drift_is_observed_not_silently_certified(self):
         with TemporaryDirectory() as tmp:
@@ -525,6 +584,10 @@ HTTPServer(('127.0.0.1',a.port),Handler).serve_forever()
                 if category == "case_timeout":
                     # Each slow case fails alone; all six cases twice plus the public example still run.
                     self.assertEqual(13, len(records))
+                finished = finish_agent_harness(registry)
+                company = json.loads((registry.parent / finished["company_result"]["path"]).read_text())
+                self.assertEqual("experiment_blocked" if category == "budget_exhausted" else "not_reproduced_on_this_path",
+                                 company["claims"][0]["outcome"])
 
     def test_cases_are_isolated_unless_research_declares_a_shared_session(self):
         source = """import json, sys
@@ -551,6 +614,43 @@ json.dump({'value': v['x'] * 2, 'calls': count}, sys.stdout)
             results = {json.loads(line)["case_id"]: json.loads(line) for line in (vault / "results.jsonl").read_text().splitlines()}
             self.assertTrue(results["boundary"]["pass"], results["boundary"])
             self.assertTrue(results["follow-up"]["pass"], results["follow-up"])
+
+    def test_same_request_twice_in_one_session_checks_duplicate_prevention(self):
+        from replica_mvp.agent_harness import prepare_agent_harness
+        source = """import json, sys
+from pathlib import Path
+v = json.load(sys.stdin)
+seen = Path('seen.json')
+done = json.loads(seen.read_text()) if seen.exists() else []
+key = v['x']
+status = 'duplicate' if key in done else 'executed'
+if status == 'executed':
+    seen.write_text(json.dumps(done + [key]))
+json.dump({'value': v['x'] * 2, 'status': status}, sys.stdout)
+"""
+        with TemporaryDirectory() as tmp:
+            research = _evaluation_research()
+            scenario = research["claims"][0]["second_pass"]["replication_contract"][1]
+            first = {"id": "order", "kind": "boundary", "input": {"x": 5}, "session": "retry",
+                     "deterministic_assertions": [{"type": "equals", "path": ["status"], "value": "executed"}],
+                     "semantic_criteria": [], "criterion_ids": ["criterion-001"]}
+            resend = {**first, "id": "resend",
+                      "deterministic_assertions": [{"type": "equals", "path": ["status"], "value": "duplicate"}]}
+            other = {**first, "id": "other-session", "session": "elsewhere"}
+            scenario["evaluation"]["additional_cases"] += [first, resend, other]
+            # The same input in another session is an independent duplicate, still refused.
+            rejected = prepare_agent_harness(research, Path(tmp) / "rejected", replica_agent_id="agent",
+                                             parent_agent_id="root")["claims"][0]
+            plan = json.loads((Path(tmp) / "rejected" / rejected["bundle_evaluation"]["plan_path"]).read_text())
+            self.assertEqual("RESEARCH_INCOMPLETE", rejected["status"])
+            self.assertIn("same named session", plan["gaps"][0])
+            scenario["evaluation"]["additional_cases"].pop()
+            registry = _bound_bundle(Path(tmp) / "run", source=source, research=research)
+            result = evaluate_agent_bundle(registry, "claim-001", semantic_judge=_fixture_judge)
+            vault = registry.parent / result["claims"][0]["final_result"]["vault_dir"]
+            results = {json.loads(line)["case_id"]: json.loads(line) for line in (vault / "results.jsonl").read_text().splitlines()}
+            self.assertTrue(results["order"]["pass"], results["order"])
+            self.assertTrue(results["resend"]["pass"], results["resend"])
 
     def test_output_artifacts_follow_the_frozen_effect_condition(self):
         from replica_mvp.bundle_evaluation import _capture_artifacts, _storage_snapshot
@@ -681,6 +781,33 @@ json.dump({'value': v['x'] * 2, 'calls': count, 'secret': os.environ.get('REPLIC
             rendered = experience_input_once(public, request)
             self.assertIn("출력 형식: application/json", rendered)
             self.assertIn('"value": 42', rendered)
+
+    def test_experience_follow_up_inputs_continue_the_same_state(self):
+        from replica_mvp.experience import experience_input_once
+        source = """import json, sys
+from pathlib import Path
+v = json.load(sys.stdin)
+log = Path('log.json')
+entries = json.loads(log.read_text()) if log.exists() else []
+entries.append(v['x'])
+log.write_text(json.dumps(entries))
+json.dump({'value': v['x'] * 2, 'history': entries}, sys.stdout)
+"""
+        with TemporaryDirectory() as tmp:
+            registry = _bound_bundle(Path(tmp) / "run", source=source)
+            result = evaluate_agent_bundle(registry, "claim-001", semantic_judge=_fixture_judge)
+            public = registry.parent / result["claims"][0]["final_result"]["public_run_dir"]
+            state = Path(tmp) / "state"
+            for value in (3, 4):
+                request = Path(tmp) / f"input-{value}.json"
+                request.write_text(json.dumps({"x": value}))
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    self.assertEqual(0, main(["experience", str(public), "--input", str(request),
+                                              "--state-dir", str(state)]))
+            self.assertIn('"history": [\n    3,\n    4\n  ]', out.getvalue())
+            self.assertEqual([3, 4], json.loads((state / "implementation" / "log.json").read_text()))
+            # Without a state directory each call starts clean.
+            self.assertIn('"history": [\n    3\n  ]', experience_input_once(public, Path(tmp) / "input-3.json"))
 
 
 if __name__ == "__main__":

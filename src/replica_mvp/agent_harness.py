@@ -180,6 +180,7 @@ def prepare_agent_harness(
     builder_model: str = TERRA_MODEL,
     model_runtime: str = "codex",
     fragment_root: Path | None = None,
+    research_source: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Prepare deterministic state for real Agent orchestration."""
     if not _is_nonempty_text(replica_agent_id) or not _is_nonempty_text(
@@ -319,6 +320,14 @@ def prepare_agent_harness(
         "claims": claims,
         "require_final_bundle_evaluation": True,
     }
+    if "company_claims" in canonical:
+        registry["company"] = canonical["company"]
+        registry["company_claims"] = canonical["company_claims"]
+        registry["research_source"] = research_source
+        if not claims:
+            # Research that found nothing executable ends here as a complete company result.
+            _write_new_json(run_dir / REGISTRY_NAME, registry)
+            return finish_agent_harness(run_dir / REGISTRY_NAME)
     _write_new_json(run_dir / REGISTRY_NAME, registry)
     from .bundle_evaluation import prepare_bundle_evaluation
     for canonical_claim in canonical["claims"]:
@@ -340,8 +349,9 @@ def prepare_agent_harness_from_path(
 ) -> dict[str, Any]:
     """Read immutable Second JSON and prepare a real-Agent harness registry."""
     try:
+        source_bytes = source.read_bytes()
         second_pass = json.loads(
-            source.read_bytes().decode("utf-8-sig"),
+            source_bytes.decode("utf-8-sig"),
             parse_constant=_reject_nonstandard_constant,
         )
     except (OSError, UnicodeDecodeError, ValueError) as error:
@@ -356,6 +366,10 @@ def prepare_agent_harness_from_path(
         builder_model=builder_model,
         model_runtime=model_runtime,
         fragment_root=source.parent,
+        research_source={
+            "path": str(source.resolve()),
+            "sha256": hashlib.sha256(source_bytes).hexdigest(),
+        },
     )
 
 
@@ -1525,7 +1539,7 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
         "EXECUTION_ABORTED",
         "CREATION_FAILED",
     }
-    if not statuses:
+    if not statuses and "company_claims" not in registry:
         raise ValueError("cannot finish incomplete Agent harness")
     for claim in registry["claims"]:
         if claim.get("status") in {"RESULT_SUCCESS", "RESULT_FAILED"}:
@@ -1558,6 +1572,8 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
             status = "IMPLEMENTATION_READY"
         else:
             status = "EXECUTION_COMPLETED_WITH_FAILURES"
+    elif not statuses:
+        status = "COMPLETED_WITHOUT_EXECUTION"
     else:
         if any(status not in protocol_terminal_statuses for status in statuses):
             raise ValueError("cannot finish incomplete Agent harness")
@@ -1573,6 +1589,121 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
         name: statuses.count(name) for name in sorted(set(statuses))
     }
     registry["status"] = status
-    registry["replica_agent"]["status"] = status
+    registry["orchestrator" if registry.get("execution_mode") == "single" else "replica_agent"]["status"] = status
+    if "company_claims" in registry:
+        root = registry_path.parent.resolve()
+        results_path = root / PUBLIC_RESULTS_ROOT / "company-claims.json"
+        company_results = _company_results(root, registry)
+        results_path.parent.mkdir(exist_ok=True)
+        results_path.unlink(missing_ok=True)
+        _write_new_json(results_path, company_results)
+        registry["company_result"] = {
+            "path": _relative_path(root, results_path),
+            "sha256": _sha256(results_path),
+        }
     _replace_registry(registry_path, registry)
     return registry
+
+
+# Failures that say the experiment did not run to a verdict, not how good the Replica was.
+_BLOCKED_FAILURES = {
+    "research_gap", "environment_error", "access_missing", "data_missing",
+    "budget_exhausted",
+}
+
+
+def _pre_evaluation_outcome(root: Path, claim: dict[str, Any]) -> dict[str, Any]:
+    """Explain a control/development stop without publishing peer messages or sealed cases."""
+    status = claim.get("status")
+    category = None
+    stop = "final_evaluation_not_run"
+    reason = "The claim has not completed final bundle evaluation."
+    outcome = "experiment_incomplete"
+    if status == "RESEARCH_INCOMPLETE":
+        category, stop = "research_gap", "research_incomplete"
+        reason = "; ".join(claim.get("research_gaps", [])) or "Evaluation research is incomplete."
+        outcome = "experiment_blocked"
+    elif status == "CREATION_FAILED":
+        category = stop = "agent_creation_failed"
+        reason = (claim.get("failure") or {}).get("reason") or "The Agent pair could not be created."
+        outcome = "experiment_blocked"
+    elif status == "EXECUTION_ABORTED":
+        category = stop = "agent_protocol_interrupted"
+        reason = (claim.get("continuity", {}).get("failure") or {}).get("reason") or "The Agent protocol was interrupted."
+        outcome = "experiment_blocked"
+    elif status == "EXECUTION_FAILED":
+        execution = claim.get("execution_result") or {}
+        state_stop = None
+        if execution.get("execution_state_sha256"):
+            payload = json.loads((root / claim["claim_payload_path"]).read_text(encoding="utf-8"))
+            state, checksum = load_agent_execution_state_file(
+                root / claim["operator"]["artifact_namespace"] / "execution-state.json", payload,
+            )
+            if checksum != execution["execution_state_sha256"]:
+                raise ValueError("failed development state changed before company result")
+            state_stop = state.get("stop_reason")
+        if state_stop:
+            category = stop = state_stop["category"]
+            reason = state_stop["reason"]
+            if category in _BLOCKED_FAILURES:
+                outcome = "experiment_blocked"
+        else:
+            category = stop = "development_checks_failed"
+            reason = (
+                f"Development checks did not pass after {execution.get('correction_count', 0)} corrections; "
+                "final bundle evaluation was not run."
+            )
+    result = {"outcome": outcome, "failure_category": category, "stop_reason": stop, "failure_reason": reason}
+    if status in {"RESEARCH_INCOMPLETE", "CREATION_FAILED"}:
+        result["not_executed_reason"] = reason
+    return result
+
+
+def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
+    """Join every researched claim to its execution outcome so no result loses its denominator."""
+    executed = {claim["claim_id"]: claim for claim in registry["claims"]}
+    entries = []
+    for researched in registry["company_claims"]:
+        entry = deepcopy(researched)
+        claim = executed.get(researched["claim_id"])
+        if claim is None:
+            entry["outcome"] = "not_executed"
+            entries.append(entry)
+            continue
+        final = claim.get("final_result") or {}
+        result = {}
+        if final.get("public_run_dir"):
+            result = json.loads((root / final["public_run_dir"] / "replica-result.json").read_text(encoding="utf-8"))
+        entry.update({
+            "harness_status": claim.get("status"),
+            "scenario_id": result.get("scenario_id"),
+            "reproduction_status": final.get("reproduction_status"),
+            "failure_category": result.get("failure_category"),
+            "stop_reason": result.get("stop_reason"),
+            "result_path": (f"{final['public_run_dir']}/replica-result.json"
+                            if final.get("public_run_dir") else None),
+            "result_sha256": final.get("result_sha256"),
+            "outcome": (
+                "experiment_blocked" if final.get("reproduction_status") == "execution_blocked"
+                else final.get("reproduction_status")
+            ),
+        })
+        if claim.get("status") not in {"RESULT_SUCCESS", "RESULT_FAILED"}:
+            entry.update(_pre_evaluation_outcome(root, claim))
+        entries.append(entry)
+    outcomes = [entry["outcome"] for entry in entries]
+    return {
+        "schema_version": "replica-company-claim-results/v1",
+        "company": deepcopy(registry.get("company")),
+        "research_source": deepcopy(registry.get("research_source")),
+        "harness_status": registry["status"],
+        "claim_total": len(entries),
+        "selected_for_execution": sum(entry["selected_for_execution"] for entry in entries),
+        "outcome_counts": {name: outcomes.count(name) for name in sorted(set(outcomes))},
+        "interpretation": (
+            "Each outcome describes this experiment on one researched workflow. A not_executed, "
+            "experiment_incomplete, or experiment_blocked claim is not evidence of the company's "
+            "technical barrier, and no single claim's result is a verdict on the whole company."
+        ),
+        "claims": entries,
+    }

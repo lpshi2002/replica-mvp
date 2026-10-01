@@ -95,6 +95,20 @@ class ExperienceCliTest(unittest.TestCase):
             use_model_adapter=True,
         )
 
+    def test_interactive_bundle_turns_share_one_state_directory(self):
+        with (
+            TemporaryDirectory() as tmp,
+            patch("replica_mvp.cli.is_bundle_run", return_value=True),
+            patch("replica_mvp.cli.experience_once", return_value="rendered") as experience,
+            patch("builtins.input", side_effect=["first", "follow-up", EOFError]),
+            redirect_stdout(StringIO()),
+        ):
+            self.assertEqual(0, main(["experience", str(Path(tmp) / "run")]))
+
+        states = [call.kwargs["state_dir"] for call in experience.call_args_list]
+        self.assertEqual(2, len(states))
+        self.assertEqual(states[0], states[1])
+
     def test_text_replica_can_be_read_from_a_json_input_file(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

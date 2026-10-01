@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform
 import shutil
 import tempfile
 import time
@@ -17,7 +18,9 @@ from .evaluation import (
     _check_assertion, _is_valid_lock, _json_equal, _path_value, _read_json,
     _require_standard_json, _write_json, _write_jsonl, freeze_test_suite,
 )
-from .resources import budget_stop, measurement, unknown_resources, utc_now, validate_budget, validate_resources
+from .resources import (
+    budget_stop, measurement, timestamp, unknown_resources, utc_now, validate_budget, validate_resources,
+)
 
 
 MAX_SUBMISSIONS = 3
@@ -310,7 +313,7 @@ def prepare_bundle_evaluation(registry_path: Path, claim_id: str, supplement: Pa
         "scenario_id": selected["id"], "claim_sha256": digest(root / claim["claim_payload_path"]),
         "sealed_claim_sha256": claim.get("sealed_claim_sha256"),
         "prepared_at": utc_now(), "prepared_before_implementation": (
-            claim["status"] in _UNSTARTED and not any((root / claim["builder"]["artifact_namespace"]).rglob("*"))
+            claim["status"] in _UNSTARTED and not any((root / claim.get("implementer", claim.get("builder"))["artifact_namespace"]).rglob("*"))
         ),
         "workflow_coverage": payload.get("workflow_coverage"),
         "revision": revision, "previous_plan_sha256": previous.get("plan_sha256") if previous else None,
@@ -511,6 +514,7 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
             groups.append(named[case["session"]])
     recorded: list[dict[str, Any]] = [{}, {}]
     case_artifacts = {case["id"]: [[], []] for case in cases}
+    storage_observations = {case["id"]: [None, None] for case in cases}
     errors = {}
 
     def record_outputs() -> None:
@@ -519,6 +523,7 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
         _write_jsonl(vault / "replica_outputs.jsonl", outputs)
         _write_jsonl(vault / "repeated_outputs.jsonl", repeated)
         _write_jsonl(vault / "execution-records.jsonl", executions)
+        _write_json(vault / "storage-observations.json", storage_observations)
 
     try:
         if plan["budget"]["cost_limit"] is not None:
@@ -550,6 +555,11 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
                                 failure_category = _failure_category(failure)
                                 executions[-1]["error"] = error
                         case_artifacts[case["id"]][repetition] = captured
+                        storage_observations[case["id"]][repetition] = {
+                            "before": before,
+                            "after": _storage_snapshot(runtime_root, _watched_storage(plan["output_artifacts"])),
+                            "artifact_validation_passed": error is None,
+                        }
                         if error:
                             errors[case["id"]] = error
                         record_outputs()
@@ -614,9 +624,13 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
                 "replica_output": first["output"], "repeated_output": again["output"],
                 "semantic_criteria": case["semantic_criteria"], "reference": case.get("reference"),
                 "artifacts": case_artifacts.get(case["id"], []),
+                "storage_observations": storage_observations[case["id"]],
+                "output_artifact_contract": plan["output_artifacts"],
                 "instruction": (
                     "Assess every criterion on BOTH outputs. Prose may vary; facts, grounding and required behavior must hold. "
                     "For file outputs, inspect the actual preserved artifacts, not merely their filenames or existence. "
+                    "For no-effect responses, compare the harness-recorded before/after storage snapshots; "
+                    "unchanged snapshots are evidence of no writes even when there is no output file to inspect. "
                     "If the required modality or contents cannot be inspected, return pass=false and explain that limitation."
                 ),
             }, timeout=min(timeout, deadline - time.monotonic()))
@@ -650,7 +664,8 @@ def _evaluate_cases(vault: Path, plan: dict[str, Any], manifest_path: Path,
     _write_json(vault / "artifact-receipts.json", {"input_assets": assets, "output_artifacts": output_artifacts})
     return summary, {"public_examples": public, "assets": assets, "outputs": outputs,
                      "repeated_outputs": repeated, "artifacts": case_artifacts,
-                     "execution_records": executions, "dependencies": dependencies}
+                     "execution_records": executions, "dependencies": dependencies,
+                     "storage_observations": storage_observations}
 
 
 def _failure_category(error: Exception) -> str:
@@ -663,6 +678,59 @@ def _failure_category(error: Exception) -> str:
     if isinstance(error, OSError) or "ModuleNotFoundError" in str(error):
         return "environment_error"
     return "implementation_defect"
+
+
+def _experiment_record(registry: dict[str, Any], claim: dict[str, Any], plan: dict[str, Any],
+                       summary: dict[str, Any], manifest: dict[str, Any], state: dict[str, Any],
+                       attempt: dict[str, Any], development: list[dict[str, Any]],
+                       resources: dict[str, Any]) -> dict[str, Any]:
+    """One comparable record of what this experiment ran on, covered, spent and could not measure."""
+    all_resources = [a["resources"] for a in development] + [resources]
+    started = state.get("started_at")
+    return {
+        "schema_version": "replica-experiment-record/v1",
+        "environment": {
+            "model_runtime": deepcopy(registry.get("model_runtime")),
+            "execution_mode": registry.get("execution_mode", "pair"),
+            "requested_models": {role: claim[role]["requested_model"] for role in ("operator", "builder", "implementer") if role in claim},
+            "requested_reasoning_efforts": {role: claim[role].get("requested_reasoning_effort") for role in ("operator", "builder", "implementer") if role in claim},
+            "python": platform.python_version(), "platform": f"{platform.system()}-{platform.machine()}",
+        },
+        "scope": {
+            "scenario_id": plan["scenario_id"],
+            "workflow_coverage": deepcopy(plan.get("workflow_coverage")),
+            "sealed_cases": {"total": summary["total"], "by_kind": deepcopy(summary["by_kind"])},
+            "public_examples": len(plan["public_examples"]),
+        },
+        "time": {
+            "development_started_at": started,
+            "submitted_at": attempt["started_at"],
+            # Wall clock including waiting and any earlier sealed submission; null when not recorded.
+            "development_to_submission_seconds": (
+                (timestamp(attempt["started_at"]) - timestamp(started)).total_seconds() if started else None
+            ),
+            "final_evaluation_seconds": next(
+                m["value"] for m in resources["measurements"] if m["metric"] == "elapsed_time"
+            ),
+        },
+        "corrections": {
+            "development_attempts": None if claim.get("execution_mode") == "single" else len(development),
+            "current_submission_correction_count": claim.get("continuity", {}).get("correction_count"),
+            "total_correction_count": None if claim.get("execution_mode") == "single" else sum(a["correction_number"] > 0 for a in development),
+            "sealed_submission": attempt["attempt"],
+        },
+        "human_interventions": [action for r in all_resources for action in r["human_interventions"]],
+        "data_and_external": {
+            "dependency_level": manifest.get("dependency_level"),
+            "observed_dependencies": deepcopy(summary.get("dependencies", [])),
+            "assets": [{key: asset[key] for key in ("path", "visibility", "provenance", "usage_terms")}
+                       for asset in plan["assets"]],
+        },
+        "unmeasured": sorted({f"{m['phase']}:{m['metric']}" for r in all_resources
+                              for m in r["measurements"] if m["status"] == "unknown"}
+                             | ({"development:internal_iterations", "development:tokens"}
+                                if claim.get("execution_mode") == "single" else set())),
+    }
 
 
 def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge: Callable | None = None,
@@ -724,7 +792,7 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
     if lock is not None:
         freeze_test_suite(source_tests, vault)
     copy_bundle(manifest_path, vault / "submitted-implementation")
-    shutil.copyfile(root / claim["operator"]["artifact_namespace"] / "execution-state.json", vault / "submitted-execution-state.json")
+    shutil.copyfile(root / claim.get("implementer", claim.get("operator"))["artifact_namespace"] / "execution-state.json", vault / "submitted-execution-state.json")
     attempts.append({"attempt": number, "candidate_sha256": manifest_sha256,
                      "plan_sha256": prepared["plan_sha256"], "started_at": utc_now(), "status": "RUNNING"})
     _replace_registry(registry_path, registry)
@@ -762,6 +830,8 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
             "observed_dependencies": evidence.get("dependencies", []),
             "execution_records": evidence.get("execution_records", []),
             "preserved_artifacts": evidence.get("artifacts", {}),
+            "storage_observations": evidence.get("storage_observations", {}),
+            "output_artifact_contract": plan["output_artifacts"],
             "evaluation_cases": _read_json(vault / "tests.json")["cases"],
             "outputs": evidence["outputs"],
             "repeated_outputs": evidence.get("repeated_outputs", []),
@@ -771,6 +841,8 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
                 "a target company's own core API posing as a replica, stubs and answer leakage. "
                 "Check that novel inputs materially differ from development examples, not just names or numbers. "
                 "Inspect preserved_artifacts at their absolute paths for storage and saved-sink evidence. "
+                "Use storage_observations before/after snapshots as evidence for responses that must leave storage unchanged; "
+                "such responses correctly have no output file. "
                 "The harness supplies the HTTP port_argument when launching the manifest command; it is not a missing implementation argument. "
                 "Use effective_dependency_level after the explicit model_runtime overlay: the selected native model CLI can make an oss_only research route commercial_api; all other research requirements remain unchanged. "
                 "Distinguish application source from third-party dependencies. Assess vendored public binaries like installed public packages using provenance, observed versions and actual execution evidence; an unreviewed binary alone is not an automatic failure. "
@@ -822,7 +894,7 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
         for line in (vault / "results.jsonl").read_text().splitlines():
             resources["measurements"].extend(json.loads(line)["semantic"].get("resources", {}).get("measurements", []))
     resources["measurements"].extend(review.get("resources", {}).get("measurements", []))
-    state_path = root / claim["operator"]["artifact_namespace"] / "execution-state.json"
+    state_path = root / claim.get("implementer", claim.get("operator"))["artifact_namespace"] / "execution-state.json"
     state = _read_json(state_path)
     development = [{"submission": number, "correction_number": a["correction_number"], "decision": a["decision"],
                     "resources": a.get("resources", unknown_resources()),
@@ -889,6 +961,8 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
         "attempt": number, "max_attempts": MAX_SUBMISSIONS,
         "evaluation": public_assessment["evaluation"], "resources": resources, "development_attempts": development,
         "dependencies": summary.get("dependencies", []),
+        "experiment_record": _experiment_record(registry, claim, plan, summary, manifest, state,
+                                                attempts[-1], development, resources),
         "stop_reason": ("evaluated" if summary["status"] == "PASSED" else
                         "execution_blocked" if summary["stop_reason"] else "quality_or_evaluation_gap"),
         "failure_category": summary["failure_category"] or (None if reproduction == "reproduced" else "quality_gap"),

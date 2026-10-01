@@ -86,13 +86,22 @@ def freeze_test_suite(source: Path, run_dir: Path) -> dict[str, Any]:
         or len(set(case_ids)) != len(case_ids)
     ):
         raise ValueError("test case ids must be unique non-empty strings")
-    inputs = [case.get("input") for case in suite["cases"]]
+    # Independent cases must differ. A repeated request inside one named session is a
+    # stateful step (a retry or duplicate submission) whose prior state differs.
+    cases = suite["cases"]
     if any(
-        _json_equal(candidate, existing)
-        for index, candidate in enumerate(inputs)
-        for existing in inputs[:index]
+        _json_equal(candidate.get("input"), existing.get("input"))
+        and not (
+            isinstance(candidate.get("session"), str)
+            and candidate["session"].strip()
+            and candidate.get("session") == existing.get("session")
+        )
+        for index, candidate in enumerate(cases)
+        for existing in cases[:index]
     ):
-        raise ValueError("test case inputs must be unique")
+        raise ValueError(
+            "test case inputs must be unique unless both cases are steps of the same named session"
+        )
     for case in suite["cases"]:
         assertions = case.get("deterministic_assertions")
         criteria = case.get("semantic_criteria")

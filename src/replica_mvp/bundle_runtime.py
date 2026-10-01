@@ -66,6 +66,12 @@ def stop_process(process: subprocess.Popen) -> None:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+        except PermissionError:
+            # A completed process can leave a group that macOS will no longer let
+            # this parent signal. Do not discard its valid output for cleanup;
+            # permission failures while the child is still running remain fatal.
+            if process.poll() is None:
+                raise
     elif process.poll() is None:
         process.kill()
     process.wait()
@@ -114,7 +120,8 @@ def run_json_command(command: list[str], value: Any, cwd: Path, timeout: float,
         raise RuntimeError("bundle command did not return standard JSON") from None
 
 
-def native_model_judge(provider: str, request: dict[str, Any]) -> dict[str, Any]:
+def native_model_judge(provider: str, request: dict[str, Any], *, model: str | None = None,
+                       reasoning_effort: str | None = None) -> dict[str, Any]:
     """Use the harness-selected local model CLI in a separate evaluator process."""
     schema = {
         "type": "object", "additionalProperties": False, "required": ["pass", "reason"],
@@ -141,6 +148,10 @@ def native_model_judge(provider: str, request: dict[str, Any]) -> dict[str, Any]
                 "--sandbox", "read-only", "--cd", directory, "--skip-git-repo-check", "--json",
                 "--output-schema", str(schema_path), "--output-last-message", str(output_path), "-",
             ]
+            if model:
+                command[2:2] = ["--model", model]
+            if reasoning_effort:
+                command[2:2] = ["-c", f"model_reasoning_effort={json.dumps(reasoning_effort)}"]
             raw = _run_command(command, prompt, root, request["timeout_seconds"])
             if output_path.stat().st_size > MAX_OUTPUT_BYTES:
                 raise RuntimeError("judge result exceeds size limit")
