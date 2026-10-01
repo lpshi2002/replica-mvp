@@ -11,6 +11,24 @@
 
 ## 인계와 실행 경계
 
+사용자가 기능당 단일 구현자를 명시한 실행은 `single-harness-init` 경로를 쓴다.
+기본 쌍 경로는 그대로 유지한다. 단일 경로는 root가 기능별 실제 Agent 하나를 생성하고,
+`single-agent-start`로 생성된 ID·모델·추론 강도를 기록한다. 공개 계약만 전달하고 봉인
+평가는 구현 전에 준비한다. 가상의 Operator/Builder 신원이나 왕복 메시지는 만들지 않는다.
+구현자는 코드·manifest와 실제 개발 확인 명령을 담은 `development.json`을 제출한다.
+`single-agent-bind`가 파일·계약·예산을 검증하고, 기존 `agent-bundle-evaluate`와
+`agent-harness-finish`로 평가와 회사 전체 결과를 만든다. 내부 코딩 반복 횟수와 구현 Agent
+토큰은 자동 계측하지 않으므로 미측정으로 기록한다. 최소한의 핵심 동작 확인에 집중하고
+봉인 테스트를 개발 테스트로 복제하지 않는다.
+
+```text
+replica-mvp single-harness-init RESEARCH RUN_DIR --orchestrator-id ROOT_ID --model gpt-6-astra --reasoning-effort low --model-runtime codex
+replica-mvp single-agent-start REGISTRY CLAIM_ID --agent-id ACTUAL_ID --model gpt-6-astra --reasoning-effort low
+replica-mvp single-agent-bind REGISTRY CLAIM_ID --agent-id ACTUAL_ID
+replica-mvp agent-bundle-evaluate REGISTRY CLAIM_ID
+replica-mvp agent-harness-finish REGISTRY
+```
+
 실제 구현은 선택된 기능마다 Agent 한 쌍을 만들어 전체 쌍을 동시에 활성화한다.
 기능이 3개면 3쌍, 10개면 10쌍이며, 전체 쌍의 등록·연결을 마친 뒤 모두 활성화한다.
 앞 기능의 완료를 기다리지 않는다.

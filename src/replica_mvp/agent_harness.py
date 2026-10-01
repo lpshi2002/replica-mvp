@@ -1390,6 +1390,10 @@ def _validate_final_result(run_dir: Path, claim: dict[str, Any]) -> None:
 
 
 def _validate_implementation_result(run_dir: Path, claim: dict[str, Any]) -> None:
+    if claim.get("execution_mode") == "single":
+        from .single_agent import validate_single_implementation
+        validate_single_implementation(run_dir, claim)
+        return
     result = claim.get("implementation_result")
     fields = {
         "schema_version",

@@ -40,6 +40,7 @@ from .experience import experience_input_once, experience_once, is_bundle_run
 from .intake import receive_second_pass
 from .project import build_project, evaluate_project, finalize_first_pass, init_project, write_report
 from .second_pass import MODEL_RUNTIMES
+from .single_agent import prepare_single_harness, start_single_implementation, bind_single_implementation
 
 
 def _command_arguments(value: str) -> list[str]:
@@ -118,6 +119,24 @@ def _parser() -> argparse.ArgumentParser:
         choices=MODEL_RUNTIMES,
         default="codex",
     )
+
+    single_init = sub.add_parser("single-harness-init", help="Prepare one implementation agent per researched claim.")
+    single_init.add_argument("source", type=Path)
+    single_init.add_argument("run_dir", type=Path)
+    single_init.add_argument("--orchestrator-id", required=True)
+    single_init.add_argument("--model", default=ASTRA_MODEL)
+    single_init.add_argument("--reasoning-effort", default="low")
+    single_init.add_argument("--model-runtime", choices=MODEL_RUNTIMES, default="codex")
+    single_start = sub.add_parser("single-agent-start", help="Bind an actual single-agent spawn to its claim.")
+    single_start.add_argument("registry", type=Path)
+    single_start.add_argument("claim_id")
+    single_start.add_argument("--agent-id", required=True)
+    single_start.add_argument("--model", required=True)
+    single_start.add_argument("--reasoning-effort", required=True)
+    single_bind = sub.add_parser("single-agent-bind", help="Seal a single implementer's checked bundle for final evaluation.")
+    single_bind.add_argument("registry", type=Path)
+    single_bind.add_argument("claim_id")
+    single_bind.add_argument("--agent-id", required=True)
 
     harness_start = sub.add_parser(
         "agent-harness-start",
@@ -473,6 +492,18 @@ def main(argv: list[str] | None = None) -> int:
                 builder_model=args.builder_model,
                 model_runtime=args.model_runtime,
             )
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "single-harness-init":
+            result = prepare_single_harness(args.source, args.run_dir, orchestrator_id=args.orchestrator_id,
+                                            model=args.model, reasoning_effort=args.reasoning_effort,
+                                            model_runtime=args.model_runtime)
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "single-agent-start":
+            result = start_single_implementation(args.registry, args.claim_id, agent_id=args.agent_id,
+                                                 model=args.model, reasoning_effort=args.reasoning_effort)
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "single-agent-bind":
+            result = bind_single_implementation(args.registry, args.claim_id, agent_id=args.agent_id)
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-harness-start":
             result = start_agent_claim(args.registry, args.claim_id)

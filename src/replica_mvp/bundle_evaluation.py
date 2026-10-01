@@ -1009,6 +1009,9 @@ def retry_agent_bundle(registry_path: Path, claim_id: str) -> dict[str, Any]:
     """Reopen the same pair while retaining frozen research, budgets and all prior artifacts."""
     from .agent_execution import create_agent_execution_state, load_agent_execution_state_file, _write_state
     from .agent_harness import _claim_record, _read_registry, _replace_registry, _validate_implementation_result, _validate_implementation_bundle
+    if _read_registry(registry_path).get("execution_mode") == "single":
+        from .single_agent import retry_single_implementation
+        return retry_single_implementation(registry_path, claim_id)
     registry = _read_registry(registry_path)
     claim = _claim_record(registry, claim_id)
     packaging_retry = claim["status"] == "EXECUTION_SUCCESS" and "implementation_result" not in claim
