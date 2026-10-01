@@ -232,9 +232,20 @@ after seeing output.**
 
 ### 6. Map every workflow step — `step_coverage`
 
-Every scenario carries `step_coverage`: one entry per pass-1
-`workflow.steps` item, `{ "step_index": <1-based>, "disposition": …,
-"reason": "…" }`.
+Every scenario carries `step_coverage`: one entry per step of the confirmed
+workflow, `{ "step_index": <1-based>, "disposition": …, "reason": "…" }`.
+
+The confirmed workflow is your `workflow.steps` when research changed pass 1's
+steps; leave it empty to keep pass 1's list unchanged. When you write it:
+
+- a step that keeps or revises a pass-1 step names it with `first_pass_step`
+  (1-based; identical text also counts);
+- a step research added carries `sources` with excerpts;
+- a pass-1 step you drop goes in `workflow.removed_steps` as
+  `{ "first_pass_step": n, "reason": "…", "sources": [ … ] }`.
+
+`step_index` then indexes your list, so an added step needs its own coverage
+entry. A workflow with no steps cannot be whole-workflow scope.
 
 | `disposition` | Meaning | `reason` |
 |---|---|---|
@@ -243,8 +254,9 @@ Every scenario carries `step_coverage`: one entry per pass-1
 | `excluded` | the scenario leaves it out | required: why, and what the customer loses |
 | `unconfirmed` | research could not settle it | blocks implementation |
 
-Map against pass 1's steps, not a rewritten list. Moving a system step to the
-caller (the caller supplies the question the product would generate) is
+Rewriting the list never drops scope silently: a dropped pass-1 step needs its
+removal record, and a step you exclude from the scenario stays `excluded` below.
+Moving a system step to the caller (the caller supplies the question the product would generate) is
 `excluded`, not `implemented`. An excluded step marks the scenario a partial
 scope of the customer workflow; the final result can then be at most
 `partially_reproduced`. Implementation refuses any `unconfirmed` step or any
@@ -284,7 +296,11 @@ Write `work/<company>/second_pass/<slug>.json` and nothing else.
   "replicable": { "value": true, "reason": "…" },
   "workflow": {
     "input": "…",
-    "steps": [{ "step": "…", "source_index": 1 }],
+    "steps": [
+      { "step": "…", "first_pass_step": 1 },
+      { "step": "…", "sources": [] }
+    ],
+    "removed_steps": [{ "first_pass_step": 2, "reason": "…", "sources": [] }],
     "output": "…",
     "boundaries": { "state": "stated|undisclosed|unchecked", "value": "…", "sources": [] }
   },

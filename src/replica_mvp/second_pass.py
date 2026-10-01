@@ -329,6 +329,12 @@ def _read_fragment(claim_id: str, second_pass: dict[str, Any], fragment_root: Pa
         raise ValueError(f"invalid pass-2 fragment: {path}") from None
     if not isinstance(original, dict):
         raise ValueError(f"invalid pass-2 fragment: {path}")
+    # Another claim's fragment would let its verdict stand in for this claim's.
+    if original.get("claim_id") != claim_id:
+        raise ResearchIncomplete(
+            claim_id,
+            f"the pass-2 fragment {fragment} records claim_id {original.get('claim_id')!r}, not this claim",
+        )
     return original
 
 
@@ -354,6 +360,80 @@ def _validate_findings(claim_id: str, second_pass: dict[str, Any]) -> None:
     boundaries = (second_pass.get("workflow") or {}).get("boundaries")
     if not isinstance(boundaries, dict) or boundaries.get("state") not in {"stated", "undisclosed"}:
         raise ResearchIncomplete(claim_id, "workflow.boundaries.state must be stated or undisclosed")
+
+
+def _confirmed_workflow(claim_id: str, owner: str, claim: dict[str, Any]) -> dict[str, Any]:
+    """Return the workflow steps frozen before implementation and how pass 2 changed pass 1.
+
+    Pass 2's ``workflow.steps`` is the confirmed workflow when it is non-empty. Each of
+    its steps keeps a pass-1 step (``first_pass_step`` or identical text) or is an added
+    step with sourced excerpts, and every pass-1 step it drops is listed in
+    ``workflow.removed_steps`` with a reason and sources, so rewriting the list can
+    neither add unmapped scope nor drop a step silently.
+    """
+    first_steps = ((claim.get("first_pass") or {}).get("workflow") or {}).get("steps", [])
+    workflow = (claim.get("second_pass") or {}).get("workflow") or {}
+    second_steps = workflow.get("steps") or []
+    if not isinstance(first_steps, list) or not isinstance(second_steps, list):
+        raise ResearchIncomplete(claim_id, f"{owner} workflow.steps must be a list")
+    if not second_steps:
+        return {"claim_id": owner, "basis": "first_pass", "steps": first_steps,
+                "added_steps": [], "removed_steps": []}
+    first_texts = [step.get("step") if isinstance(step, dict) else None for step in first_steps]
+    kept: set[int] = set()
+    added = []
+    for position, step in enumerate(second_steps, start=1):
+        if not isinstance(step, dict) or not _is_nonempty_text(step.get("step")):
+            raise ResearchIncomplete(claim_id, f"{owner} second_pass.workflow.steps entries need a step")
+        origin = step.get("first_pass_step")
+        if origin is None and step["step"] in first_texts:
+            origin = first_texts.index(step["step"]) + 1
+        if origin is None:
+            if not _valid_sources(step.get("sources"), allow_empty=False):
+                raise ResearchIncomplete(
+                    claim_id,
+                    f"{owner} pass-2 step {position} is not a pass-1 step; name its first_pass_step "
+                    "or give the added step sources with excerpts",
+                )
+            added.append({"step_index": position, "step": step["step"]})
+        elif isinstance(origin, bool) or not isinstance(origin, int) or not 1 <= origin <= len(first_steps):
+            raise ResearchIncomplete(claim_id, f"{owner} pass-2 step {position} names an unknown first_pass_step")
+        else:
+            kept.add(origin)
+    removed = workflow.get("removed_steps", [])
+    if not isinstance(removed, list) or not all(
+        isinstance(entry, dict)
+        and type(entry.get("first_pass_step")) is int
+        and 1 <= entry["first_pass_step"] <= len(first_steps)
+        and entry["first_pass_step"] not in kept
+        and _is_nonempty_text(entry.get("reason"))
+        and _valid_sources(entry.get("sources"), allow_empty=False)
+        for entry in removed
+    ):
+        raise ResearchIncomplete(
+            claim_id,
+            f"{owner} workflow.removed_steps entries need a dropped first_pass_step, a reason, "
+            "and sources with excerpts",
+        )
+    removed_indexes = {entry["first_pass_step"] for entry in removed}
+    unaccounted = sorted(set(range(1, len(first_steps) + 1)) - kept - removed_indexes)
+    if unaccounted:
+        raise ResearchIncomplete(
+            claim_id,
+            f"pass-2 workflow drops pass-1 steps without workflow.removed_steps: "
+            f"{', '.join(f'{owner}#{index}' for index in unaccounted)}",
+        )
+    return {
+        "claim_id": owner,
+        "basis": "second_pass",
+        "steps": second_steps,
+        "added_steps": added,
+        "removed_steps": [
+            {"first_pass_step": entry["first_pass_step"], "step": first_texts[entry["first_pass_step"] - 1],
+             "reason": entry["reason"]}
+            for entry in removed
+        ],
+    }
 
 
 def _step_coverage(
@@ -460,7 +540,7 @@ def _research_agent_claims(
     *,
     model_runtime: str | None,
     fragment_root: Path | None = None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     company = value.get("company")
     claims = value.get("claims")
     if (
@@ -468,17 +548,20 @@ def _research_agent_claims(
         or not isinstance(company, dict)
         or not _is_nonempty_text(company.get("name"))
         or not isinstance(claims, list)
-        or not claims
     ):
         raise ValueError("invalid company research contract")
     workflow_state = value.get("workflow")
+    summary = value.get("summary")
+    no_ai_claims = not claims and isinstance(summary, dict) and summary.get("next_step") == "no_ai_claims"
     if (
         not isinstance(workflow_state, dict)
-        or workflow_state.get("status") != "pass_2_complete"
+        or not (workflow_state.get("status") == "pass_2_complete"
+                or (no_ai_claims and workflow_state.get("status") == "pass_1_complete"))
         or not _is_nonempty_text((workflow_state.get("pass_1") or {}).get("completed_at"))
     ):
         raise ValueError(
-            "RESEARCH_INCOMPLETE: research must pass finalize-pass-1 and reach pass_2_complete before implementation"
+            "RESEARCH_INCOMPLETE: research must pass finalize-pass-1 and reach pass_2_complete before implementation; "
+            "only finalized no_ai_claims research can finish after pass 1"
         )
     _validate_summary(value, claims)
 
@@ -505,6 +588,7 @@ def _research_agent_claims(
         absorbed.setdefault(parent_id, []).append(claim["id"])
 
     prepared = []
+    ledger: list[dict[str, Any]] = []
     for claim in claims:
         second_pass = claim.get("second_pass")
         readiness = second_pass.get("readiness") if isinstance(second_pass, dict) else None
@@ -524,12 +608,29 @@ def _research_agent_claims(
         if fragment_root is not None:
             original = _read_fragment(str(claim.get("id")), second_pass, fragment_root)
         _validate_revisions(str(claim.get("id")), second_pass, original)
+        entry = {
+            "claim_id": claim.get("id"),
+            "research_status": second_pass.get("status"),
+            "readiness": readiness["status"],
+            "readiness_reasons": readiness.get("reasons"),
+            "handoff": handoff["action"],
+            "merged_into": second_pass.get("merged_into"),
+            "selected_for_execution": False,
+            "not_executed_reason": None,
+        }
+        ledger.append(entry)
         if (
             second_pass.get("status") not in {"confirmed", "refined"}
             or readiness.get("status") != "ready"
             or handoff.get("action") != "build"
         ):
+            entry["not_executed_reason"] = (
+                f"merged into {entry['merged_into']}" if second_pass.get("status") == "merged"
+                else f"pass-2 research {second_pass.get('status')}, readiness {readiness['status']}, "
+                     f"handoff {handoff['action']}"
+            )
             continue
+        entry["selected_for_execution"] = True
 
         claim_id = claim.get("id")
         scenarios = second_pass.get("replication_contract")
@@ -576,13 +677,23 @@ def _research_agent_claims(
         if not _valid_sources(selected.get("sources", []), allow_empty=True):
             raise ResearchIncomplete(claim_id, "scenario sources need a url and a non-empty excerpt")
         _validate_scenario_tests(claim_id, selected)
-        workflows = {
-            owner: ((by_id[owner].get("first_pass") or {}).get("workflow") or {}).get("steps", [])
+        confirmed = [
+            _confirmed_workflow(claim_id, owner, by_id[owner])
             for owner in (claim_id, *absorbed.get(claim_id, []))
-        }
-        if not all(isinstance(steps, list) for steps in workflows.values()):
-            raise ResearchIncomplete(claim_id, "first_pass.workflow.steps must be a list")
-        workflow_coverage = _step_coverage(claim_id, selected, workflows)
+        ]
+        if not confirmed[0]["steps"]:
+            # Without researched steps nothing proves the contract covers the whole workflow.
+            raise ResearchIncomplete(
+                claim_id,
+                "the confirmed workflow has no steps, so whole-workflow scope cannot be verified",
+            )
+        workflow_coverage = _step_coverage(
+            claim_id, selected, {entry["claim_id"]: entry["steps"] for entry in confirmed},
+        )
+        workflow_coverage["workflows"] = [
+            {key: value for key, value in entry.items() if key != "steps"} | {"step_count": len(entry["steps"])}
+            for entry in confirmed
+        ]
         payload = {
             "schema_version": RESEARCH_AGENT_CLAIM_SCHEMA,
             "claim_id": claim_id,
@@ -632,9 +743,8 @@ def _research_agent_claims(
                 "payload": payload,
             }
         )
-    if not prepared:
-        raise ValueError("company research has no ready build claims")
-    return prepared
+    # Research with no executable claim is still a complete company result.
+    return prepared, ledger
 
 
 def parse_second_pass(
@@ -655,7 +765,7 @@ def parse_second_pass(
     if not isinstance(value, dict):
         raise ValueError("invalid second-pass claim collection")
     if value.get("schema_version") in {1, 2}:
-        canonical_claims = _research_agent_claims(
+        canonical_claims, company_claims = _research_agent_claims(
             value,
             model_runtime=model_runtime,
             fragment_root=fragment_root,
@@ -692,8 +802,13 @@ def parse_second_pass(
         if claim_id in seen_claim_ids:
             raise ValueError(f"duplicate claim identity: {claim_id}")
         seen_claim_ids.add(claim_id)
-    return {
+    collection = {
         "schema_version": CANONICAL_CLAIM_COLLECTION_SCHEMA,
         "claim_count": len(canonical_claims),
         "claims": canonical_claims,
     }
+    if source_claims is None:
+        # Every researched claim, executed or not, so results keep their denominator.
+        collection["company"] = copy.deepcopy(value["company"])
+        collection["company_claims"] = company_claims
+    return collection

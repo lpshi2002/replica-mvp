@@ -267,6 +267,7 @@ class SecondPassParserTest(unittest.TestCase):
             root = Path(tmp)
             (root / "second_pass").mkdir()
             original = {
+                "claim_id": "claim-001",
                 "readiness": {"status": "partial"},
                 "handoff": {"action": "evidence_request"},
             }
@@ -316,6 +317,78 @@ class SecondPassParserTest(unittest.TestCase):
                     parse_second_pass(research, fragment_root=root)
             finally:
                 (root.parent / "outside.json").unlink()
+
+    def test_fragment_of_another_claim_cannot_verify_the_verdict(self):
+        import tempfile
+
+        research = _research()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "second_pass").mkdir()
+            for claim in research["claims"]:
+                claim["second_pass"]["run"] = {"fragment": f"second_pass/{claim['id']}.json"}
+                (root / "second_pass" / f"{claim['id']}.json").write_text(json.dumps(claim["second_pass"]))
+            research["claims"][0]["second_pass"]["run"]["fragment"] = "second_pass/claim-002.json"
+            with self.assertRaisesRegex(ValueError, "claim-001: .* records claim_id 'claim-002'"):
+                parse_second_pass(research, fragment_root=root)
+
+    def test_step_added_in_pass_2_must_be_mapped_before_whole_workflow(self):
+        research = _research()
+        workflow = research["claims"][0]["second_pass"]["workflow"]
+        workflow["steps"] = [
+            {"step": "retrieve passages", "first_pass_step": 1},
+            {"step": "answer with citations", "first_pass_step": 2},
+            {"step": "store answers for later lookup"},
+        ]
+        with self.assertRaisesRegex(ValueError, "pass-2 step 3 is not a pass-1 step"):
+            parse_second_pass(research)
+        workflow["steps"][2]["sources"] = [SOURCE]
+        with self.assertRaisesRegex(ValueError, "workflow steps without step_coverage: claim-001#3"):
+            parse_second_pass(research)
+        self._selected(research)["step_coverage"].append(
+            {"step_index": 3, "disposition": "excluded", "reason": "Storage is left to the caller."}
+        )
+        coverage = parse_second_pass(research)["claims"][0]["payload"]["workflow_coverage"]
+        self.assertEqual("partial_workflow", coverage["scope"])
+        self.assertEqual("store answers for later lookup", coverage["excluded_steps"][0]["step"])
+        self.assertEqual("second_pass", coverage["workflows"][0]["basis"])
+        self.assertEqual([{"step_index": 3, "step": "store answers for later lookup"}],
+                         coverage["workflows"][0]["added_steps"])
+
+    def test_pass_2_cannot_drop_a_pass_1_step_silently(self):
+        research = _research()
+        workflow = research["claims"][0]["second_pass"]["workflow"]
+        # Identical text keeps a pass-1 step without naming its index.
+        workflow["steps"] = [{"step": "answer with citations"}]
+        self._selected(research)["step_coverage"].pop()
+        with self.assertRaisesRegex(ValueError, "drops pass-1 steps without workflow.removed_steps: claim-001#1"):
+            parse_second_pass(research)
+        workflow["removed_steps"] = [{"first_pass_step": 1, "reason": "Retrieval is part of answering.", "sources": [SOURCE]}]
+        coverage = parse_second_pass(research)["claims"][0]["payload"]["workflow_coverage"]
+        self.assertEqual("whole_workflow", coverage["scope"])
+        self.assertEqual("retrieve passages", coverage["workflows"][0]["removed_steps"][0]["step"])
+
+    def test_empty_workflow_is_not_whole_workflow_scope(self):
+        research = _research()
+        research["claims"][0]["first_pass"]["workflow"]["steps"] = []
+        self._selected(research)["step_coverage"] = []
+        with self.assertRaisesRegex(ValueError, "confirmed workflow has no steps"):
+            parse_second_pass(research)
+
+    def test_every_researched_claim_is_listed_with_its_execution_reason(self):
+        parsed = parse_second_pass(_research())
+        self.assertEqual(1, parsed["claim_count"])
+        self.assertEqual(
+            [("claim-001", True, None),
+             ("claim-002", False, "pass-2 research confirmed, readiness partial, handoff build")],
+            [(c["claim_id"], c["selected_for_execution"], c["not_executed_reason"]) for c in parsed["company_claims"]],
+        )
+        research = _research()
+        research["claims"][0]["second_pass"]["readiness"] = {"status": "blocked", "reasons": "No public input."}
+        research["summary"].update(ready_count=0, blocked_count=1)
+        parsed = parse_second_pass(research)
+        self.assertEqual(0, parsed["claim_count"])
+        self.assertEqual("No public input.", parsed["company_claims"][0]["readiness_reasons"])
 
     def test_merged_claim_steps_move_to_the_parent_contract(self):
         research = _research()
