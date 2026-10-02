@@ -575,8 +575,7 @@ Replica임을 사용자에게 표시해야 한다.
   `.claude/skills`와 실행 관련 문서는 실제 변경한 동작에 맞춰 정합성을 확인한다.
   문구만 바꾸고 코드의 고정 선택·검증 제약을 남겨두지 않는다.
 
-기존 [실행 설명](./replica-execution-after-pass2.md)과
-[현재 상태 문서](./replica-workflow-current-status.md)는 기존 구현을 이해하는
+기존 [실행 설명](./replica-execution-after-pass2.md)은 기존 구현을 이해하는
 자료로 사용한다. 이 문서의 목표 기준과 다른 설명은 구현 변경에 맞춰 갱신해야 한다.
 현재 JSON 전용 경로의 제약이나 테스트 실패를 Sol/Terra 다중 파일 경로 전체의
 제약·실패로 일반화하지 않는다.

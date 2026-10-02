@@ -18,8 +18,6 @@ Sol/Terra 다중 파일 경로는 [번들 실행과 최종 평가](./replica-bun
 → 산출물 내보내기
 ```
 
-![Replica 네 단계](./replica-workflow-simple-four-steps.png)
-
 ---
 
 ## 먼저 알아둘 네 단어
