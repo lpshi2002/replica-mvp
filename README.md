@@ -9,25 +9,32 @@
 전체 워크플로를 심층 검증한 뒤 테스트 가능한 계약과 실행 가능한 Replica 구현으로
 재현 가능성을 평가하는 Codex·Claude 운영 하네스입니다.
 
-사용자는 현재 Codex 대화에 기업명이나 공식 URL만 입력합니다. Codex가 공개
-자료 조사, 기능 선정, 사양 작성, 테스트 설계, Replica 실행, Judge 판정,
-보고서 생성을 맡습니다.
+사용자는 Codex나 Claude Code 세션에 기업명이나 공식 URL만 입력합니다. 그 뒤로는
+사람의 개입 없이 공개 자료 조사, 기능 선정, 계약·시연 계획 작성, 구현, 최종 평가,
+비용 기록, 기업 결과 작성까지 자동으로 진행합니다. 조사만 요청하면 2차 조사에서
+멈춥니다.
 
 > [!IMPORTANT]
-> 구현 경로는 두 가지가 공존합니다. 단독 JSON 전용 부품 경로(`build-replica-operator`)는
-> 복제품을 웹 앱으로 제공하기로 하면서 2026-10-08 제거했습니다.
+> 복제품은 웹 앱으로 만듭니다. 사람은 브라우저로 직접 쓰고, AI 테스터는 같은 화면을
+> 브라우저 자동화로 조작해 고정된 사례를 시연합니다. 구현 경로는 다음과 같습니다.
 >
 > | 경로 | 입력 | 상태 |
 > |---|---|---|
-> | Sol/Terra(Operator/Builder) Agent 번들 | 완료된 회사 `research.json` | 회사 조사의 기본 구현 경로. 봉인 평가 후 `final-results/`에 공개 |
+> | 단일 구현자(`single-harness-init`) | 완료된 회사 `research.json` | 기업 평가의 기본 경로. claim마다 구현 에이전트 하나 |
+> | Operator/Builder 쌍 Agent(`agent-harness-init`) | 완료된 회사 `research.json` | 사용자가 요청할 때만 사용 |
 > | `init/build/evaluate` 프롬프트 하네스 | 수동 작성한 run 디렉터리 | 호환용으로만 유지 |
 >
-> 어느 경로의 테스트 통과도 원제품 전체를 복제했다는 의미는 아닙니다.
+> 두 하네스 경로 모두 2차 조사의 선택 시나리오에 `demo_plan`이 있으면 웹 앱을 공개
+> 시연 계획으로 평가하고, 없으면 JSON 번들을 봉인 시험으로 평가합니다. 결과는
+> `final-results/`에 공개합니다. 단독 Second-pass JSON을 순수 JSON 부품으로 만드는
+> 경로(`build-replica-operator`)는 2026-10-08 제거했습니다.
+>
+> 어느 경로의 통과도 원제품 전체를 복제했다는 의미는 아닙니다.
 
 ## 어떻게 작동하는가
 
-이 프로젝트는 독립 실행형 크롤러가 아니라 **Codex가 실행하는 Skill 기반
-하네스**입니다. 역할은 다음처럼 나뉩니다.
+이 프로젝트는 독립 실행형 크롤러가 아니라 **Codex·Claude Code 세션이 실행하는
+Skill 기반 하네스**입니다. 역할은 다음처럼 나뉩니다.
 
 | 구성요소 | 역할 |
 |---|---|
@@ -35,23 +42,27 @@
 | `CLAUDE.md` | Claude Code 세션의 같은 라우팅. 런타임 모델 정책과 Codex 대비 차이를 함께 정의 |
 | `skills/replica-research/SKILL.md` | 출처 정책, AI 기술 주장 판별, 1·2차 조사 순서, 준비도와 실행 경계를 정의하는 운영 로직 |
 | `skills/replica-research/agents/` | 범위별 1차 조사와 claim별 2차 조사 서브에이전트의 입력·체크포인트·출력 계약 |
-| `.agents/skills/`, `.claude/skills/` | 각각 Codex·Claude 런타임 전용 Replica 구현·하네스 Skill |
-| 현재 Codex 태스크 | 웹 조사, 주장 판별, JSON 갱신과 선택적 Replica 실행을 수행하는 실행 주체 |
+| `.agents/skills/`, `.claude/skills/`, `.claude/agents/` | 각각 Codex·Claude 런타임 전용 단일 구현자·쌍 Agent Skill과 에이전트 정의 |
+| 현재 Codex·Claude 세션 | 웹 조사, 주장 판별, JSON 갱신, 구현 에이전트 생성과 하네스 명령 실행을 맡는 오케스트레이터 |
 | `templates/company-research.json` | 회사별 조사 결과가 따라야 하는 최소 구조 |
-| `src/replica_mvp/` | 1차 조사 결과 검증과 준비된 주장 실행·평가·보고를 담당하는 CLI |
+| `src/replica_mvp/` | 조사 결과 검증, 하네스 상태 기록, 최종 평가(웹 시연·봉인 시험), 비용·사용량 집계, 기업 결과 작성을 담당하는 CLI |
+| `context/project-direction.md` | 프로젝트 목표·확정 방향·미결정 사항의 기준 문서 |
 
 동작 순서는 다음과 같습니다.
 
 ```text
 기업명·URL 입력
-→ AGENTS.md가 Replica Skill로 라우팅
-→ Codex가 Skill의 출처·판별 규칙을 따라 조사
+→ AGENTS.md·CLAUDE.md가 Replica Skill로 라우팅
+→ 세션이 Skill의 출처·판별 규칙을 따라 조사
 → 조사 시작과 함께 research.json 생성
 → 5개 1차 조사 에이전트가 주장 발견 즉시 체크포인트 저장
 → 컨트롤러가 중복 정리·병합하고 research.json 확정
-→ 모든 주장에 2차 결과, ready 주장에 복제 계약·단계 대응표·평가 데이터 추가
-→ ready 주장을 Agent 번들로 구현·봉인 평가 (조사만 요청하면 2차에서 종료)
-→ 모든 주장의 판정·미실행 사유·결과를 final-results/company-claims.json에 기록
+→ 모든 주장에 2차 결과, ready 주장에 복제 계약·단계 대응표·평가 데이터·시연 계획(demo_plan) 추가
+   (조사만 요청하면 여기서 종료)
+→ single-harness-init이 시연 계획을 고정하고 claim마다 구현 에이전트 하나가 웹 앱 구현
+→ 고정된 계획으로 AI 테스터가 같은 화면을 시연하고 코드 검사 (demo_plan이 없으면 봉인 시험)
+→ 실패하면 판정 이유만 담은 피드백으로 같은 구현자가 수정 (제출 최대 3회)
+→ 모든 주장의 판정·미실행 사유·시연 결과·비용을 final-results/company-claims.json에 기록
 ```
 
 Skill은 코드로 구현된 상태 머신이 아니라 에이전트가 따라야 하는 절차와 완료 조건을
@@ -59,7 +70,9 @@ Skill은 코드로 구현된 상태 머신이 아니라 에이전트가 따라�
 코드가 조사를 위해 모델을 호출하지는 않습니다. 다만 다음 경로는 모델을 직접
 호출합니다.
 
-- 구현 번들의 최종 평가 Judge: 하네스가 지정한 로컬 `codex` 또는 `claude` CLI
+- 웹 시연(`web-demo`)의 AI 테스터, 판정, 실행 때 값 생성, 코드 검사: 하네스가 지정한
+  로컬 `codex` 또는 `claude` CLI
+- 봉인 시험 경로의 최종 평가 Judge: 같은 로컬 CLI
 - 생성된 구현 번들: 계약이 모델 단계를 요구하면 같은 로컬 CLI를 실행
 - `--use-model-adapter`를 명시한 grounded 대화 경로: `OPENAI_API_KEY`로 OpenAI API를
   직접 호출(`src/replica_mvp/openai_grounded_model.py`)
@@ -74,12 +87,13 @@ Skill은 코드로 구현된 상태 머신이 아니라 에이전트가 따라�
 > 공개 자료에서 확인되는 기업의 AI 기능을 사람이 웹 화면에서 직접 쓰는 고객
 > 워크플로 전체로 재구성했을 때, 고정한 사례에서 어떤 결과를 내며 얼마가 드는가?
 
-복제품의 목표 형태는 웹 앱입니다. 사람은 브라우저로 쓰고, AI 테스터는 같은
-화면을 브라우저 자동화로 조작합니다([방향 문서](context/project-direction.md) 5절).
-웹 앱 실행과 AI 사례 시연은 아래 "웹 앱 Replica 실행과 AI 사례 시연"의 독립
-명령으로 제공합니다. 기업 평가 harness는 2차 조사의 선택 시나리오에 `demo_plan`이
-있으면 그 계획을 구현 전에 고정하고, 웹 앱 복제품을 같은 화면의 AI 시연으로
-최종 평가합니다. `demo_plan`이 없는 claim은 기존 JSON 번들과 봉인 시험 경로를 씁니다.
+복제품은 웹 앱입니다. 사람은 브라우저로 쓰고, AI 테스터는 같은 화면을 브라우저
+자동화로 조작합니다([방향 문서](context/project-direction.md) 5절). 기업 평가
+harness는 2차 조사의 선택 시나리오에 `demo_plan`이 있으면 그 계획을 구현 전에
+고정하고, 웹 앱 복제품을 같은 화면의 AI 시연으로 최종 평가합니다. 같은 명령은
+아래 "웹 앱 Replica 실행과 AI 사례 시연"에서 단독으로도 쓸 수 있습니다.
+`demo_plan`이 없는 claim은 JSON 번들과 봉인 시험 경로를 쓰며, 이 결과는 웹 앱
+체험을 만들거나 시험하지 않은 중간 결과로 보고합니다.
 
 2차는 워크플로 단계마다 구현·외부 의존·제외·미확인을 기록합니다. 조사된 단계를
 제외한 계약은 부분 범위로 표시되고, 모든 테스트를 통과해도 최종 결과는
@@ -103,24 +117,22 @@ Skill은 코드로 구현된 상태 머신이 아니라 에이전트가 따라�
 기본 흐름에서는 다음을 만들거나 주장하지 않습니다.
 
 - 원제품의 모델, 프롬프트, 코드 또는 학습 데이터 복제
-- 원제품과 같은 UI, API, 플러그인 또는 시스템 통합
+- 원제품과 같은 UI 디자인, API, 플러그인 또는 시스템 통합 (복제품은 웹 앱이지만
+  화면은 고객 작업을 수행하는 데 필요한 만큼만 만듭니다)
 - 비공개 고객 데이터나 사내 지식베이스 접근
 - 원제품과의 출력 동일성 또는 전체 제품 성능
 - 공개 근거로 확인할 수 없는 정확도·속도·ROI의 독립 입증
 
-독립 실행 가능한 제품 MVP가 필요하다면 이 평가 이후에 별도 CLI나 웹 앱을
-구현해야 합니다.
-
 ## 사용자 경험
 
-현재 Codex 대화에 다음 정도만 입력합니다.
+Codex나 Claude Code 세션에 다음 정도만 입력합니다.
 
 ```text
 기업명: Acme AI
 공식 사이트: https://example.com/
 ```
 
-URL을 모르면 기업명만 입력해도 됩니다. 특정 기능을 지정하지 않으면 Codex가
+URL을 모르면 기업명만 입력해도 됩니다. 특정 기능을 지정하지 않으면 세션이
 공개 자료에서 **AI 기술 주장만** 골라내고, 각 주장이 왜 AI인지를 출처 원문
 인용으로 함께 저장합니다. 1차는 채점하거나 선별하지 않습니다. 중복을 정리한
 주장 전부가 2차 심층 조사로 넘어가고, 복제 가능 여부는 2차에서 추가 근거와
@@ -130,13 +142,15 @@ URL을 모르면 기업명만 입력해도 됩니다. 특정 기능을 지정하
 
 - 조사할 추가 URL
 - 대상 기능과 입출력 계약
-- 통과 기준과 테스트 사례
-- Replica 프롬프트
+- 통과 기준, 테스트 사례와 시연 계획
+- 복제품 구현과 수정
 - 모델 명령 또는 API 키
-- Judge 판정과 보고서
+- 판정과 기업 결과
 
 조사와 조율은 현재 열려 있는 Codex·Claude 세션이 오케스트레이터로서 수행합니다.
 모델을 직접 호출하는 구현·평가 경로는 위 "어떻게 작동하는가"에 정리했습니다.
+결과가 나온 뒤 사람은 `serve-web`으로 같은 복제품을 직접 써 볼 수 있지만, 자동
+실행이 사람의 체험이나 승인을 기다리지는 않습니다.
 
 ## 전체 파이프라인
 
@@ -150,11 +164,14 @@ flowchart TD
     D --> E["2차: claim별 데이터·구현·평가 자료 수집·저장"]
     E --> F{"복제 준비 완료?"}
     F -->|아니오| G["부분·차단·병합·기각"]
-    F -->|예| H["복제 계약 동결"]
+    F -->|예| H["복제 계약·시연 계획 동결"]
     G --> K["research.json pass_2_complete"]
     H --> K
-    K --> I["선택한 claim만 실행 파일 생성·Judge 평가"]
-    I --> J["claim별·회사별 보고"]
+    K --> I["claim마다 구현 에이전트 하나가 웹 앱 구현"]
+    I --> L["AI 테스터 시연·코드 검사 (demo_plan 없으면 봉인 시험)"]
+    L -->|실패, 제출 3회 미만| I
+    L --> J["final-results/company-claims.json"]
+    G --> J
 ```
 
 ### 1. 1차 AI 기술 주장 발견
@@ -296,8 +313,10 @@ claim에 담긴 전체 워크플로입니다. 다음을 수집합니다.
 사용 가능한 공개 자료나 합성 대안이 있으며, 구현 경로와 평가 방법이 정해져야
 `ready`입니다. `ready`인 주장은 같은 항목의 `replication_contract`에 근거 수준,
 입출력 계약, acceptance criteria, output schema, 제외 범위와 최소 세 테스트를
-동결합니다. 2차가 끝날 때 별도 dossier나 실행 파일을 만들지 않습니다. 임의의
-최소 출처 수는 두지 않습니다.
+동결합니다. 선택 시나리오에는 구현 전에 공개 자료로 쓴 `demo_plan`(AI 테스터가
+실행할 사례, 사용자 단계, 허용 사실, 기대 결과와 근거, 겨냥한 장벽)을 붙입니다.
+2차가 끝날 때 별도 dossier나 실행 파일을 만들지 않습니다. 임의의 최소 출처 수는
+두지 않습니다.
 
 ### 조사 내용은 어떻게 저장하는가
 
@@ -444,74 +463,54 @@ endorsement 효과를 심어 정답을 만듭니다. 이 테스트는 공개 기
 준비 완료**가 아닙니다. 원제품 출력이 없으면 근거 수준은 `public` 또는
 `claim_only`에 머뭅니다.
 
-### 6. Replica 빌드
+### 6. 구현
 
-사용자가 실제 복제를 시작하면 해당 ready 주장 하나만
-`work/<company-slug>/runs/<capability-slug>/`에 `evidence.json`, `spec.json`,
-`tests.json`으로 펼친 뒤 `replica.json`을 만듭니다. 여기에는 다음이 포함됩니다.
+`single-harness-init`이 완료된 `research.json`을 받아 claim마다 공개 계약
+(`claim.json`, `implementation-context.json`)을 펼치고, 웹 claim의 시연 계획을 해시와
+함께 고정합니다. 오케스트레이터는 claim마다 구현 에이전트 하나를 동시에 만들고
+`single-agent-start`로 기록합니다. 구현자는 공개 계약만 보고 웹 앱(또는 JSON 번들)을
+`claims/<claim>/implementer/implementation/`에 만들고, 브라우저로 스스로 점검하며
+시도마다 `development-log.jsonl`에 기록을 덧붙입니다. 시험 기대값과 참조 사실은
+구현자에게 주지 않습니다.
 
-- 대상 기업과 기능
-- 공개 근거와 근거 수준
-- 입력·출력 계약
-- 통과 기준
-- 비공개 정보 접근 및 환각 금지 지시
+### 7. 최종 평가
 
-새 Builder 경로의 Replica는 `replica.json`에 검증된 operation, configuration,
-입출력 계약과 실행 계획을 저장합니다. 기존 수동 `init/build` 경로에서는
-`system_prompt` 기반 Replica를 계속 지원합니다.
+구현자가 보고하면 `single-agent-bind`로 제출물을 고정하고 `agent-bundle-evaluate`를
+실행합니다. 오케스트레이터는 구현을 고치거나 판정하지 않습니다.
 
-### 7. Replica 실행
+- `demo_plan`이 있는 claim: 고정된 계획으로 `web-demo`를 실행합니다. AI 테스터는
+  기대 결과를 모른 채 같은 화면을 조작하고, 별도 판정 호출이 결과를 판정하며,
+  판정자가 소스를 읽어 시연 값에 맞춘 분기나 구현 안 된 단계를 찾습니다.
+- `demo_plan`이 없는 claim: 봉인 vault의 JSON 시험으로 평가합니다.
 
-Replica 패스는 고정된 시스템 프롬프트와 각 테스트 입력을 받아 후보 출력을
-생성합니다. 결과는 `replica_outputs.jsonl`에 사례별로 저장합니다.
+실패하면 `agent-bundle-retry`가 판정 이유만 담은 `retry-feedback-NNN.json`을 쓰고,
+같은 구현자가 이어서 고칩니다. 제출은 최대 3회입니다.
 
-가능하면 별도 작업자가 Replica 출력만 담당하며 PASS/FAIL 판정에는 참여하지
-않습니다.
+### 8. 기업 결과
 
-### 8. Judge 평가
-
-Judge 패스는 다음 자료를 사용합니다.
-
-- acceptance criteria
-- 테스트 입력과 기대 동작
-- reference facts
-- Replica 출력
-- 공개 근거 수준
-
-Judge는 `pass`와 구체적인 `reason`을 사례별로 `results.jsonl`에 기록합니다.
-가능하면 Replica와 분리된 작업자가 판정하며 `replica.json`은 읽지 않습니다.
-같은 Codex 세션에서 분리된 패스만 사용했다면 보고서에 독립성 한계를 밝힙니다.
-
-### 9. 보고서 생성
-
-실행이 끝난 주장의 `report.md`에는 다음이 포함됩니다.
-
-- 대상 기업, 기능, 근거 수준, 통과 수
-- 검토한 공개 주장과 출처
-- 입력·출력 계약과 전체 통과 기준
-- 평가 실행 방식과 Replica/Judge 분리 방법
-- 사례별 입력, 기대 동작, 참조 사실, Replica 결과, Judge 결론
-- 최종 판정이 지지하는 범위와 지지하지 않는 범위
+모든 claim이 끝나면 `agent-harness-finish`가 `final-results/company-claims.json`을
+씁니다. 조사한 모든 주장에 대해 판정, 미실행 사유 또는 결과 경로, 웹 시연 결과
+(충족·불충족·미평가 수, 사례 상태, 보고서 경로), 호출별 비용, 세션 기록에서 읽은
+조사·구현·오케스트레이션 사용량이 들어갑니다. 측정하지 못한 세션은 0이 아니라
+`unknown`이고, 미평가는 실패로 세지 않습니다.
 
 ## 산출물
 
-기업별 1·2차 조사는 한 파일이고, 실제 실행 산출물만 별도 run 디렉터리에
-생성됩니다.
+기업별 1·2차 조사는 한 파일이고, 하네스 산출물은 별도 run 디렉터리에 생성됩니다.
 
 ```text
 work/acme/
-├── research.json                       # 1차 전수 주장 + 선택된 주장의 2차 결과
-└── runs/                               # 실제 복제를 시작한 뒤에만 생성
-    └── claim-a/
-        ├── evidence.json
-        ├── spec.json
-        ├── tests.json
-        ├── implementation/
-        ├── replica.json
-        ├── replica_outputs.jsonl
-        ├── results.jsonl
-        ├── completion-assessment.json
-        └── report.md
+├── research.json                       # 1차 전수 주장 + 2차 결과
+└── <RUN_DIR>/                          # single-harness-init이 만드는 실행 디렉터리
+    ├── agent-harness.json              # 오케스트레이터만 쓰는 상태 기록
+    ├── claims/<claim>/
+    │   ├── claim.json                  # 구현자에게 주는 공개 계약
+    │   ├── implementation-context.json
+    │   └── implementer/                # 구현물, development-log.jsonl, retry-feedback-NNN.json
+    ├── evaluator-vault/                # 봉인 시험 경로의 비공개 평가 자료
+    └── final-results/
+        ├── company-claims.json         # 모든 주장의 결과·비용·사용량
+        └── runs/<claim>/web-attempt-NNN-<해시>/   # 시연 결과·화면·영수증
 ```
 
 `work/`는 실제 기업 분석 결과를 저장하는 로컬 작업 영역이며 Git에서 제외됩니다.
@@ -534,14 +533,20 @@ work/acme/
 - `not_reproduced_on_this_path`: 선택한 구현 경로의 평가를 통과하지 못함
 - `execution_blocked`: 입력, 권한, 자격 증명 또는 실행 환경이 준비되지 않음
 
-`completion-assessment.json`은 각 조건의 PASS/FAIL과 최종 재현 판정을 기록합니다.
+웹 시연 경로에서는 모든 사례가 끝나고 모든 기대 결과가 충족됐으며 코드 검사도
+통과해야 `reproduced`입니다. 사례를 모두 통과해도 코드 검사를 통과하지 못하면,
+또는 일부 기대 결과만 충족하면 `partially_reproduced`입니다. 실행된 사례가 없으면
+`execution_blocked`, 충족 없이 불충족이 있으면 `not_reproduced_on_this_path`,
+판정할 수 있는 결과가 없으면 `not_evaluated`입니다.
+
+봉인 시험 경로에서는 `completion-assessment.json`이 각 조건의 PASS/FAIL과 최종 재현 판정을 기록합니다.
 평가 vault의 `completion-report.json`은 고정된 실제 입력, 생성된 최종 출력,
 테스트 종류별 결과, 의존성, 최초 구현 scenario를 하나의 기계 검증 레코드로
 묶습니다. private `report.md`에는 이 JSON을 그대로 포함하며, 둘이 일치하지 않으면
 최종 보고서 조건은 통과하지 않습니다. 입력과 출력이 담긴 이 레코드는 공개 run으로
 복사하지 않습니다.
 
-현재 JSON-only Operator 경로의 `oss_only` 실행 증거는 실제 격리 실행 정책과 같은
+`operator.json` 후보 경로의 `oss_only` 실행 증거는 실제 격리 실행 정책과 같은
 `Python standard library`로 제한됩니다. 다른 OSS 이름을 계약에 적는 것만으로는
 의존성 실행 조건을 통과할 수 없습니다. manifest entrypoint는 반드시
 `implementation/` 내부에 있어야 하고, 평가에 사용한 generated component와 내용이
@@ -564,22 +569,37 @@ work/acme/
 
 ## Replica Builder CLI
 
-Python 3.12 이상이 필요하며 런타임 외부 의존성은 없습니다.
+Python 3.12 이상이 필요합니다. 기본 설치에는 런타임 외부 의존성이 없고, 웹 시연의
+브라우저 자동화에만 선택 의존성 `web`(Playwright)이 필요합니다.
 
 ```bash
 python -m pip install -e .
+python -m pip install -e '.[web]' && python -m playwright install chromium   # web-demo용
 ```
 
-현재 Codex 운영 흐름에서는 Codex가 내부 명령을 실행하므로 사용자가 직접 실행할
-필요는 없습니다.
+기업 평가에서는 세션이 아래 명령을 직접 실행하므로 사용자가 실행할 필요는 없습니다.
 
-새 Builder의 정식 통합 진입점은 아래 네 명령입니다.
+기본 경로(단일 구현자)의 하네스 명령은 다음과 같습니다. 순서와 인자는
+`skills/replica-research/SKILL.md`의 "Execute" 절을 따릅니다.
+
+| 명령 | 역할 |
+|---|---|
+| `replica-mvp single-harness-init RESEARCH RUN_DIR --orchestrator-id ID --model-runtime claude\|codex --model MODEL --reasoning-effort EFFORT` | claim별 공개 계약을 펼치고 시연 계획을 고정, `agent-harness.json` 생성 |
+| `replica-mvp single-agent-start REGISTRY CLAIM_ID --agent-id ID --model MODEL --reasoning-effort EFFORT` | 실제로 만든 구현 에이전트를 claim에 기록. init과 다른 모델·추론 강도는 거부 |
+| `replica-mvp single-agent-bind REGISTRY CLAIM_ID --agent-id ID` | 구현자가 점검한 제출물을 최종 평가용으로 고정 |
+| `replica-mvp agent-bundle-evaluate REGISTRY CLAIM_ID` | 웹 claim은 `web-demo`, 그 밖에는 봉인 시험으로 최종 평가 |
+| `replica-mvp agent-bundle-retry REGISTRY CLAIM_ID` | 실패한 claim의 재제출 준비와 `retry-feedback-NNN.json` 작성 |
+| `replica-mvp agent-harness-finish REGISTRY` | `final-results/company-claims.json` 작성 |
+
+쌍 경로(`agent-harness-init` 이하 `agent-*` 명령)는 `.claude/skills/`·`.agents/skills/`의
+쌍 Agent Skill이 사용합니다. 아래는 Replica 실행과 `operator.json` 후보 평가에 쓰는
+명령입니다.
 
 | 명령 | 공개 계약 |
 |---|---|
-| `replica-mvp prepare-operator SOURCE --workspace WORKSPACE --evaluation-vault VAULT` | 원본과 고정 테스트는 비공개 vault에 보관하고 Codex용 task 생성 |
+| `replica-mvp prepare-operator SOURCE --workspace WORKSPACE --evaluation-vault VAULT` | 원본과 고정 테스트는 비공개 vault에 보관하고 구현 Agent용 task 생성 |
 | `replica-mvp finalize-operator TASK --workspace WORKSPACE --evaluation-vault VAULT [--report]` | Operator를 격리 실행·평가하고 성공한 Replica의 공개 사본 생성 |
-| `replica-mvp agent-candidate-finalize REGISTRY CLAIM_ID CANDIDATE` | Terra의 `operator.json` 후보를 기존 평가·보고·공개 파이프라인으로 처리하고 최종 결과 경로와 해시를 Agent registry에 결속 |
+| `replica-mvp agent-candidate-finalize REGISTRY CLAIM_ID CANDIDATE` | 쌍 경로 Builder의 `operator.json` 후보를 기존 평가·보고·공개 파이프라인으로 처리하고 최종 결과 경로와 해시를 Agent registry에 결속 |
 | `replica-mvp run-replica RUN_DIR [--session] [--state-dir DIR]` | stdin의 JSON 객체를 생성된 Replica로 실행하고 결과 JSON 반환. 번들에서 `--session`은 JSON 배열을 한 세션에 순서대로 넣고, `--state-dir`는 실행 디렉터리를 보존해 다음 호출에서 같은 사용자 상태를 이어 연다 |
 | `replica-mvp experience RUN_DIR [--question QUESTION]` | 대화형 Replica를 직접 실행하고 답변·출처·규칙·비교 수준 표시 |
 | `replica-mvp experience RUN_DIR --input INPUT.json [--output PREVIEW.html] [--state-dir DIR]` | 구조화·문서·HTML Replica를 입력 파일로 실행해 결과 표시. 번들에서 `--state-dir`는 호출 사이 저장 상태를 이어가며, 대화형 번들 체험은 턴마다 같은 임시 상태를 공유 |
@@ -596,10 +616,10 @@ python -m pip install -e .
 구형 `replica-compiler/`, 등록 Operator 선택, OpenAI API generator,
 외부 generator command 및 `replicate` CLI는 제거되었습니다.
 
-### Second-pass 결과에서 전체 Replica 실행
+### `operator.json` 후보 평가 (쌍 경로 내부 단계)
 
 단독 Second-pass JSON을 구현하는 Skill 경로는 제거했습니다. 아래 명령은
-Agent 하네스의 `agent-candidate-finalize`가 `operator.json` 후보를 평가할 때
+쌍 경로의 `agent-candidate-finalize`가 `operator.json` 후보를 평가할 때
 내부 단계로 사용합니다.
 `WORKSPACE`와 `EVALUATION_VAULT`는 서로 포함되지 않는 별도 경로여야 합니다.
 입력 Second-pass JSON도 공개 `WORKSPACE` 밖에 있어야 하며, 내부 경로를 주면
@@ -610,7 +630,7 @@ replica-mvp prepare-operator examples/second-pass-static-site.json \
   --workspace work/public \
   --evaluation-vault ../replica-evaluator-vault
 
-# Codex가 반환된 operator-request.json을 읽고 operator.json을 새로 작성
+# 구현 Agent가 반환된 operator-request.json을 읽고 operator.json을 새로 작성
 
 replica-mvp finalize-operator TASK_DIR \
   --workspace work/public \
@@ -618,7 +638,7 @@ replica-mvp finalize-operator TASK_DIR \
   --report
 ```
 
-Codex는 등록된 Operator를 고르지 않습니다. 공개 요청의 canonical claim,
+구현 Agent는 등록된 Operator를 고르지 않습니다. 공개 요청의 canonical claim,
 입출력 계약, acceptance criteria, 지원·비지원 범위와 한계만 사용해 매번 새
 generated component를 작성합니다. Second-pass의 `implementation`은 실행 대상이
 아니라 비구속 evidence hint로만 취급합니다.
@@ -656,7 +676,7 @@ generated component를 작성합니다. Second-pass의 `implementation`은 실�
 `dependency_level`은 `oss_only`, `commercial_api`, `proprietary_data` 중 하나입니다.
 위 `sha256` 예시는 자리 표시자이며 실제 동결 `tests.json`의 SHA-256으로 바꿉니다.
 완료 판정에는 기존 세 종류 테스트와 별도로 구현 전에 동결한 `novel` 사례가
-필요합니다. 현재 JSON-only Operator 경로는 네트워크와 외부 자격 증명을 차단하므로
+필요합니다. `operator.json` 후보 경로는 네트워크와 외부 자격 증명을 차단하므로
 `oss_only`만 `reproduced`가 될 수 있습니다. `commercial_api`와
 `proprietary_data`는 현재 구현 경로에서 지원하지 않으므로 부분 재현으로 남습니다.
 `visibility: evaluation_vault`인 입력 경로는 공개 run 경로가 아니라 비공개 평가
@@ -665,7 +685,7 @@ Vault 기준임을 뜻합니다.
 ```json
 {
   "schema_version": "replica-component-generation/v1",
-  "generator_identity": "codex-skill/build-replica-operator/v1",
+  "generator_identity": "<구현 Agent 식별자>",
   "component": {
     "schema_version": "replica-generated-component/v1",
     "language": "replica-expression/v1",
@@ -682,7 +702,7 @@ network 또는 subprocess 기능이 없습니다.
 
 원본 Second-pass, `tests.json`, test lock, 사례별 출력과 `results.jsonl`은
 evaluator vault의 private run에만 남습니다. 공개 workspace에는 계약이 정리된
-요청, Codex Operator, 실행 가능한 Replica, pass count와 범위·한계만 게시됩니다.
+요청, 생성된 Operator, 실행 가능한 Replica, pass count와 범위·한계만 게시됩니다.
 동일 OS 사용자로 실행할 때 이 구분은 암호학적 보안 경계가 아니라 우발적
 노출을 막는 구조적 경계입니다.
 
@@ -727,7 +747,10 @@ echo '{"title":"Demo","headline":"Build safely","description":"Public facts only
   | replica-mvp run-replica work/demo/runs/demo-static-landing-page/<digest>
 ```
 
-### 사용자 직접 체험과 비교
+### JSON Replica 직접 실행 (중간 점검용)
+
+이 절의 `experience`는 `demo_plan`이 없는 JSON Replica를 위한 중간 점검 도구입니다.
+웹 앱 복제품은 아래 `serve-web`으로 사람이 직접 씁니다.
 
 `experience`는 자동 평가가 실행한 것과 동일한 `run_built_replica`
 interface를 사용합니다. `--question`을 생략하면 질문을 반복해
@@ -804,10 +827,6 @@ API를 사용하는 질문에는 해당 run의 공개 또는 합성 `creator_cor
 호출 재시도나 대화 저장은 하지 않습니다. 동결 평가는 외부 상태와 과금에
 의존하지 않도록 evaluator subprocess에서 `OPENAI_API_KEY`를 제거합니다.
 
-현재 `replica-second-pass-result/v1` 예제 계약은 실제 팀 Second-pass 파일을 받기
-전의 임시 입력 seam입니다. 실제 파일이 공유되면 intake 이후 정규화만 맞추고,
-Builder·안전 게이트·실행·평가 interface는 유지합니다.
-
 ### 웹 앱 Replica 실행과 AI 사례 시연
 
 웹 앱 복제품은 manifest에 실행 방식을 선언합니다. 나머지 필드(`files`의 sha256,
@@ -859,7 +878,8 @@ replica-mvp web-demo plan.json --output work/demo-runs/run-001 [--manifest MANIF
 - `receipts/<호출>/`: 테스터·판정 호출과, 앱이 PATH의 `claude`/`codex`로 한 내부
   호출의 원본 출력과 시작·종료 기록
 
-비용은 단계(`tester`, `judge`, `replica_runtime`)별 호출 수, 상태, 호출 시간,
+비용은 단계(`tester`, `judge`, `instance`(실행 때 값 생성), `code_review`,
+`replica_runtime`)별 호출 수, 상태, 호출 시간,
 사용량(키별 합계), 관측 모델, CLI가 표시한 정가 환산 추정액입니다. 구독 사용에는
 실행별 청구액이 없어 `billed_amount`는 `null`이며, 키 사이의 토큰 총합은 만들지
 않습니다. 절대 경로로 부르는 CLI나 직접 HTTP 모델 호출은 계측하지 않습니다. 사람의
@@ -924,40 +944,43 @@ Judge는 다음 형식의 JSON만 반환해야 합니다.
 {"pass": true, "reason": "한 문장의 구체적인 판정 이유"}
 ```
 
-이 외부 Runner는 기본 Codex 대화 흐름에서는 사용하지 않습니다.
+이 외부 Runner는 기업 평가의 기본 흐름에서는 사용하지 않습니다.
 
 ## 저장소 구조
 
 ```text
 .
-├── AGENTS.md                  # 요청을 Replica Skill로 보내는 라우팅 규칙
+├── AGENTS.md                  # Codex 세션의 라우팅 규칙
+├── CLAUDE.md                  # Claude Code 세션의 라우팅 규칙과 모델 정책
 ├── README.md                  # 프로젝트 설명
-├── pyproject.toml             # Python 패키지와 CLI 엔트리포인트
+├── pyproject.toml             # Python 패키지, CLI 엔트리포인트, 선택 의존성 web
 ├── skills/replica-research/
 │   ├── SKILL.md               # 조사·판별·준비도·실행의 권위 있는 운영 로직
 │   └── agents/                # 1·2차 조사 서브에이전트 계약과 Skill UI 메타데이터
+├── .agents/skills/            # Codex용 단일 구현자·쌍 Agent Skill
+├── .claude/agents/, .claude/skills/  # Claude용 단일 구현자 정의와 쌍 Agent Skill
 ├── templates/                 # 회사 단위 통합 조사 계약
-├── examples/
-│   ├── second-pass-static-site.json
-│   ├── second-pass-policy-compare.json
-│   └── second-pass-lead-qualification.json
+├── examples/                  # Second-pass·체험 프로필 예제
 ├── src/replica_mvp/
-│   ├── builder.py             # Second-pass → 계획 → 구현 → 평가 orchestration
-│   ├── cli.py                 # prepare/finalize/run-replica CLI 진입점
-│   ├── evaluation.py          # 동결 테스트와 독립 평가
-│   ├── generated_component.py # 제한된 생성 명세 검증·실행
-│   ├── operation_selection.py # Codex generated component 계획 고정
-│   ├── python_component.py    # Agent 작성 Python 검증과 제한 runner adapter
-│   ├── _python_component_runner.py # 격리 Python 실행 진입점
-│   ├── intake.py              # 원본 보존과 digest 기반 수신
-│   ├── plan_safety.py         # 실행 전 fail-closed 안전 게이트
-│   ├── reporting.py           # 선택적 최종 보고서
-│   └── project.py             # 1차 조사 검증과 기존 five-stage 프로젝트 흐름
-├── tests/
-│   ├── test_codex_operator.py # 공개 workspace/private vault end-to-end 검사
-│   ├── test_python_component.py # Agent 작성 코드 안전·실행 검사
-│   └── test_cli.py            # 공개 CLI와 레거시 제거 계약
-├── context/                  # Codex·Claude Code의 공유 프로젝트 컨텍스트
+│   ├── cli.py                 # 모든 CLI 진입점
+│   ├── project.py             # 1차 조사 검증과 기존 five-stage 프로젝트 흐름
+│   ├── second_pass.py         # 2차 결과 검증
+│   ├── single_agent.py        # 단일 구현자 하네스
+│   ├── agent_harness.py       # 하네스 공통 상태, 쌍 경로, 기업 결과 작성
+│   ├── agent_execution.py     # 구현 실행 상태와 예산 기록
+│   ├── agent_protocol.py      # 쌍 경로 Agent 메시지 검증
+│   ├── bundle_runtime.py      # 구현 번들 실행
+│   ├── bundle_evaluation.py   # 봉인 시험 평가
+│   ├── web_demo.py            # 웹 앱 실행(serve-web)과 AI 사례 시연(web-demo)
+│   ├── web_evaluation.py      # 하네스의 웹 최종 평가와 재시도 피드백
+│   ├── model_calls.py         # 로컬 모델 CLI 호출 영수증과 비용 요약
+│   ├── session_usage.py       # Claude·Codex 세션 기록의 사용량 읽기
+│   ├── builder.py, codex_operator.py  # operator.json 준비·평가·게시
+│   ├── generated_component.py, python_component.py  # 생성 명세·Python 검증과 제한 실행
+│   ├── evaluation.py, completion.py, reporting.py  # 동결 평가, 완료 판정, 보고서
+│   └── experience.py          # JSON Replica 직접 실행
+├── tests/                     # 모듈별 단위·통합 테스트 (test_web_demo.py 등)
+├── context/                   # Codex·Claude Code의 공유 방향 문서와 토론 기록
 └── work/                      # 기업별 로컬 결과, Git 제외
 ```
 
@@ -968,9 +991,11 @@ PYTHONPATH=src python -m unittest discover -s tests
 git diff --check
 ```
 
-테스트는 Second-pass 수신부터 Codex Operator 작성 seam, 비공개 동결 평가,
-선택적 공개 보고서와 공개 Replica 실행까지 확인합니다. 기존 five-stage
-프로젝트 흐름의 회귀 검사도 유지합니다.
+테스트는 1·2차 조사 검증, 단일 구현자·쌍 하네스의 상태 전이, 봉인 시험 평가,
+웹 시연(테스트용 웹 앱과 가짜 모델 CLI·세션 기록 사용), 기업 결과 작성,
+`operator.json` 후보의 비공개 평가와 공개 Replica 실행을 확인합니다. 기존
+five-stage 프로젝트 흐름의 회귀 검사도 유지합니다. 실제 모델과 브라우저로
+하는 기업 실행은 자동 테스트에 포함되지 않습니다.
 
 ## 안전과 데이터 경계
 
@@ -983,27 +1008,29 @@ git diff --check
 
 ## 현재 한계와 다음 단계
 
-현재 버전은 기능 구현 가능성을 빠르게 확인하는 프롬프트 평가 하네스입니다.
 주요 한계는 다음과 같습니다.
 
-- 기존 합성 데모는 세 테스트만 사용하므로 `partially_reproduced`로 판정됨
-- Agent 작성 코드는 단일 Python 기능 모듈만 지원하며 다중 파일 앱은 아직 지원하지 않음
-- Operator 생성에는 이 저장소의 API 호출이 아니라 활성 Codex 세션이 필요함
-- 실제 팀 Second-pass JSON과의 정규화 연결은 파일 공유 후 확정해야 함
-- 새 Builder의 semantic criteria는 독립 Judge seam을 추가하기 전까지 실행 전 차단함
+- 웹 앱 경로 전체(조사 → 구현 → 웹 시연 → 기업 결과)는 자동 테스트와 테스트용 앱
+  실행으로만 확인했고, 실제 기업으로는 아직 실행하지 않음
+- 구현과 실행에는 이 저장소의 API 호출이 아니라 활성 Codex·Claude 세션과 로컬 CLI가 필요함
 - 공개 주장과 합성 입력을 중심으로 평가함
 - 원제품 출력이 없는 경우가 많음
-- Judge가 같은 모델 계열일 수 있음
-- harness 경로는 UI, 파일 처리, OCR, 데이터베이스, 외부 시스템 통합을 평가하지 않음. 웹 앱 화면은 `web-demo`로만 시험함
+- 테스터·판정자·코드 검사가 구현자와 같은 모델 계열일 수 있음
+- 비용은 CLI 정가 환산 추정치이며 실행별 청구액이 아님. 조사를 지휘하는 루트 세션과
+  기록을 찾지 못한 세션의 사용량은 `unknown`
+- 특허·규제 정리와 경쟁 사업 탐색은 아직 파이프라인에 없음
+- `operator.json` 후보 경로는 단일 Python 기능 모듈만 지원하고, semantic criteria는 독립 Judge가
+  설정되지 않으면 실행 전에 차단함
 - 공개된 정확도·속도·비용 수치를 독립 재현하지 않음
 
-다음 단계는 모든 기업에 공통으로 추가하지 않습니다. 특정 Replica가 실제 제품
-후보로 선정됐을 때만 원제품 기준선 확보, 대규모 평가셋, 독립 모델 Judge,
-실행 가능한 CLI 또는 웹 앱을 추가합니다.
+다음 작업의 우선순위는 [프로젝트 목표와 방향](context/project-direction.md) 8절과
+[로드맵](docs/replica-roadmap.md)을 따릅니다.
 
 ## 공유 컨텍스트
 
 Codex와 Claude Code는 작업 시작 시
 [프로젝트 목표와 방향](context/project-direction.md)을 읽습니다.
-현재 `context/`에는 이 방향 문서만 두며, 방향이 바뀌면 같은 파일을 갱신합니다.
+방향이 바뀌면 같은 파일을 갱신합니다. `context/`에는 이 방향 문서 외에 Codex와
+Claude의 토론 기록(`context/tasks/`)과 진행 중인 토론 목록(`context/active.md`)이
+있습니다.
 조사·구현의 실행 절차는 `skills/`와 각 도구의 에이전트 지침에서 관리합니다.

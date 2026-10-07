@@ -16,3 +16,4 @@ replica-compiler/.pytest_cache/
 replica-compiler/**/*.pyc
 replica-compiler/demo_runs/
 replica-compiler/artifacts/
+.playwright-cli/
