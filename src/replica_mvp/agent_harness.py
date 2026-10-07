@@ -8,9 +8,12 @@ from pathlib import Path
 from typing import Any, NoReturn
 
 from .agent_execution import _write_state, check_agent_execution_budget, create_agent_execution_state, load_agent_execution_state_file
+from .bundle_runtime import validate_web_runtime
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .second_pass import MODEL_RUNTIMES, parse_second_pass
 from .resources import budget_stop, unknown_resources, utc_now
+from .session_usage import sessions_usage
+from .web_demo import freeze_demo_plan
 
 
 HARNESS_SCHEMA = "replica-agent-harness/v1"
@@ -121,6 +124,7 @@ def _builder_context(
     claim_id: str,
     payload: dict[str, Any],
     model_runtime: str,
+    demo_plan_path: str | None = None,
 ) -> dict[str, Any]:
     if payload.get("schema_version") != "replica-agent-claim/v2":
         public_contract = deepcopy(payload)
@@ -144,7 +148,17 @@ def _builder_context(
     )
     public_research = _public_research
     public_scenario = public_research(selected)
+    interface = {}
+    if demo_plan_path is not None:
+        interface = {"interface": {
+            "kind": "web_app",
+            "demo_plan_path": demo_plan_path,
+            "manifest_runtime": {"transport": "web_app", "port_argument": "--<name>", "ready_path": "/<path>"},
+            "note": ("Build a web app a person uses in a browser. The frozen demo plan is public; an AI tester "
+                     "runs it through the same screens for the final evaluation."),
+        }}
     return {
+        **interface,
         "schema_version": BUILDER_CONTEXT_SCHEMA,
         "claim_id": claim_id,
         "model_runtime": deepcopy(payload["model_runtime"]),
@@ -210,6 +224,7 @@ def prepare_agent_harness(
         claim_payload_path = f"{claim_namespace}/claim.json"
         builder_context_path = f"{claim_namespace}/builder-context.json"
         payload = canonical_claim["payload"]
+        web_demo, research_gaps = freeze_web_claim(payload, claim_id, fragment_root, run_dir)
         sealed = {}
         if payload.get("schema_version") == "replica-agent-claim/v2":
             # Sealed tests live only in the evaluator vault; the Operator reads the public claim.
@@ -231,6 +246,7 @@ def prepare_agent_harness(
                 claim_id,
                 canonical_claim["payload"],
                 model_runtime,
+                web_demo["plan_path"] if web_demo else None,
             ),
         )
         claims.append(
@@ -241,7 +257,9 @@ def prepare_agent_harness(
                 **sealed,
                 "builder_context_owner": "replica_agent",
                 "builder_context_path": builder_context_path,
-                "status": "PENDING",
+                **({"web_demo": web_demo} if web_demo else {}),
+                **({"research_gaps": research_gaps} if research_gaps else {}),
+                "status": "RESEARCH_INCOMPLETE" if research_gaps else "PENDING",
                 "namespace": claim_namespace,
                 "operator": {
                     "agent_id": None,
@@ -324,6 +342,8 @@ def prepare_agent_harness(
         registry["company"] = canonical["company"]
         registry["company_claims"] = canonical["company_claims"]
         registry["research_source"] = research_source
+        if canonical.get("research_agent_sessions"):
+            registry["research_agent_sessions"] = canonical["research_agent_sessions"]
         if not claims:
             # Research that found nothing executable ends here as a complete company result.
             _write_new_json(run_dir / REGISTRY_NAME, registry)
@@ -331,7 +351,9 @@ def prepare_agent_harness(
     _write_new_json(run_dir / REGISTRY_NAME, registry)
     from .bundle_evaluation import prepare_bundle_evaluation
     for canonical_claim in canonical["claims"]:
-        if canonical_claim["payload"].get("schema_version") == "replica-agent-claim/v2":
+        # Web-app claims are evaluated by their public demo plan, not a sealed JSON suite.
+        if (canonical_claim["payload"].get("schema_version") == "replica-agent-claim/v2"
+                and not is_web_claim(canonical_claim["payload"])):
             registry = prepare_bundle_evaluation(run_dir / REGISTRY_NAME, canonical_claim["claim_id"])
     return registry
 
@@ -953,6 +975,44 @@ def _safe_bundle_path(value: Any) -> bool:
     )
 
 
+def freeze_web_claim(payload: dict[str, Any], claim_id: str, fragment_root: Path | None,
+                     run_dir: Path) -> tuple[dict[str, Any] | None, list[str]]:
+    """Fix a web claim's demo plan before any Agent builds; a bad plan is a research gap."""
+    if not is_web_claim(payload):
+        return None, []
+    selected = _selected_scenario(payload)
+    try:
+        plan_path = freeze_demo_plan(selected["demo_plan"], claim_id, fragment_root,
+                                     run_dir / "claims" / claim_id / "demo")
+        scope = _demo_scope(payload, selected, json.loads(plan_path.read_text(encoding="utf-8")))
+    except (OSError, ValueError) as error:
+        return None, [f"demo plan: {error}"]
+    return {"plan_path": _relative_path(run_dir, plan_path), "plan_sha256": _sha256(plan_path),
+            "frozen_at": utc_now(), "scope": scope}, []
+
+
+def _demo_scope(payload: dict[str, Any], selected: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+    """Which built workflow steps the demo cases pass through; the rest is reported as unverified."""
+    workflow = (payload["second_pass"].get("workflow") or {}).get("steps") or \
+        ((payload.get("first_pass") or {}).get("workflow") or {}).get("steps") or []
+    texts = [step.get("step") if isinstance(step, dict) else None for step in workflow]
+    covered = {index for case in plan["cases"] for index in case["covers_steps"]}
+    if any(index > len(texts) for index in covered):
+        raise ValueError(f"covers_steps must name steps 1..{len(texts)} of the confirmed workflow")
+    steps = [{"step_index": entry["step_index"], "step": texts[entry["step_index"] - 1],
+              "disposition": entry["disposition"]}
+             for entry in selected.get("step_coverage", []) if entry.get("claim_id", payload["claim_id"]) == payload["claim_id"]]
+    return {"steps": steps,
+            "uncovered_steps": [step for step in steps
+                                if step["disposition"] != "excluded" and step["step_index"] not in covered]}
+
+
+def is_web_claim(payload: dict[str, Any]) -> bool:
+    """A claim whose selected scenario carries a demo plan is built and evaluated as a web app."""
+    selected = _selected_scenario(payload)
+    return selected is not None and "demo_plan" in selected
+
+
 def _selected_scenario(payload: dict[str, Any]) -> dict[str, Any] | None:
     if payload.get("schema_version") != "replica-agent-claim/v2":
         return None
@@ -1019,6 +1079,13 @@ def _validate_implementation_bundle(
     }
     if not isinstance(manifest, dict):
         raise ValueError("invalid Terra implementation bundle contract")
+    if is_web_claim(claim_payload):
+        # A web-app Replica declares how it starts; its demo plan, not JSON calls, evaluates it.
+        fields = fields | {"runtime"}
+        try:
+            validate_web_runtime(manifest.get("runtime"))
+        except ValueError as error:
+            raise ValueError(f"web-app Replica manifest needs a web_app runtime: {error}") from None
     dependencies = manifest.get("dependencies")
     environment_variables = manifest.get("environment_variables")
     files = manifest.get("files")
@@ -1293,6 +1360,10 @@ def _validate_bound_artifact(
 
 def _validate_final_result(run_dir: Path, claim: dict[str, Any]) -> None:
     final_result = claim.get("final_result")
+    if isinstance(final_result, dict) and final_result.get("schema_version") == "replica-agent-web-demo-result/v1":
+        from .web_evaluation import validate_web_result
+        validate_web_result(run_dir, claim)
+        return
     if isinstance(final_result, dict) and final_result.get("schema_version") == "replica-agent-bundle-result/v1":
         from .bundle_evaluation import validate_bundle_result
         validate_bundle_result(run_dir, claim)
@@ -1666,6 +1737,7 @@ def _pre_evaluation_outcome(root: Path, claim: dict[str, Any]) -> dict[str, Any]
 def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
     """Join every researched claim to its execution outcome so no result loses its denominator."""
     executed = {claim["claim_id"]: claim for claim in registry["claims"]}
+    runtime = (registry.get("model_runtime") or {}).get("provider")
     entries = []
     for researched in registry["company_claims"]:
         entry = deepcopy(researched)
@@ -1676,15 +1748,41 @@ def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
             continue
         final = claim.get("final_result") or {}
         result = {}
-        if final.get("public_run_dir"):
+        web = final.get("schema_version") == "replica-agent-web-demo-result/v1"
+        if web:
+            from .web_evaluation import validate_web_result
+            demo = validate_web_result(root, claim)
+            selected_id = json.loads((root / claim["claim_payload_path"]).read_text(encoding="utf-8"))["selected_scenario_id"]
+            result = {"scenario_id": selected_id, "failure_category": None,
+                      "stop_reason": "web_demo_" + final["reproduction_status"]}
+            entry["web_demo"] = {
+                "result_path": f"{final['public_run_dir']}/demo-result.json",
+                "report_path": f"{final['public_run_dir']}/report.md",
+                "plan_path": claim["web_demo"]["plan_path"],
+                "outcome": demo["outcome"],
+                "cases": {case["case_id"]: case["execution_status"] for case in demo["cases"]},
+                "code_review": {key: demo["code_review"].get(key) for key in ("status", "reason", "findings")},
+                "uncovered_steps": demo["scope"].get("uncovered_steps"),
+                "costs": {name: {key: phase[key] for key in (
+                    "calls", "completed", "failed", "timeout", "incomplete", "call_seconds", "usage", "models",
+                    "cli_list_estimate_usd", "estimate_complete")} for name, phase in demo["costs"]["phases"].items()},
+                "wall_seconds": demo["wall_seconds"],
+            }
+        elif final.get("public_run_dir"):
             result = json.loads((root / final["public_run_dir"] / "replica-result.json").read_text(encoding="utf-8"))
+        if claim.get("development_log"):
+            entry["development_log"] = claim["development_log"]
+        entry["development_usage"] = sessions_usage(
+            [{"role": role, "agent_id": claim[role].get("agent_id")}
+             for role in ("operator", "builder", "implementer") if claim.get(role, {}).get("agent_id")],
+            runtime)
         entry.update({
             "harness_status": claim.get("status"),
             "scenario_id": result.get("scenario_id"),
             "reproduction_status": final.get("reproduction_status"),
             "failure_category": result.get("failure_category"),
             "stop_reason": result.get("stop_reason"),
-            "result_path": (f"{final['public_run_dir']}/replica-result.json"
+            "result_path": (f"{final['public_run_dir']}/{'demo-result.json' if web else 'replica-result.json'}"
                             if final.get("public_run_dir") else None),
             "result_sha256": final.get("result_sha256"),
             "outcome": (
@@ -1704,10 +1802,22 @@ def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
         "claim_total": len(entries),
         "selected_for_execution": sum(entry["selected_for_execution"] for entry in entries),
         "outcome_counts": {name: outcomes.count(name) for name in sorted(set(outcomes))},
+        "research_usage": (sessions_usage(registry["research_agent_sessions"], runtime)
+                           if registry.get("research_agent_sessions") else
+                           {"status": "not_recorded", "basis": "research.json recorded no agent_sessions."}),
+        "orchestration_usage": sessions_usage(
+            [{"role": "replica_agent", "agent_id": (registry.get("replica_agent") or registry.get("orchestrator") or {}).get("agent_id")}],
+            runtime),
+        "cost_note": (
+            "Usage comes from per-call receipts (web demo) and the runtimes' session logs (research, development, "
+            "orchestration); a session whose log was not found is unknown, not zero. Usage keys are summed per key. "
+            "Human time is not a cost item of the automated run."
+        ),
         "interpretation": (
             "Each outcome describes this experiment on one researched workflow. A not_executed, "
             "experiment_incomplete, or experiment_blocked claim is not evidence of the company's "
-            "technical barrier, and no single claim's result is a verdict on the whole company."
+            "technical barrier, and no single claim's result is a verdict on the whole company. "
+            "A not_evaluated web demo ran but could not show its expected results; it is not a failure."
         ),
         "claims": entries,
     }

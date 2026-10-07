@@ -7,6 +7,10 @@ name = "replica-mvp"
 version = "0.1.0"
 requires-python = ">=3.12"
 
+[project.optional-dependencies]
+# Browser automation for the AI tester of web-app Replicas (`replica-mvp web-demo`).
+web = ["playwright>=1.49"]
+
 [project.scripts]
 replica-mvp = "replica_mvp.cli:main"
 

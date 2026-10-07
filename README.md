@@ -3,7 +3,7 @@
 **프로젝트 목표(2026-10-02): 기술평가 보조 제품을 만들고, Replica를 기능의
 모방·대체 가능성을 실험하는 핵심 기능으로 배치합니다.** 아래는 Replica 구성요소의
 현재 사용법입니다. 상위 제품과의 역할, 확인된 현황, 다음 작업과 미결정 사항은
-[프로젝트 목표와 방향](docs/project-direction.md)에 정리했습니다.
+[프로젝트 목표와 방향](context/project-direction.md)에 정리했습니다.
 
 기업이 고객에게 제공한다고 공개적으로 주장하는 AI 기능을 넓게 조사하고, 기능마다
 전체 워크플로를 심층 검증한 뒤 테스트 가능한 계약과 실행 가능한 Replica 구현으로
@@ -71,8 +71,15 @@ Skill은 코드로 구현된 상태 머신이 아니라 에이전트가 따라�
 
 이 프로젝트의 질문은 다음과 같습니다.
 
-> 공개 자료에서 확인되는 기업의 AI 기능을 UI를 제외한 고객 워크플로 전체로
-> 재구성했을 때, 명시적인 테스트 계약을 만족하는 결과를 만들 수 있는가?
+> 공개 자료에서 확인되는 기업의 AI 기능을 사람이 웹 화면에서 직접 쓰는 고객
+> 워크플로 전체로 재구성했을 때, 고정한 사례에서 어떤 결과를 내며 얼마가 드는가?
+
+복제품의 목표 형태는 웹 앱입니다. 사람은 브라우저로 쓰고, AI 테스터는 같은
+화면을 브라우저 자동화로 조작합니다([방향 문서](context/project-direction.md) 5절).
+웹 앱 실행과 AI 사례 시연은 아래 "웹 앱 Replica 실행과 AI 사례 시연"의 독립
+명령으로 제공합니다. 기업 평가 harness는 2차 조사의 선택 시나리오에 `demo_plan`이
+있으면 그 계획을 구현 전에 고정하고, 웹 앱 복제품을 같은 화면의 AI 시연으로
+최종 평가합니다. `demo_plan`이 없는 claim은 기존 JSON 번들과 봉인 시험 경로를 씁니다.
 
 2차는 워크플로 단계마다 구현·외부 의존·제외·미확인을 기록합니다. 조사된 단계를
 제외한 계약은 부분 범위로 표시되고, 모든 테스트를 통과해도 최종 결과는
@@ -800,6 +807,77 @@ API를 사용하는 질문에는 해당 run의 공개 또는 합성 `creator_cor
 전의 임시 입력 seam입니다. 실제 파일이 공유되면 intake 이후 정규화만 맞추고,
 Builder·안전 게이트·실행·평가 interface는 유지합니다.
 
+### 웹 앱 Replica 실행과 AI 사례 시연
+
+웹 앱 복제품은 manifest에 실행 방식을 선언합니다. 나머지 필드(`files`의 sha256,
+`command`, `environment_variables` 등)는 기존 번들 manifest와 같습니다.
+
+```json
+"runtime": {"transport": "web_app", "port_argument": "--port", "ready_path": "/"}
+```
+
+```bash
+# 사람이 브라우저로 직접 사용. 저장 데이터는 --state-dir에 남음
+replica-mvp serve-web path/to/manifest.json --state-dir work/demo-state --open
+
+# 고정 사례를 AI 테스터가 같은 화면으로 실행 (선택 의존성 필요)
+pip install -e '.[web]' && python -m playwright install chromium
+replica-mvp web-demo plan.json --output work/demo-runs/run-001 [--manifest MANIFEST] [--provider claude|codex] [--model MODEL]
+```
+
+`plan.json`은 `replica-web-demo-plan/v1`입니다. 실행 전에 사례를 고정합니다.
+
+| 필드 | 내용 |
+|---|---|
+| `manifest` | plan 파일 기준 상대 경로 |
+| `case_design`, `case_author` | 구현 전 고정(`prospective`)인지, 기존 구현을 본 뒤 작성(`retrospective`)인지와 작성 주체 |
+| `budget` | `time_limit_seconds`, `max_actions_per_case`, `model_call_timeout_seconds` |
+| `cases[].goal`, `steps`, `facts`, `uploads` | 사용자 목표·단계, 테스터가 써도 되는 사실, 업로드할 파일 |
+| `cases[].targeted_barrier` | 공개 출처가 있는 장벽 주장. 없으면 `null`과 `barrier_note`에 이유 |
+| `cases[].covers_steps` | 사례가 지나는 워크플로 단계 번호. 어느 사례도 지나지 않는 구현 단계는 "미검증 범위"로 보고 |
+| `cases[].variation` | 실행 때 바꿀 수 있는 것의 규칙 `{instruction}`. 없으면 `null`과 `variation_note` |
+| `cases[].expectations[]` | `description`, `basis`(`public_rule`·`original_observation`·`separate_verification`·`our_condition`와 출처), 선택 `check` |
+
+`check`는 `file_exists`, `file_absent`, `file_contains`, `files_unchanged`,
+`page_contains`이고 앱 작업 디렉터리 기준 glob을 씁니다. 사례에 적힌 값은 기업이
+주장하는 워크플로의 예시일 뿐입니다. `variation`이 있는 사례는 실행 때 별도 모델이
+규칙에 따라 이번 실행의 값을 새로 만들고 그 값으로 한 번만 실행하며, 검사 문자열도
+그 값으로 맞춥니다. 값 생성이 실패하면 예시로 돌아가지 않고 실행 불가로 남깁니다.
+`variation: null`인 사례만 예시 그대로 실행합니다. harness 경로에서는 판정자가 소스를
+읽어 시연 값에 맞춘 분기·가짜 효과·구현 안 된 워크플로 단계를 찾는 코드 검사도
+합니다. 코드 검사가 통과하지 않으면 사례를 모두 통과해도 `reproduced`가 아닙니다. `check`가 없는 기대
+결과는 별도 판정 호출이 이벤트·최종 화면·파일 변화를 보고 `passed`, `failed`,
+`not_evaluated` 중 하나로 판정합니다. 사례가 끝나지 않았으면 없음·무변화 검사는
+`not_evaluated`입니다. 테스터에게는 기대 결과를 보여 주지 않습니다.
+
+`--output`은 새 디렉터리여야 하며 다음을 저장합니다.
+
+- `demo-result.json`, `report.md`: 비용, 사례별 판정과 이유, 파일 변화
+- `events.jsonl`, `cases/<사례>/screens/`: 행동마다 대상 요소·값·이유·오류와 스크린샷
+- `cases/<사례>/workspace/`, `server.log`: 실행한 구현 사본과 앱이 저장한 데이터
+- `receipts/<호출>/`: 테스터·판정 호출과, 앱이 PATH의 `claude`/`codex`로 한 내부
+  호출의 원본 출력과 시작·종료 기록
+
+비용은 단계(`tester`, `judge`, `replica_runtime`)별 호출 수, 상태, 호출 시간,
+사용량(키별 합계), 관측 모델, CLI가 표시한 정가 환산 추정액입니다. 구독 사용에는
+실행별 청구액이 없어 `billed_amount`는 `null`이며, 키 사이의 토큰 총합은 만들지
+않습니다. 절대 경로로 부르는 CLI나 직접 HTTP 모델 호출은 계측하지 않습니다. 사람의
+시간과 후보 구현의 제작 비용은 포함하지 않습니다.
+
+harness 경로에서는 `agent-bundle-evaluate`(또는 `agent-candidate-finalize`)가 고정된
+계획으로 이 시연을 실행해 `final-results/runs/<claim>/web-attempt-NNN-<해시>/`에
+저장합니다. `agent-harness-finish`가 쓰는 `company-claims.json`에는 claim별 시연
+결과·비용과 함께, 구현 에이전트의 세션 기록(Claude Code 세션·서브에이전트 기록,
+Codex 세션 기록)에서 읽은 개발 사용량, `research.json`의 `agent_sessions`에 기록된
+조사 에이전트 사용량이 들어갑니다. 기록을 찾지 못한 세션은 `unknown`입니다.
+
+기업 평가의 기본 구현 구조는 claim마다 구현 에이전트 하나입니다(`single-harness-init`).
+구현자는 시도마다 `development-log.jsonl`에 기록을 덧붙입니다. 최종 평가가 실패해
+`agent-bundle-retry`를 하면 구현자 namespace에 `retry-feedback-NNN.json`이 생깁니다.
+여기에는 기대 결과별 판정 이유, 코드 검사 지적, 미검증 단계만 들어가고 스크린샷·화면
+글·이번 실행 값은 넣지 않습니다(기대 결과 설명은 계획의 문구를 씁니다). 제출은 최대 3회입니다. Operator/Builder 쌍 경로는 사용자가
+요청할 때만 씁니다.
+
 ### 프로젝트 골격 생성
 
 ```bash
@@ -881,7 +959,7 @@ Judge는 다음 형식의 JSON만 반환해야 합니다.
 │   ├── test_codex_operator.py # 공개 workspace/private vault end-to-end 검사
 │   ├── test_python_component.py # Agent 작성 코드 안전·실행 검사
 │   └── test_cli.py            # 공개 CLI와 레거시 제거 계약
-├── .team-ai -> team-ai/...    # Git에서 제외된 프로젝트 상태 연결
+├── context/                  # Codex·Claude Code의 공유 프로젝트 컨텍스트
 └── work/                      # 기업별 로컬 결과, Git 제외
 ```
 
@@ -889,7 +967,7 @@ Judge는 다음 형식의 JSON만 반환해야 합니다.
 
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests
-team-ai guard
+git diff --check
 ```
 
 테스트는 Second-pass 수신부터 Codex Operator 작성 seam, 비공개 동결 평가,
@@ -918,23 +996,16 @@ team-ai guard
 - 공개 주장과 합성 입력을 중심으로 평가함
 - 원제품 출력이 없는 경우가 많음
 - Judge가 같은 모델 계열일 수 있음
-- UI, 파일 처리, OCR, 데이터베이스, 외부 시스템 통합을 평가하지 않음
+- harness 경로는 UI, 파일 처리, OCR, 데이터베이스, 외부 시스템 통합을 평가하지 않음. 웹 앱 화면은 `web-demo`로만 시험함
 - 공개된 정확도·속도·비용 수치를 독립 재현하지 않음
 
 다음 단계는 모든 기업에 공통으로 추가하지 않습니다. 특정 Replica가 실제 제품
 후보로 선정됐을 때만 원제품 기준선 확보, 대규모 평가셋, 독립 모델 Judge,
 실행 가능한 CLI 또는 웹 앱을 추가합니다.
 
-## team-ai 연결
+## 공유 컨텍스트
 
-이 저장소에는 공유할 소스코드만 두고, 프로젝트 메모리·결정·회의 자료와 컴파일
-상태는 `../team-ai/projects/replica-mvp/.team-ai`에서 관리합니다.
-저장소의 `.team-ai`는 그 위치를 가리키는 Git 제외 로컬 링크이므로 브랜치를
-바꿔도 같은 프로젝트 상태를 사용합니다. Replica 조사 규칙의 권위 있는 원본은
-team-ai가 아니라 `skills/replica-research/SKILL.md`입니다.
-
-```bash
-ln -s ../team-ai/projects/replica-mvp/.team-ai .team-ai
-team-ai context --mode implementation "MVP 구현"
-team-ai guard
-```
+Codex와 Claude Code는 작업 시작 시
+[프로젝트 목표와 방향](context/project-direction.md)을 읽습니다.
+현재 `context/`에는 이 방향 문서만 두며, 방향이 바뀌면 같은 파일을 갱신합니다.
+조사·구현의 실행 절차는 `skills/`와 각 도구의 에이전트 지침에서 관리합니다.

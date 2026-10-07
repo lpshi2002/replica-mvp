@@ -1,0 +1,4 @@
+interface:
+  display_name: "Replica Implementer"
+  short_description: "Build one claim's Replica as a web app and record each attempt"
+  default_prompt: "Use $replica-implementer to build, check, and record the implementation for the claim the orchestrator named."

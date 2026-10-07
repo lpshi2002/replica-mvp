@@ -77,7 +77,6 @@ def unknown_resources() -> dict[str, Any]:
                 ("active_time", "development", "seconds"),
                 ("waiting_time", "development", "seconds"),
                 ("preparation_time", "data_preparation", "seconds"),
-                ("human_time", "development", "seconds"),
                 ("economic_cost", "development", "unknown_currency"),
                 ("economic_cost", "execution", "unknown_currency"),
                 ("tokens", "execution", "tokens"),

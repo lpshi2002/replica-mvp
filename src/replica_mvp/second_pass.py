@@ -811,4 +811,15 @@ def parse_second_pass(
         # Every researched claim, executed or not, so results keep their denominator.
         collection["company"] = copy.deepcopy(value["company"])
         collection["company_claims"] = company_claims
+        sessions = value.get("agent_sessions", [])
+        # Research agents the orchestrator spawned, so their session logs can be measured later.
+        if not isinstance(sessions, list) or not all(
+            isinstance(s, dict) and set(s) <= {"role", "agent_id", "runtime", "claim_id"}
+            and _is_nonempty_text(s.get("role")) and _is_nonempty_text(s.get("agent_id"))
+            and s.get("runtime", model_runtime or "claude") in MODEL_RUNTIMES
+            for s in sessions
+        ):
+            raise ValueError("agent_sessions must list {role, agent_id[, runtime, claim_id]} records")
+        if sessions:
+            collection["research_agent_sessions"] = copy.deepcopy(sessions)
     return collection

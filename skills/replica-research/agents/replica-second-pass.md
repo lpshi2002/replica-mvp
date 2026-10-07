@@ -211,6 +211,7 @@ ones the execution code reads:
 | `tests` | `tests.json` |
 | `step_coverage` | workflow fidelity check before implementation |
 | `evaluation` | frozen bundle evaluation plan (Sol/Terra route) |
+| `demo_plan` (selected scenario) | frozen public web demo plan; makes the claim a web-app build evaluated through its screens |
 
 There is no separate `output_schema` field — `spec.json` has only
 `output_description`, so the schema goes inside `output`. The exclusions field
@@ -229,6 +230,45 @@ exact ids or set `kind` to `normal`, `boundary`, `insufficient_information`,
 original result — the judge reads it. Three cases are a minimum, not a scope:
 cover each implemented workflow step. **Frozen expectations are never changed
 after seeing output.**
+
+### 5b. Write the demo plan — `demo_plan`
+
+The finished Replica is a web app, and its final evaluation is an AI tester
+working through fixed cases on the same screens a person uses. Give the
+selected scenario a `demo_plan`, written from public sources before anything is
+built:
+
+- `title`, `case_design: "prospective"`, `case_author` (your role), and
+  `budget: {time_limit_seconds, max_actions_per_case, model_call_timeout_seconds}`
+  (for example 1800, 30, 120).
+- `cases`, each with `id`; `goal`; `steps`, what a user does on screen in order,
+  in plain language; `facts`, the only facts the tester may type; optional
+  `uploads: [{path}]`, public or synthetic files saved under the research
+  directory with paths relative to it; and `targeted_barrier: {claim, source}`
+  for a barrier the company publicly claims, or `null` with a `barrier_note`
+  saying why none applies. Never invent a barrier.
+- `covers_steps`: the 1-based steps of the confirmed workflow the case passes
+  through. Steps no case reaches are reported as unverified scope, so aim to
+  reach every implemented step across the cases.
+- `variation: {instruction}`: what may change between runs, such as names,
+  amounts, document contents, or order. The case's own values are an example of
+  the workflow the company claims, not the inputs to build for: at evaluation a
+  separate model draws this run's values from the rule and the case runs once
+  with them, so a Replica fitted to the example fails. Use `null` with a
+  `variation_note` only when nothing can vary; such a case runs as written.
+- `expectations`, each `{id, description, basis: {type, source}}` where `type`
+  is `public_rule`, `original_observation`, `separate_verification`, or
+  `our_condition`. A separate judge decides them from the recorded actions,
+  final page, and saved-file changes. Add a deterministic `check`
+  (`file_exists`, `file_absent`, `file_contains`, `files_unchanged` with a glob
+  under the app's working directory, or `page_contains` with text) only when it
+  can be named without knowing how the app will be built.
+
+Cover at least a normal, a boundary, and an insufficient-information case,
+mirroring `tests`, and keep the whole customer workflow: conversation turns,
+files, approvals, and saved results. The tester never sees the expectations, so
+do not put answers into `steps` or `facts`. Expectations are frozen; they are
+never changed after seeing output.
 
 ### 6. Map every workflow step — `step_coverage`
 
@@ -335,6 +375,10 @@ Write `work/<company>/second_pass/<slug>.json` and nothing else.
         { "step_index": 1, "disposition": "implemented|external_dependency|excluded|unconfirmed", "reason": "…" }
       ],
       "evaluation": { "runtime": { "transport": "stdio_json" }, "…": "see docs/replica-bundle-execution.md" },
+      "demo_plan": { "title": "…", "case_design": "prospective", "case_author": "…", "budget": {},
+                     "cases": [{ "id": "…", "goal": "…", "steps": [], "facts": [], "covers_steps": [1],
+                                 "variation": { "instruction": "…" }, "targeted_barrier": null, "barrier_note": "…",
+                                 "expectations": [] }] },
       "tests": [
         { "id": "normal", "input": "…", "expected_behavior": "…", "reference_facts": [] },
         { "id": "boundary", "input": "…", "expected_behavior": "…", "reference_facts": [] },

@@ -1,6 +1,7 @@
 """Run the declared bundle entrypoint with new inputs in a disposable directory."""
 from __future__ import annotations
 
+import contextlib
 import hashlib
 from http.client import HTTPException
 import json
@@ -312,69 +313,139 @@ def bundle_session(manifest_path: Path, runtime: dict[str, Any], timeout: float,
         if runtime["transport"] == "stdio_json":
             yield lambda value, seconds=timeout: run_json_command(command, value, root, seconds, environment), root
             return
+        with tempfile.TemporaryFile() as log, _local_server(
+                command, runtime["port_argument"], root, environment, timeout, log) as (process, port):
+            # Loopback only; a pre-existing remote endpoint cannot stand in for this bundle.
+            url = f"http://127.0.0.1:{port}{runtime['endpoint']}"
+
+            def request(value: Any, seconds: float = timeout) -> Any:
+                if process.poll() is not None:
+                    raise RuntimeError("bundle server is no longer running")
+                data = json.dumps(value, ensure_ascii=False, allow_nan=False).encode()
+                if len(data) > MAX_OUTPUT_BYTES:
+                    raise ValueError("bundle input exceeds size limit")
+                req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+                opener = _loopback_opener()
+                # A socket idle timeout alone does not bound a slowly streamed response.
+                deadline = time.monotonic() + seconds
+                timer = threading.Timer(seconds, stop_process, args=(process,))
+                timer.start()
+                try:
+                    try:
+                        response = opener.open(req, timeout=seconds)
+                    except urllib.error.HTTPError as error:
+                        if not 400 <= error.code < 500:
+                            error.close()
+                            raise RuntimeError(f"bundle server returned {error.code}; redirects and server errors are failures") from None
+                        response = error  # Contractual 4xx responses are observable outputs.
+                    with response:
+                        raw = response.read(MAX_OUTPUT_BYTES + 1)
+                except HTTPException as error:
+                    raise RuntimeError(f"bundle HTTP response failed: {error}") from None
+                finally:
+                    timer.cancel()
+                    timer.join()
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("bundle HTTP request exceeded its time budget")
+                if len(raw) > MAX_OUTPUT_BYTES or os.fstat(log.fileno()).st_size > MAX_OUTPUT_BYTES:
+                    raise RuntimeError("bundle server exceeded its output limit")
+                return json.loads(raw, parse_constant=_reject_nonstandard_constant)
+
+            yield request, root
+
+
+def _loopback_opener() -> urllib.request.OpenerDirector:
+    # Ignore ambient proxy settings and redirects for a local implementation.
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+
+
+@contextmanager
+def _local_server(command: list[str], port_argument: str, root: Path, environment: dict[str, str],
+                  timeout: float, log, port: int | None = None):
+    """Start a bundle server on a loopback port and stop its process group on exit."""
+    if port is None:
         with socket.socket() as reserved:
             reserved.bind(("127.0.0.1", 0))
             port = reserved.getsockname()[1]
-        # Loopback only; a pre-existing remote endpoint cannot stand in for this bundle.
-        url = f"http://127.0.0.1:{port}{runtime['endpoint']}"
-        with tempfile.TemporaryFile() as log:
-            process = subprocess.Popen(command + [runtime["port_argument"], str(port)], cwd=root,
-                                       stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                       start_new_session=os.name == "posix",
-                                       env=environment)
-            deadline = time.monotonic() + timeout
+    process = subprocess.Popen(command + [port_argument, str(port)], cwd=root,
+                               stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                               start_new_session=os.name == "posix",
+                               env=environment)
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            if process.poll() is not None:
+                log.seek(0)
+                raise RuntimeError("bundle server exited before startup: " + log.read(2000).decode(errors="replace"))
             try:
-                while True:
-                    if process.poll() is not None:
-                        log.seek(0)
-                        raise RuntimeError("bundle server exited before startup: " + log.read(2000).decode(errors="replace"))
-                    try:
-                        with socket.create_connection(("127.0.0.1", port), timeout=0.1):
-                            break
-                    except OSError:
-                        if time.monotonic() >= deadline:
-                            raise TimeoutError("bundle server startup exceeded its time budget")
-                        if os.fstat(log.fileno()).st_size > MAX_OUTPUT_BYTES:
-                            raise RuntimeError("bundle server exceeded its output limit")
-                        time.sleep(0.05)
+                with socket.create_connection(("127.0.0.1", port), timeout=0.1):
+                    break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("bundle server startup exceeded its time budget")
+                if os.fstat(log.fileno()).st_size > MAX_OUTPUT_BYTES:
+                    raise RuntimeError("bundle server exceeded its output limit")
+                time.sleep(0.05)
+        yield process, port
+    finally:
+        stop_process(process)
 
-                def request(value: Any, seconds: float = timeout) -> Any:
-                    if process.poll() is not None:
-                        raise RuntimeError("bundle server is no longer running")
-                    data = json.dumps(value, ensure_ascii=False, allow_nan=False).encode()
-                    if len(data) > MAX_OUTPUT_BYTES:
-                        raise ValueError("bundle input exceeds size limit")
-                    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-                    # Ignore ambient proxy settings for this local implementation.
-                    class NoRedirect(urllib.request.HTTPRedirectHandler):
-                        def redirect_request(self, req, fp, code, msg, headers, newurl):
-                            return None
-                    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-                    # A socket idle timeout alone does not bound a slowly streamed response.
-                    deadline = time.monotonic() + seconds
-                    timer = threading.Timer(seconds, stop_process, args=(process,))
-                    timer.start()
-                    try:
-                        try:
-                            response = opener.open(req, timeout=seconds)
-                        except urllib.error.HTTPError as error:
-                            if not 400 <= error.code < 500:
-                                error.close()
-                                raise RuntimeError(f"bundle server returned {error.code}; redirects and server errors are failures") from None
-                            response = error  # Contractual 4xx responses are observable outputs.
-                        with response:
-                            raw = response.read(MAX_OUTPUT_BYTES + 1)
-                    except HTTPException as error:
-                        raise RuntimeError(f"bundle HTTP response failed: {error}") from None
-                    finally:
-                        timer.cancel()
-                        timer.join()
-                        if time.monotonic() >= deadline:
-                            raise TimeoutError("bundle HTTP request exceeded its time budget")
-                    if len(raw) > MAX_OUTPUT_BYTES or os.fstat(log.fileno()).st_size > MAX_OUTPUT_BYTES:
-                        raise RuntimeError("bundle server exceeded its output limit")
-                    return json.loads(raw, parse_constant=_reject_nonstandard_constant)
 
-                yield request, root
-            finally:
-                stop_process(process)
+def validate_web_runtime(value: Any) -> dict[str, Any]:
+    if (not isinstance(value, dict)
+            or set(value) != {"transport", "port_argument", "ready_path"}
+            or value.get("transport") != "web_app"
+            or not isinstance(value.get("port_argument"), str)
+            or not value["port_argument"].startswith("--")
+            or not isinstance(value.get("ready_path"), str)
+            or not value["ready_path"].startswith("/") or value["ready_path"].startswith("//")
+            or any(c in value["ready_path"] for c in "\r\n#")):
+        raise ValueError("web app runtime must be {transport: web_app, port_argument: --NAME, ready_path: /PATH}")
+    return value
+
+
+@contextmanager
+def web_app_session(manifest_path: Path, timeout: float, *, workspace: Path, path_prefix: Path | None = None,
+                    log=None, port: int | None = None):
+    """Start a published web app in a persistent workspace and yield its loopback base URL."""
+    manifest = json.loads(manifest_path.read_bytes(), parse_constant=_reject_nonstandard_constant)
+    runtime = validate_web_runtime(manifest.get("runtime"))
+    if timeout <= 0:
+        raise TimeoutError("web app time budget exhausted before startup")
+    root, manifest = _open_workspace(manifest_path, workspace, None)
+    missing = [name for name in manifest["environment_variables"] if not os.environ.get(name)]
+    if missing:
+        raise PermissionError("missing bundle environment variables: " + ", ".join(missing))
+    environment = bundle_environment(manifest)
+    if path_prefix is not None:
+        # Model CLIs the app resolves through PATH reach the metering wrappers first.
+        environment["PATH"] = str(path_prefix) + os.pathsep + environment.get("PATH", "")
+    deadline = time.monotonic() + timeout
+    with contextlib.ExitStack() as stack:
+        if log is None:
+            log = stack.enter_context(tempfile.TemporaryFile())
+        process, port = stack.enter_context(_local_server(
+            manifest["command"], runtime["port_argument"], root, environment, timeout, log, port))
+        base_url = f"http://127.0.0.1:{port}"
+        opener = _loopback_opener()
+        while True:
+            if process.poll() is not None:
+                log.seek(0)
+                raise RuntimeError("web app exited before it was ready: " + log.read(2000).decode(errors="replace"))
+            try:
+                with opener.open(base_url + runtime["ready_path"], timeout=2) as response:
+                    response.read(1)
+                break
+            except urllib.error.HTTPError as error:
+                error.close()
+                if error.code < 500:
+                    break
+            except (OSError, HTTPException):
+                pass
+            if time.monotonic() >= deadline:
+                raise TimeoutError("web app did not become ready within its time budget")
+            time.sleep(0.1)
+        yield base_url, root

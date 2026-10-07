@@ -1,22 +1,47 @@
 # Agent Rules
 
+At the start of a Replica task, read `context/project-direction.md` for the
+shared project goal, confirmed decisions, proposals, and open questions.
+Codex and Claude Code use this same file; update it in place when the user
+changes the project direction. Execution procedures remain in the Skills below.
+
+When the user requests a Codex/Claude debate (for example, "토론해" or
+"서로 리뷰해"), use the installed `agent-debate` skill and read
+`context/README.md`. Resume only the explicitly identified task; ordinary
+project work does not create a discussion folder.
+
 For company research, Replica workflow questions, claim scoring, source
 selection, replication readiness, or Replica execution, read and follow
 `skills/replica-research/SKILL.md` before answering or acting. Treat that Skill
-as the authoritative workflow instead of loading the same rules through
-team-ai.
+as the authoritative workflow.
 
 A company evaluation request — a company name, URL, or description — runs the
-full route by default: both research passes, then `agent-harness-init` on the
-completed `research.json`, the Operator/Builder protocol for every selected
-claim, sealed bundle evaluation, and `agent-harness-finish`, which writes
+full route by default: both research passes, then `single-harness-init` on the
+completed `research.json`, one implementer for every selected claim, final
+evaluation (the frozen public web demo for a claim whose selected
+scenario has a `demo_plan`, otherwise sealed bundle evaluation), and
+`agent-harness-finish`, which writes
 `final-results/company-claims.json` for every researched claim. The request
 itself approves this full run; stop after pass 2 only when the user asks for
 research only. Research with no executable claim still ends with that company
 result.
 
-For the implementation step of a company evaluation, or when the user asks to
-create or run the multi-claim Replica Agent harness, spawn one dedicated
+For the implementation step of a company evaluation, the root session follows
+the single-implementer steps in the "Execute" section of
+`skills/replica-research/SKILL.md`. Initialize with `--model-runtime codex` and
+the init defaults (`gpt-6-astra`, reasoning effort `low`) unless the user names
+another model. Spawn each claim's implementer with that model and effort and
+`fork_turns=none`, giving it only the run directory, claim ID, and an
+instruction to follow `.agents/skills/replica-implementer/SKILL.md`; record its
+thread ID with `single-agent-start` (a canonical task path cannot be matched to a
+Codex session log, so its usage would stay unknown); after
+`agent-bundle-retry`, send `followup_task` to the same implementer and point it
+to its `retry-feedback-NNN.json`. The root reads control results and the
+implementer's short report, never edits or judges the implementation, and does
+not pass screenshots or run values to it.
+
+When the user asks for the Operator/Builder pair route (the multi-claim Replica
+Agent harness), spawn one dedicated
 Replica Agent with `model=gpt-6-astra`,
 `reasoning_effort=medium`, and `fork_turns=none`. Give it only the Second JSON path, run directory, canonical
 parent identity, and an instruction to follow
@@ -29,7 +54,7 @@ when spawning the pair. For actual implementation, create one pair for every
 selected function and activate all pairs concurrently: N functions mean N pairs.
 Do not wait for another feature to finish before activating the next pair.
 
-When a company evaluation reaches a ready harness, or the user asks to run the
+When a pair-route harness is ready, or the user asks to run the
 direct Operator/Builder protocol on one, resume the same dedicated Replica Agent and existing child
 identities instead of spawning a new pair. Give it only the harness registry
 path and an instruction to follow
@@ -54,42 +79,15 @@ current session's selector. Never route this work through a registered
 Operator, the removed `replicate` command, an external generator command, or
 an API model generator.
 
-Before answering questions about prior meetings, memories, decisions, project
-direction, or implementation direction, run:
+## Verification
+
+Product code belongs under `src/`; tests belong under `tests/`.
+Before finalizing code changes, run the relevant tests and the repository suite:
 
 ```bash
-team-ai context "USER_REQUEST"
+PYTHONPATH=src python -m unittest discover -s tests
 ```
 
-For broad project-wide questions about the current goal, status, next actions,
-or unresolved decisions, decide the meaning at the agent layer and run:
-
-```bash
-team-ai context --current-state "USER_REQUEST"
-```
-
-Use ordinary context search for questions about a specific named topic.
-Replica workflow questions covered by the Skill are exempt unless the user
-explicitly asks about meeting or decision history.
-
-Treat "회의 때 뭐 나왔지", "지난번에 뭐라고 했지", "기억 가져와줘",
-"결정 내용이 뭐야", and "이 아이디어로 만들어줘" as project knowledge
-recall requests.
-
-Before changing product code under `src/` or `tests/`, run:
-
-```bash
-team-ai context --mode implementation "USER_REQUEST"
-```
-
-Only use harness context when the user explicitly asks about team-ai harness,
-CLI behavior, guard, verify, memory schema, AGENTS.md mechanics, project.yaml
-scope rules, runtime, or compiled snapshots.
-
-- `.team-ai` is a Git-ignored local link to the project state managed by
-  `../team-ai/projects/replica-mvp`; never stage or commit it.
-- Active project is defined in `.team-ai/project.yaml`.
-- Raw materials and meeting notes live under `.team-ai/sources/`.
-- Approved durable memories live under `.team-ai/memory/`.
-- Product code belongs under `src/`; tests belong under `tests/`.
-- Before finalizing implementation changes, run `team-ai guard`.
+Before finalizing any changes, run `git diff --check` and review
+`git status --short` and any staged file list for credentials, local databases,
+and generated outputs that should remain untracked.

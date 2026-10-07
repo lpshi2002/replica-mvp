@@ -12,7 +12,7 @@ from typing import Any
 
 from .agent_harness import (
     HARNESS_SCHEMA, IMPLEMENTATION_RESULT_SCHEMA, REGISTRY_NAME,
-    _builder_context, _claim_record, _public_research, _read_registry,
+    _builder_context, _claim_record, freeze_web_claim, _public_research, _read_registry,
     _replace_registry, _validate_bound_artifact, _validate_implementation_bundle,
     _write_new_json,
 )
@@ -43,11 +43,14 @@ def prepare_single_harness(source: Path, run_dir: Path, *, orchestrator_id: str,
         sealed.parent.mkdir(parents=True)
         _write_new_json(sealed, payload)
         _write_new_json(public / "claim.json", _public_research(payload))
-        context = _builder_context(cid, payload, model_runtime)
+        web_demo, research_gaps = freeze_web_claim(payload, cid, source.parent, run_dir)
+        context = _builder_context(cid, payload, model_runtime, web_demo["plan_path"] if web_demo else None)
         context["schema_version"] = "replica-implementation-context/v1"
         _write_new_json(public / "implementation-context.json", context)
         claims.append({
-            "claim_id": cid, "namespace": namespace, "status": "PENDING",
+            "claim_id": cid, "namespace": namespace, "status": "RESEARCH_INCOMPLETE" if research_gaps else "PENDING",
+            **({"web_demo": web_demo} if web_demo else {}),
+            **({"research_gaps": research_gaps} if research_gaps else {}),
             "execution_mode": "single", "claim_payload_path": f"{namespace}/claim.json",
             "sealed_claim_path": str(sealed.relative_to(run_dir)), "sealed_claim_sha256": digest(sealed),
             "implementation_context_path": f"{namespace}/implementation-context.json",
@@ -65,11 +68,15 @@ def prepare_single_harness(source: Path, run_dir: Path, *, orchestrator_id: str,
         "require_final_bundle_evaluation": True,
         "company": canonical.get("company"), "company_claims": canonical.get("company_claims", []),
         "research_source": {"path": str(source.resolve()), "sha256": hashlib.sha256(raw).hexdigest()},
+        **({"research_agent_sessions": canonical["research_agent_sessions"]}
+           if canonical.get("research_agent_sessions") else {}),
     }
     path = run_dir / REGISTRY_NAME
     _write_new_json(path, registry)
     for claim in claims:
-        registry = prepare_bundle_evaluation(path, claim["claim_id"])
+        # Web-app claims are evaluated by their frozen public demo plan, not a sealed JSON suite.
+        if "web_demo" not in claim and "research_gaps" not in claim:
+            registry = prepare_bundle_evaluation(path, claim["claim_id"])
     if not claims:
         from .agent_harness import finish_agent_harness
         return finish_agent_harness(path)
@@ -118,6 +125,18 @@ def bind_single_implementation(registry_path: Path, claim_id: str, *, agent_id: 
                    or not c["command"].strip() or type(c.get("exit_code")) is not int
                    or c["exit_code"] != 0 for c in report["checks"])):
         raise ValueError("a successful development check receipt is required")
+    # The implementer's own append-only record of what each development attempt changed and found.
+    log_path = workspace / "development-log.jsonl"
+    development_log = None
+    if log_path.exists():
+        try:
+            entries = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        except ValueError:
+            raise ValueError("development-log.jsonl must hold one JSON object per line") from None
+        if not all(isinstance(entry, dict) for entry in entries):
+            raise ValueError("development-log.jsonl must hold one JSON object per line")
+        development_log = {"path": log_path.relative_to(root).as_posix(), "sha256": digest(log_path),
+                           "entries": len(entries)}
     resources = unknown_resources()
     budget = payload["execution_policy"]["budget"]
     stop = budget_stop(budget, claim["started_at"], [resources])
@@ -133,13 +152,16 @@ def bind_single_implementation(registry_path: Path, claim_id: str, *, agent_id: 
         "development_receipt": {"path": report_path.relative_to(root).as_posix(), "sha256": digest(report_path)},
         "attempts": [{"correction_number": 0, "decision": "success", "candidate_path": relative,
                       "candidate_sha256": digest(manifest_path), "resources": resources}],
-        "measurement_note": "One submission recorded; internal coding iterations and agent token usage are not measured.",
+        "measurement_note": ("Token usage is read from the implementer's session log at harness finish; "
+                             "development-log.jsonl holds the implementer's own attempt record."),
+        "development_log": development_log,
     }
     state_path = workspace / "execution-state.json"
     _write_new_json(state_path, state)
     binding = {"candidate_path": relative, "candidate_sha256": digest(manifest_path),
                "execution_state_sha256": digest(state_path)}
     claim["execution_result"] = binding.copy()
+    claim["development_log"] = development_log
     claim["implementation_result"] = {
         "schema_version": IMPLEMENTATION_RESULT_SCHEMA, "status": "IMPLEMENTATION_READY", **binding,
         **{k: manifest[k] for k in ("scenario_id", "implementation_type", "dependency_level", "entrypoint",
@@ -157,6 +179,11 @@ def retry_single_implementation(registry_path: Path, claim_id: str) -> dict[str,
         raise ValueError("single retry requires a failed or interrupted evaluation")
     root = registry_path.parent.resolve()
     validate_single_implementation(root, claim)
+    if claim["status"] == "RESULT_FAILED":
+        from .agent_harness import _validate_final_result
+        from .web_evaluation import write_retry_feedback
+        _validate_final_result(root, claim)
+        write_retry_feedback(root, claim, root / claim["implementer"]["artifact_namespace"])
     _validate_history(root, claim)
     attempts = claim.get("bundle_submissions", [])
     if not attempts or len(attempts) >= MAX_SUBMISSIONS:

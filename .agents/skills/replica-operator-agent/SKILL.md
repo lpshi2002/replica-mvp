@@ -157,6 +157,14 @@ fields. Preserve it in the implementation instructions. For generated prose, tes
 required facts and invariants on repeats; exact calculations and permissions still
 must be exact. The execution-state success criteria remain authoritative.
 
+When the selected scenario has a `demo_plan` (`builder-context.json` then has
+`interface.kind: web_app`), the Replica is a web app that a person and the final
+AI browser tester use through the same screens. Plan the pages, the HTTP
+entrypoint with its port argument, saved-data files, and the manifest `runtime`
+field `{"transport": "web_app", "port_argument": ..., "ready_path": ...}`, and make
+the demo plan's cases (steps, uploads, expected results) part of the success
+criteria the Builder checks through the screens.
+
 Give the Builder a complete execution plan. Identify the selected scenario,
 implementation type, exact method, files, pinned dependencies and sources,
 license constraints, required environment-variable names, ordered commands,

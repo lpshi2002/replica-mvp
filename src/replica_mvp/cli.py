@@ -34,13 +34,14 @@ from .agent_harness import (
 from .agent_protocol import validate_agent_protocol_message_from_path
 from .builder import run_built_replica
 from .bundle_evaluation import evaluate_agent_bundle, prepare_bundle_evaluation, retry_agent_bundle
-from .bundle_runtime import native_model_judge, run_json_command
+from .bundle_runtime import native_model_judge, run_json_command, web_app_session
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .experience import experience_input_once, experience_once, is_bundle_run
 from .intake import receive_second_pass
 from .project import build_project, evaluate_project, finalize_first_pass, init_project, write_report
 from .second_pass import MODEL_RUNTIMES
 from .single_agent import prepare_single_harness, start_single_implementation, bind_single_implementation
+from .web_demo import run_web_demo
 
 
 def _command_arguments(value: str) -> list[str]:
@@ -433,7 +434,45 @@ def _parser() -> argparse.ArgumentParser:
         help="Allow the optional external grounded-model adapter.",
     )
 
+    serve_web = sub.add_parser("serve-web", help="Start a web-app Replica so a person can use it in a browser.")
+    serve_web.add_argument("manifest", type=Path, help="Implementation manifest.json declaring a web_app runtime.")
+    serve_web.add_argument("--state-dir", type=Path, help="Keep the app's working directory and saved data here.")
+    serve_web.add_argument("--port", type=int, help="Loopback port (default: a free port).")
+    serve_web.add_argument("--open", action="store_true", help="Open the app in the default browser.")
+
+    web_demo = sub.add_parser("web-demo", help="Run fixed cases through the web app with an AI browser tester.")
+    web_demo.add_argument("plan", type=Path, help="replica-web-demo-plan/v1 JSON.")
+    web_demo.add_argument("--output", type=Path, required=True, help="New directory for the saved demo result.")
+    web_demo.add_argument("--manifest", type=Path, help="Candidate manifest, for a plan frozen before implementation.")
+    web_demo.add_argument("--provider", choices=sorted(MODEL_RUNTIMES), default="claude")
+    web_demo.add_argument("--model", help="Model for the tester and judge (default: the CLI default).")
+
     return parser
+
+
+def _serve_web(manifest: Path, state_dir: Path | None, port: int | None, open_browser: bool) -> None:
+    import signal
+    import time
+    import webbrowser
+
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt
+
+    # `kill` (SIGTERM) stops the app the same way Ctrl-C does instead of leaving it running.
+    signal.signal(signal.SIGTERM, interrupt)
+    with contextlib.ExitStack() as stack:
+        if state_dir is None:
+            state_dir = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="replica-web-"))) / "state"
+            print(f"상태 디렉터리: {state_dir} (종료 시 삭제, 유지하려면 --state-dir)")
+        base_url, root = stack.enter_context(web_app_session(manifest.resolve(), 60, workspace=state_dir, port=port))
+        print(f"웹 앱 실행 중: {base_url}/  (작업 디렉터리 {root}, 종료는 Ctrl-C)", flush=True)
+        if open_browser:
+            webbrowser.open(base_url + "/")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("종료합니다.")
 
 
 def _evaluate_bundle_cli(registry_path: Path, claim_id: str, *, judge_command: list[str] | None = None,
@@ -744,6 +783,15 @@ def main(argv: list[str] | None = None) -> int:
                                 **state_options,
                             )
                         )
+        elif args.command == "serve-web":
+            _serve_web(args.manifest, args.state_dir, args.port, args.open)
+        elif args.command == "web-demo":
+            result = run_web_demo(args.plan, args.output, manifest_path=args.manifest,
+                                  provider=args.provider, model=args.model)
+            print(json.dumps({"output": str(args.output), "outcome": result["outcome"],
+                              "costs": result["costs"]["phases"],
+                              "cases": {c["case_id"]: c["execution_status"] for c in result["cases"]}},
+                             ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "finalize-pass-1":
             finalize_first_pass(args.path)
         else:

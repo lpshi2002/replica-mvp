@@ -229,6 +229,23 @@ the JSON fields declared by `output_artifacts`. Required state must persist for 
 workflow's declared session. Dependencies are installed in the execution environment;
 the final evaluator does not silently substitute or install a different technology.
 
+When `builder-context.json` has `interface.kind: web_app`, build a web app, not a
+JSON program. The public demo plan (`selected_scenario.demo_plan`, frozen with its
+upload files at `interface.demo_plan_path`, which you may also read) is what the
+final evaluation runs: an AI tester works through its cases in a browser, on
+the same screens a person uses. Every step and upload of those cases must be
+doable on the pages without typing JSON or internal IDs. The entrypoint starts an
+HTTP server on `127.0.0.1` at the port passed through the declared port argument,
+serves its first page at `/`, and keeps saved data in files under its working
+directory. Add `"runtime": {"transport": "web_app", "port_argument": "--<name>",
+"ready_path": "/<path>"}` to the manifest; the other manifest fields stay as above.
+The plan's expected results are public; build the behavior, not branches for its
+literal inputs. Check the app through its screens before reporting success, for
+example `replica-mvp serve-web <manifest> --state-dir <scratch>` with a browser,
+or the final evaluator itself: `replica-mvp web-demo <plan> --manifest <manifest>
+--output <scratch>`. Keep every scratch directory outside `implementation/`, and
+never leave runtime data inside it: undeclared files invalidate the bundle.
+
 Write `feedback-NNN.json` in the Builder namespace using this exact contract:
 
 ```json

@@ -32,6 +32,11 @@ code, training data, customer data, or internal systems.
 - During pass 2, act as the orchestrator: spawn one `replica-second-pass` worker
   per claim, and after all finish, attach their fragments to the claims and mark
   `pass_2_complete`.
+- Record every research worker you spawn in `research.json` as
+  `agent_sessions: [{role, agent_id, runtime, claim_id}]` (`claim_id` optional),
+  using the id the runtime returned: the Agent tool's agent id on Claude, the
+  thread id on Codex. `agent-harness-finish` reads those sessions' own logs for
+  research usage; a worker that is not recorded stays unmeasured.
 - Store source URLs, supporting excerpts, and findings rather than full page
   copies. `research.json` is authoritative. First-pass checkpoint files are
   resumable worker state, and second-pass fragments under
@@ -461,6 +466,13 @@ is `out_of_scope`, and there is no separate output-schema field because
 measures how much the build leans on others. Judge each per scenario and do not
 map one onto the other.
 
+Give the selected scenario a `demo_plan`: the cases an AI tester will run
+through the finished web app's screens, written from public sources before
+anything is built (field contract in `agents/replica-second-pass.md`).
+`agent-harness-init` freezes it with its upload files as
+`claims/<claim-id>/demo/plan.json`; a plan with an expected result lacking a
+basis, or with a missing upload file, makes the claim `RESEARCH_INCOMPLETE`.
+
 For a question-answer capability, also freeze a public `experience` object using
 the `replica-experience/v1` contract. Include a public or synthetic
 `runtime_input`, the question field, example questions, and an evidence-level
@@ -476,15 +488,31 @@ user-provided observation. Require a timezone-aware ISO 8601 capture timestamp.
 It must not change the frozen run evidence level or be described as
 independently verified unless separate evidence supports that claim.
 
-For non-question-answer capabilities, preserve the input and output contracts
-so the published run can be experienced through one generic JSON-input seam.
-Render object and array outputs as structured JSON, plain string outputs as
-text, and `text/html` outputs only to an explicit new preview file outside the
-published run. Never overwrite or automatically open an HTML result.
+The finished Replica is a web app. A person works through the customer workflow
+in a browser, and the AI tester drives the same screens; checks on its HTTP API,
+state, and files support that test but never replace it (see
+`../../context/project-direction.md`, section 5).
 
-After a successful build, stop the workflow at the published file bundle.
-Report the public run path and the generated implementation, result, assessment,
-and report files. Do not create or publish a browser UI as part of this workflow.
+A web-app Replica declares `runtime: {transport: web_app, ...}` in its
+manifest; `replica-mvp serve-web` starts it for a person, and `replica-mvp
+web-demo` runs a fixed `replica-web-demo-plan/v1` through the same screens with
+an AI browser tester and saves costs, actions, screenshots, and verdicts (see
+the README section on web-app Replicas). When the selected scenario has a
+`demo_plan`, the harness takes this route: implementers build a web app, no
+sealed suite is prepared, and `agent-bundle-evaluate` runs the frozen plan and
+binds its result. The input and output contracts and the JSON `tests` are still
+required research fields. A claim without `demo_plan` stays on the JSON bundle
+route (`stdio_json` or `http_json`) with its sealed tests. Treat that route, the
+`experience` object, and `replica-mvp experience` as interim development checks:
+report that the web-app experience was not produced or tested, and never present
+a JSON-only run as the finished deliverable. When
+showing interim output, render object and array outputs as structured JSON,
+plain string outputs as text, and `text/html` outputs only to an explicit new
+preview file outside the published run. Never overwrite or automatically open
+an HTML result.
+
+After a successful build, report the public run path and the generated
+implementation, result, assessment, and report files.
 
 For a question-answer capability, include a small robustness matrix in the
 frozen evaluation: Korean and English paraphrases when both are in scope, one
@@ -515,15 +543,45 @@ when supplementing.
 
 ## Execute
 
-The default route after pass 2 is the Agent harness below. Pass the completed
-`research.json` to `agent-harness-init`; research without an executable claim
-finishes at once. If `finalize-pass-1` completes with `claims: []` and
-`summary.next_step: no_ai_claims`, pass that finalized research directly to
-init: there is no pass-2 claim to research. Keep the candidate exclusions and
+The default route after pass 2 is one implementer per selected claim
+(`single-harness-init`); the Operator/Builder pair harness below runs only when
+the user asks for it. Pass the completed `research.json` to init; research
+without an executable claim finishes at once. If `finalize-pass-1` completes
+with `claims: []` and `summary.next_step: no_ai_claims`, pass that finalized
+research directly to init: there is no pass-2 claim to research.
+
+The orchestrator runs the single-implementer route as follows; the runtime
+section of `AGENTS.md` or `CLAUDE.md` gives the spawn primitive and model policy.
+
+1. `replica-mvp single-harness-init work/<company-slug>/research.json RUN_DIR
+   --orchestrator-id ROOT_ID --model-runtime claude|codex --model MODEL
+   --reasoning-effort EFFORT`. A web claim's demo plan is frozen here.
+2. For every `PENDING` claim, at the same time: spawn one implementer that
+   follows the `replica-implementer` instructions with the run directory and
+   claim ID, then record it with `single-agent-start REGISTRY CLAIM_ID
+   --agent-id ID --model MODEL --reasoning-effort EFFORT` using the init values.
+3. When an implementer reports, run `single-agent-bind REGISTRY CLAIM_ID
+   --agent-id ID`, then `agent-bundle-evaluate REGISTRY CLAIM_ID`. A web claim
+   runs each demo case once with values drawn now under its variation rule,
+   then the code review.
+4. If the claim is `RESULT_FAILED` or `EVALUATION_INTERRUPTED` and fewer than
+   three submissions exist, run `agent-bundle-retry REGISTRY CLAIM_ID`; it
+   writes `retry-feedback-NNN.json` (reasons only) into the implementer's
+   namespace. Resume the same implementer to read it, then repeat step 3. Do
+   not pass screenshots, page text, or run values to the implementer.
+5. When every claim is terminal, run `agent-harness-finish REGISTRY`.
+
+The orchestrator does not edit the implementation or judge it; the evaluation
+commands do that. Keep the candidate exclusions and
 their reasons; do not fabricate a claim or completion status.
 `agent-harness-finish` writes
 `final-results/company-claims.json`: every researched claim with its verdict,
-its not-executed reason or result path, and an outcome. Report from that file
+its not-executed reason or result path, and an outcome. A web-demo claim also
+carries its demo outcome (passed, failed, not evaluated), case statuses, report
+path, and per-call costs; every executed claim carries development usage read
+from its agents' session logs, and the file carries research and orchestration
+usage. Unmeasured sessions are `unknown`, never zero. A `not_evaluated` demo is
+not a failure. Report from that file
 so the denominator and every unexecuted reason stay visible. Stops before
 final evaluation also carry a `failure_reason`. Research, Agent creation or
 protocol, environment, access, and budget blocks are `experiment_blocked`,
@@ -543,7 +601,7 @@ first. **Stop as soon as one reproduces** — when its `normal`, `boundary`, and
 next scenario when any case fails, keeping the failed run's `results.jsonl` and
 `report.md`.
 
-For the Sol/Terra Agent harness, pass the authoritative completed
+For the Sol/Terra Agent harness, when the user asks for the pair route, pass the authoritative completed
 `work/<company-slug>/research.json` directly to `agent-harness-init`. Do not
 flatten away `workflow`, `findings.datasets_apis`, `findings.oss_papers_patents`,
 `findings.access_license`, `findings.impl_path`, or alternate replication

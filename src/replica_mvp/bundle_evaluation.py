@@ -57,7 +57,12 @@ def _validate_history(root: Path, claim: dict[str, Any]) -> None:
             if not directory.resolve().is_relative_to(root / "evaluator-vault"):
                 raise ValueError("development archive escaped the evaluator vault")
             _validate_artifacts(directory, archive["artifacts"], "prior development")
-        if attempt.get("result_sha256"):
+        if attempt.get("result_sha256") and attempt.get("mode") == "web_demo":
+            directory = root / attempt["public_run_dir"]
+            if (not directory.resolve().is_relative_to(root / "final-results" / "runs")
+                    or digest(directory / "demo-result.json") != attempt["result_sha256"]):
+                raise ValueError("prior web demo result hash mismatch")
+        elif attempt.get("result_sha256"):
             directory = root / attempt["public_run_dir"]
             if (not directory.resolve().is_relative_to(root / "final-results" / "runs")
                     or digest(directory / "replica-result.json") != attempt["result_sha256"]):
@@ -181,6 +186,8 @@ def prepare_bundle_evaluation(registry_path: Path, claim_id: str, supplement: Pa
     selected = _selected_scenario(payload)
     if selected is None:
         raise ValueError("bundle evaluation requires a research claim")
+    if "demo_plan" in selected:
+        raise ValueError("a web-app claim is evaluated by its frozen public demo plan, not a sealed bundle suite")
     previous = claim.get("bundle_evaluation")
     if previous and supplement is None:
         return registry
@@ -986,13 +993,23 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
     return registry
 
 
+_WEB_OPTIONS = {"provider", "model", "tester", "judge", "browser_factory", "instance_generator", "reviewer"}
+
+
 def evaluate_agent_bundle(registry_path: Path, claim_id: str, **kwargs) -> dict[str, Any]:
-    """Preserve an interrupted submission instead of leaving it silently RUNNING."""
+    """Preserve an interrupted submission instead of leaving it silently RUNNING.
+
+    A web-app claim runs its frozen public demo plan; other claims run the sealed JSON suite.
+    """
     from .agent_harness import _claim_record, _read_registry, _replace_registry
-    before = len(_claim_record(_read_registry(registry_path), claim_id).get("bundle_submissions", []))
+    claim = _claim_record(_read_registry(registry_path), claim_id)
+    before = len(claim.get("bundle_submissions", []))
     started = time.monotonic()
     try:
-        return _evaluate_agent_bundle(registry_path, claim_id, **kwargs)
+        if claim.get("web_demo"):
+            from .web_evaluation import evaluate_web_bundle
+            return evaluate_web_bundle(registry_path, claim_id, **{k: v for k, v in kwargs.items() if k in _WEB_OPTIONS})
+        return _evaluate_agent_bundle(registry_path, claim_id, **{k: v for k, v in kwargs.items() if k not in _WEB_OPTIONS})
     except BaseException:
         registry = _read_registry(registry_path)
         claim = _claim_record(registry, claim_id)
@@ -1037,14 +1054,20 @@ def retry_agent_bundle(registry_path: Path, claim_id: str) -> dict[str, Any]:
         _validate_implementation_result(root, claim)
         candidate_path = root / claim["implementation_result"]["candidate_path"]
     if claim["status"] == "RESULT_FAILED":
-        validate_bundle_result(root, claim)
+        from .agent_harness import _validate_final_result
+        from .web_evaluation import write_retry_feedback
+        _validate_final_result(root, claim)
+        write_retry_feedback(root, claim, root / claim["operator"]["artifact_namespace"])
+    _validate_history(root, claim)
     attempts = claim.get("bundle_submissions", [])
     if len(attempts) >= MAX_SUBMISSIONS:
-        raise ValueError("three sealed submissions are exhausted")
-    plan = _read_json(root / claim["bundle_evaluation"]["plan_path"])
-    limit = plan["budget"]["time_limit_seconds"]
-    if limit is not None and sum(a.get("elapsed_seconds", 0) for a in attempts) >= limit:
-        raise ValueError("the frozen evaluation time budget is exhausted")
+        raise ValueError("three web evaluation submissions are exhausted" if claim.get("web_demo")
+                         else "three sealed submissions are exhausted")
+    if "bundle_evaluation" in claim:
+        plan = _read_json(root / claim["bundle_evaluation"]["plan_path"])
+        limit = plan["budget"]["time_limit_seconds"]
+        if limit is not None and sum(a.get("elapsed_seconds", 0) for a in attempts) >= limit:
+            raise ValueError("the frozen evaluation time budget is exhausted")
     state_path = root / claim["operator"]["artifact_namespace"] / "execution-state.json"
     previous, state_hash = load_agent_execution_state_file(state_path, payload)
     if state_hash != claim["execution_result"]["execution_state_sha256"]:

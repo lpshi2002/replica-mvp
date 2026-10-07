@@ -181,6 +181,10 @@ pre-implementation isolation.
 
 `agent-candidate-finalize` runs the separate evaluator automatically. To resume
 an explicit `--bind-only` handoff, use `agent-bundle-evaluate REGISTRY CLAIM_ID`.
+For a claim with a frozen demo plan (`web_demo` in the registry) the same command
+runs that public plan through the web app's screens with an AI browser tester
+(`replica-mvp web-demo`, which needs the optional `playwright` dependency) and
+binds the saved demo result; judge options below apply only to the sealed route.
 For an already configured external evaluator, add `--judge-command JSON_ARGV
 --judge-identity NAME --judge-mode same_session|independent`. The command receives
 JSON on stdin and returns `{pass, reason}`; it must honor `timeout_seconds`.
