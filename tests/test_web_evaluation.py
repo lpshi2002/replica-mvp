@@ -12,7 +12,7 @@ from replica_mvp.agent_harness import (
     prepare_agent_harness, record_agent_continuity_round, start_agent_continuity,
 )
 from replica_mvp.bundle_evaluation import evaluate_agent_bundle, retry_agent_bundle
-from replica_mvp.session_usage import agent_usage
+from replica_mvp.session_usage import agent_usage, sessions_usage
 from replica_mvp.single_agent import bind_single_implementation, prepare_single_harness, start_single_implementation
 from replica_mvp.web_demo import freeze_demo_plan
 from tests.test_agent_continuity import _prepare_rich_ready_pair, _write_execution_state
@@ -241,6 +241,57 @@ class WebHarnessTest(unittest.TestCase):
         self.assertEqual(("failed", "승인하면 outbox에 기록된다"), (outbox["status"], outbox["description"]))
         self.assertNotIn("instance", feedback["cases"][0])
 
+    def test_excluded_customer_step_caps_a_passing_demo_at_partial(self):
+        research = _web_research()
+        research["claims"][0]["second_pass"]["replication_contract"][1]["step_coverage"][1] = {
+            "step_index": 2, "disposition": "excluded", "reason": "Approval is left to the caller."}
+        registry = _bind_web_app(self.root / "run", research)
+        evaluated = evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(APPROVE), judge=_passing_judge,
+                                          reviewer=_passing_review)
+        claim = evaluated["claims"][0]
+        self.assertEqual("partially_reproduced", claim["final_result"]["reproduction_status"])
+        self.assertEqual([{"claim_id": "claim-001", "step_index": 2}], claim["web_demo"]["scope"]["excluded_steps"])
+        report = (self.root / "run" / claim["final_result"]["public_run_dir"] / "report.md").read_text()
+        self.assertIn("부분 재현", report)
+
+    def test_retry_feedback_writes_reasons_with_the_plan_values(self):
+        fitted = APP.replace('if item["state"] == "approved":', 'if item["state"] == "approved" and item["text"] == "노트북 구매":')
+        registry = _bind_web_app(self.root / "run", _web_research(self._varied_plan()), app=fitted)
+        chair = [("fill", "요청 내용", "의자 구매"), ("click", "등록", None), ("click", "승인", None), ("done", None, None)]
+
+        def judge_quoting_the_page(prompt):
+            request = json.loads(prompt)
+            return {"verdicts": [{"id": e["id"], "status": "failed", "reason": "화면에 '의자 구매' 요약이 없다",
+                                  "evidence_event_ids": []} for e in request["expectations"]]}, None
+        evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(chair), judge=judge_quoting_the_page,
+                              reviewer=_passing_review, instance_generator=self._chair)
+        retry_agent_bundle(registry, "claim-001")
+        feedback = (self.root / "run" / "claims/claim-001/operator/retry-feedback-001.json").read_text()
+        self.assertNotIn("의자 구매", feedback)
+        reasons = {e["id"]: e["reason"] for e in json.loads(feedback)["cases"][0]["expectations"]}
+        self.assertIn("노트북 구매", reasons["outbox"])
+        self.assertIn("노트북 구매", reasons["summary"])
+
+    def test_instance_that_drops_steps_or_empties_a_check_is_rejected(self):
+        def shortened(prompt):
+            answer, call = self._chair(prompt)
+            return {**answer, "steps": ["done"]}, call
+
+        def emptied(prompt):
+            answer, call = self._chair(prompt)
+            return {**answer, "replacements": [{"from": "노트북 구매", "to": ""}]}, call
+        for generator, message in ((shortened, "number of workflow steps"), (emptied, "non-empty from")):
+            with self.subTest(message=message):
+                run = self.root / f"run-{message.split()[0]}"
+                registry = _bind_web_app(run, _web_research(self._varied_plan()))
+                evaluated = evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester([]),
+                                                  judge=_passing_judge, reviewer=_passing_review,
+                                                  instance_generator=generator)
+                claim = evaluated["claims"][0]
+                self.assertEqual("execution_blocked", claim["final_result"]["reproduction_status"])
+                result = json.loads((run / claim["final_result"]["public_run_dir"] / "demo-result.json").read_text())
+                self.assertIn(message, result["cases"][0]["stop_reason"])
+
     def test_failed_instance_generation_does_not_fall_back_to_the_example(self):
         def broken(prompt):
             raise RuntimeError("generator down")
@@ -385,6 +436,28 @@ class SessionUsageTest(unittest.TestCase):
         self.assertEqual(({"input_tokens": 25}, ["gpt-6-astra"]), (rollout["usage"], rollout["models"]))
         self.assertEqual(("unknown", None), (missing["status"], missing["usage"]))
         self.assertEqual("unknown", path_like["status"])
+
+    def test_parent_session_leaves_out_children_recorded_elsewhere_and_empty_logs_are_unknown(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            claude = root / "claude" / "projects" / "p"
+            (claude / "root" / "subagents").mkdir(parents=True)
+
+            def message(identifier, tokens):
+                return json.dumps({"type": "assistant", "message": {"id": identifier, "model": "claude-opus-5-5",
+                                   "usage": {"output_tokens": tokens}}})
+            (claude / "root.jsonl").write_text(message("r", 10))
+            (claude / "root" / "subagents" / "agent-impl.jsonl").write_text(message("i", 20))
+            (claude / "root" / "subagents" / "agent-helper.jsonl").write_text(message("h", 3))
+            (claude / "empty.jsonl").write_text(json.dumps({"type": "user", "message": {"content": "hi"}}))
+            with patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(root / "claude")}):
+                roles = sessions_usage([{"role": "orchestration", "agent_id": "root"}], "claude", frozenset({"impl"}))
+                child = agent_usage("impl", "claude")
+                empty = agent_usage("empty", "claude")
+        # The implementer's 20 tokens are reported under its own role, not again under orchestration.
+        self.assertEqual({"output_tokens": 13}, roles["orchestration"]["usage"])
+        self.assertEqual({"output_tokens": 20}, child["usage"])
+        self.assertEqual("unknown", empty["status"])
 
 
 if __name__ == "__main__":

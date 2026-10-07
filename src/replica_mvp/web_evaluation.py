@@ -37,8 +37,30 @@ def review_context(root: Path, claim: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _run_swaps(case: dict[str, Any]) -> list[tuple[str, str]]:
+    """This run's drawn values paired with the plan's example values, longest first."""
+    replacements = (case.get("instance") or {}).get("replacements") or []
+    pairs = [(r["to"], r["from"]) for r in replacements
+             if isinstance(r, dict) and isinstance(r.get("to"), str) and r["to"] and isinstance(r.get("from"), str)]
+    return sorted(pairs, key=lambda pair: len(pair[0]), reverse=True)
+
+
+def _in_plan_terms(text: Any, swaps: list[tuple[str, str]]) -> Any:
+    """Write a free-text reason with the plan's example values in place of this run's values."""
+    if not isinstance(text, str):
+        return text
+    for drawn, example in swaps:
+        text = text.replace(drawn, example)
+    return text
+
+
 def write_retry_feedback(root: Path, claim: dict[str, Any], directory: Path) -> Path | None:
-    """Give the implementer each expectation's status and reason; no screenshots, page text or run values."""
+    """Give the implementer each expectation's status and reason; no screenshots, page text or run values.
+
+    Reasons are free text from checks, the judge and the code review, so every value the run drew
+    is written back as the plan's example value. A drawn value the generator did not list as a
+    replacement cannot be recognized here.
+    """
     final = claim.get("final_result") or {}
     if final.get("schema_version") != WEB_RESULT_SCHEMA:
         return None
@@ -46,16 +68,24 @@ def write_retry_feedback(root: Path, claim: dict[str, Any], directory: Path) -> 
     plan = json.loads((root / final["public_run_dir"] / "demo-plan.json").read_text(encoding="utf-8"))
     # Describe expectations as the plan does; this run's drawn values are not part of the feedback.
     described = {(case["id"], item["id"]): item["description"] for case in plan["cases"] for item in case["expectations"]}
+    swaps = {case["case_id"]: _run_swaps(case) for case in result["cases"]}
+    all_swaps = sorted({pair for pairs in swaps.values() for pair in pairs}, key=lambda pair: len(pair[0]), reverse=True)
+    review = result["code_review"]
     feedback = {
         "schema_version": "replica-web-retry-feedback/v1", "attempt": len(claim["bundle_submissions"]),
         "reproduction_status": final["reproduction_status"],
         "cases": [{
             "case_id": case["case_id"], "execution_status": case["execution_status"],
-            "stop_reason": case.get("stop_reason"),
+            "stop_reason": _in_plan_terms(case.get("stop_reason"), swaps[case["case_id"]]),
             "expectations": [{"id": item["id"], "description": described[(case["case_id"], item["id"])],
-                              "status": item["status"], "reason": item["reason"]} for item in case["expectations"]],
+                              "status": item["status"], "reason": _in_plan_terms(item["reason"], swaps[case["case_id"]])}
+                             for item in case["expectations"]],
         } for case in result["cases"]],
-        "code_review": {key: result["code_review"].get(key) for key in ("status", "reason", "findings")},
+        "code_review": {
+            "status": review.get("status"), "reason": _in_plan_terms(review.get("reason"), all_swaps),
+            "findings": [{key: _in_plan_terms(value, all_swaps) for key, value in finding.items()}
+                         if isinstance(finding, dict) else finding for finding in review.get("findings") or []],
+        },
         "uncovered_steps": result["scope"].get("uncovered_steps"),
         "note": ("Fix the behavior these reasons describe for any input in scope. The next evaluation draws new "
                  "values for every case with a variation rule and reviews the code again; branches for earlier values will not pass."),

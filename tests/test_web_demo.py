@@ -311,6 +311,17 @@ class WebDemoTest(unittest.TestCase):
             self.assertEqual(case["execution_status"], "gave_up")
             self.assertEqual(case["expectations"][0]["status"], "not_evaluated")
 
+    def test_unfinished_case_does_not_fail_missing_results(self):
+        with TemporaryDirectory() as directory:
+            result = self._run(Path(directory), _scripted_tester([
+                ("fill", "요청 내용", "노트북 구매"), ("click", "등록", None), ("give_up", None, None),
+            ]))
+            case = result["cases"][0]
+            self.assertEqual("gave_up", case["execution_status"])
+            outbox = next(e for e in case["expectations"] if e["id"] == "outbox")
+            self.assertEqual("not_evaluated", outbox["status"])
+            self.assertIn("before this result could be checked", outbox["reason"])
+
     def test_judge_failure_is_not_evaluated_not_failed(self):
         def broken_judge(prompt):
             raise RuntimeError("judge unavailable")

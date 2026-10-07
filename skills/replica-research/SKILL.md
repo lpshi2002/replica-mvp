@@ -561,7 +561,12 @@ section of `AGENTS.md` or `CLAUDE.md` gives the spawn primitive and model policy
    claim ID, then record it with `single-agent-start REGISTRY CLAIM_ID
    --agent-id ID --model MODEL --reasoning-effort EFFORT` using the init values.
 3. When an implementer reports, run `single-agent-bind REGISTRY CLAIM_ID
-   --agent-id ID`, then `agent-bundle-evaluate REGISTRY CLAIM_ID`. A web claim
+   --agent-id ID`, then `agent-bundle-evaluate REGISTRY CLAIM_ID`. If bind
+   rejects the bundle or its development check, resume the same implementer
+   with the error. When the implementer cannot be created or still cannot
+   submit a bindable bundle, run `single-agent-fail REGISTRY CLAIM_ID
+   --category development_checks_failed|implementer_unavailable --reason TEXT`;
+   a spent budget at bind ends the claim on its own. A web claim
    runs each demo case once with values drawn now under its variation rule,
    then the code review.
 4. If the claim is `RESULT_FAILED` or `EVALUATION_INTERRUPTED` and fewer than
@@ -569,7 +574,9 @@ section of `AGENTS.md` or `CLAUDE.md` gives the spawn primitive and model policy
    writes `retry-feedback-NNN.json` (reasons only) into the implementer's
    namespace. Resume the same implementer to read it, then repeat step 3. Do
    not pass screenshots, page text, or run values to the implementer.
-5. When every claim is terminal, run `agent-harness-finish REGISTRY`.
+5. When every claim is terminal, run `agent-harness-finish REGISTRY`. An
+   evaluation still interrupted after the last submission is terminal and is
+   reported as `experiment_blocked`.
 
 The orchestrator does not edit the implementation or judge it; the evaluation
 commands do that. Keep the candidate exclusions and

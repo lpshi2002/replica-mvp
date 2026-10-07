@@ -534,8 +534,10 @@ work/acme/
 - `execution_blocked`: 입력, 권한, 자격 증명 또는 실행 환경이 준비되지 않음
 
 웹 시연 경로에서는 모든 사례가 끝나고 모든 기대 결과가 충족됐으며 코드 검사도
-통과해야 `reproduced`입니다. 사례를 모두 통과해도 코드 검사를 통과하지 못하면,
-또는 일부 기대 결과만 충족하면 `partially_reproduced`입니다. 실행된 사례가 없으면
+통과하고, 계약이 조사된 고객 단계를 하나도 빼지 않았어야 `reproduced`입니다. 사례를
+모두 통과해도 코드 검사를 통과하지 못하거나 제외 단계가 있으면, 또는 일부 기대 결과만
+충족하면 `partially_reproduced`입니다. 사례가 중간에 끝나 결과를 확인할 수 없는 검사는
+실패가 아니라 미평가입니다. 실행된 사례가 없으면
 `execution_blocked`, 충족 없이 불충족이 있으면 `not_reproduced_on_this_path`,
 판정할 수 있는 결과가 없으면 `not_evaluated`입니다.
 
@@ -587,6 +589,7 @@ python -m pip install -e '.[web]' && python -m playwright install chromium   # w
 | `replica-mvp single-harness-init RESEARCH RUN_DIR --orchestrator-id ID --model-runtime claude\|codex --model MODEL --reasoning-effort EFFORT` | claim별 공개 계약을 펼치고 시연 계획을 고정, `agent-harness.json` 생성 |
 | `replica-mvp single-agent-start REGISTRY CLAIM_ID --agent-id ID --model MODEL --reasoning-effort EFFORT` | 실제로 만든 구현 에이전트를 claim에 기록. init과 다른 모델·추론 강도는 거부 |
 | `replica-mvp single-agent-bind REGISTRY CLAIM_ID --agent-id ID` | 구현자가 점검한 제출물을 최종 평가용으로 고정 |
+| `replica-mvp single-agent-fail REGISTRY CLAIM_ID --category CATEGORY --reason TEXT` | 구현자를 만들지 못했거나 고정 가능한 제출물을 끝내 내지 못한 claim을 사유와 함께 종료 |
 | `replica-mvp agent-bundle-evaluate REGISTRY CLAIM_ID` | 웹 claim은 `web-demo`, 그 밖에는 봉인 시험으로 최종 평가 |
 | `replica-mvp agent-bundle-retry REGISTRY CLAIM_ID` | 실패한 claim의 재제출 준비와 `retry-feedback-NNN.json` 작성 |
 | `replica-mvp agent-harness-finish REGISTRY` | `final-results/company-claims.json` 작성 |

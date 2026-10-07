@@ -445,11 +445,11 @@ def _evaluate_case(case: dict[str, Any], record: dict[str, Any], judge: Callable
         check = expectation.get("check")
         if not check:
             continue
-        if not completed and check["type"] in {"file_absent", "files_unchanged"}:
-            # Absence after an unfinished case shows nothing about the app's behavior.
-            status, reason = "not_evaluated", f"case ended as {record['execution_status']}; an absence check cannot show the result"
-        else:
-            status, reason = _deterministic(check, root, before, after, page_text)
+        status, reason = _deterministic(check, root, before, after, page_text)
+        if not completed and (status == "failed" or check["type"] in {"file_absent", "files_unchanged"}):
+            # An unfinished case may not have reached the result: a missing output or an untouched
+            # file then shows nothing about the app, so only a present result counts.
+            status, reason = "not_evaluated", f"case ended as {record['execution_status']} before this result could be checked"
         deterministic.append({"id": expectation["id"], "status": status, "reason": reason})
     semantic = [e for e in case["expectations"] if not e.get("check")]
     verdicts: dict[str, dict[str, Any]] = {}
@@ -522,8 +522,10 @@ def web_reproduction_status(result: dict[str, Any]) -> str:
     executed = [c for c in result["cases"] if c["execution_status"] not in {"blocked", "not_run"}]
     if outcome["passed"] and not outcome["failed"] and not outcome["not_evaluated"] \
             and outcome["cases_completed"] == outcome["cases_total"]:
-        # Passing the cases is not enough when the code was not shown to implement the workflow itself.
-        return "reproduced" if result["code_review"]["status"] == "passed" else "partially_reproduced"
+        # Passing the cases is not enough when the code was not shown to implement the workflow itself,
+        # or when the contract left researched customer steps out of the build.
+        whole = not (result.get("scope") or {}).get("excluded_steps")
+        return "reproduced" if whole and result["code_review"]["status"] == "passed" else "partially_reproduced"
     if outcome["passed"]:
         return "partially_reproduced"
     if not executed:
@@ -554,7 +556,14 @@ def _instance_case(case: dict[str, Any], answer: dict[str, Any]) -> dict[str, An
     if (not _nonempty(answer.get("goal")) or not answer.get("steps") or not all(_nonempty(x) for x in answer["steps"])
             or not all(_nonempty(x) for x in answer.get("facts", []))):
         raise ValueError("instance generator returned an incomplete case")
-    swaps = [(r["from"], r["to"]) for r in answer.get("replacements", []) if _nonempty(r.get("from"))]
+    if len(answer["steps"]) != len(case["steps"]):
+        raise ValueError("instance generator changed the number of workflow steps")
+    replacements = answer.get("replacements", [])
+    if not isinstance(replacements, list) or not all(
+            isinstance(r, dict) and _nonempty(r.get("from")) and _nonempty(r.get("to")) and r["from"] != r["to"]
+            for r in replacements):
+        raise ValueError("every replacement needs a non-empty from and a different non-empty to")
+    swaps = [(r["from"], r["to"]) for r in replacements]
 
     def swap(text: str) -> str:
         for old, new in swaps:
@@ -780,9 +789,12 @@ def render_demo_report(result: dict[str, Any]) -> str:
     uncovered = result["scope"].get("uncovered_steps")
     if uncovered is not None:
         lines += ["## 검증 범위", "",
-                  ("사례가 조사된 워크플로의 구현 대상 단계를 모두 지났다." if not uncovered else
-                   "어느 사례도 지나지 않은 단계(미검증 범위): " + ", ".join(
+                  ("계획된 사례가 조사된 워크플로의 구현 대상 단계를 모두 지난다." if not uncovered else
+                   "어느 사례도 지나지 않는 단계(미검증 범위): " + ", ".join(
                        f"{s['step_index']}번" + (f" {s['step']}" if s.get("step") else "") for s in uncovered)), ""]
+    if result["scope"].get("excluded_steps"):
+        lines += ["계약이 조사된 고객 단계 일부를 구현 범위에서 뺐으므로, 사례를 모두 통과해도 부분 재현이다: " + ", ".join(
+            f"{s['claim_id']} {s['step_index']}번" for s in result["scope"]["excluded_steps"]), ""]
     for case in result["cases"]:
         lines += [f"## 사례 `{case['case_id']}` — {_EXECUTION_KO.get(case['execution_status'], case['execution_status'])}", ""]
         instance = case.get("instance") or {}

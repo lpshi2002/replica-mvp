@@ -1010,13 +1010,14 @@ def evaluate_agent_bundle(registry_path: Path, claim_id: str, **kwargs) -> dict[
             from .web_evaluation import evaluate_web_bundle
             return evaluate_web_bundle(registry_path, claim_id, **{k: v for k, v in kwargs.items() if k in _WEB_OPTIONS})
         return _evaluate_agent_bundle(registry_path, claim_id, **{k: v for k, v in kwargs.items() if k not in _WEB_OPTIONS})
-    except BaseException:
+    except BaseException as error:
         registry = _read_registry(registry_path)
         claim = _claim_record(registry, claim_id)
         attempts = claim.get("bundle_submissions", [])
         if len(attempts) > before and attempts[-1]["status"] == "RUNNING":
             attempts[-1].update({"status": "INTERRUPTED", "finished_at": utc_now(),
-                                 "elapsed_seconds": time.monotonic() - started})
+                                 "elapsed_seconds": time.monotonic() - started,
+                                 "error": f"{type(error).__name__}: {str(error)[:300]}"})
             claim["status"] = "EVALUATION_INTERRUPTED"
             _replace_registry(registry_path, registry)
         raise

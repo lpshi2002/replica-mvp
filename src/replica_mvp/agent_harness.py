@@ -1004,7 +1004,10 @@ def _demo_scope(payload: dict[str, Any], selected: dict[str, Any], plan: dict[st
              for entry in selected.get("step_coverage", []) if entry.get("claim_id", payload["claim_id"]) == payload["claim_id"]]
     return {"steps": steps,
             "uncovered_steps": [step for step in steps
-                                if step["disposition"] != "excluded" and step["step_index"] not in covered]}
+                                if step["disposition"] != "excluded" and step["step_index"] not in covered],
+            # Every excluded step of the selected scenario, merged claims included, caps the verdict at partial.
+            "excluded_steps": [{"claim_id": entry.get("claim_id", payload["claim_id"]), "step_index": entry["step_index"]}
+                               for entry in selected.get("step_coverage", []) if entry.get("disposition") == "excluded"]}
 
 
 def is_web_claim(payload: dict[str, Any]) -> bool:
@@ -1610,6 +1613,8 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
         "IMPLEMENTATION_READY",
         "RESULT_SUCCESS",
         "RESULT_FAILED",
+        # An interrupted final evaluation ends the claim when it is not retried, e.g. after the last submission.
+        "EVALUATION_INTERRUPTED",
         "EXECUTION_FAILED",
         "EXECUTION_ABORTED",
         "CREATION_FAILED",
@@ -1628,7 +1633,7 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
         and (
             status.startswith("EXECUTION_")
             or status.startswith("RESULT_")
-            or status == "IMPLEMENTATION_READY"
+            or status in {"IMPLEMENTATION_READY", "EVALUATION_INTERRUPTED"}
         )
         for status in statuses
     ):
@@ -1683,7 +1688,7 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
 # Failures that say the experiment did not run to a verdict, not how good the Replica was.
 _BLOCKED_FAILURES = {
     "research_gap", "environment_error", "access_missing", "data_missing",
-    "budget_exhausted",
+    "budget_exhausted", "budget_unverifiable", "implementer_unavailable",
 }
 
 
@@ -1706,6 +1711,18 @@ def _pre_evaluation_outcome(root: Path, claim: dict[str, Any]) -> dict[str, Any]
         category = stop = "agent_protocol_interrupted"
         reason = (claim.get("continuity", {}).get("failure") or {}).get("reason") or "The Agent protocol was interrupted."
         outcome = "experiment_blocked"
+    elif status == "EVALUATION_INTERRUPTED":
+        category = stop = "evaluation_interrupted"
+        attempt = (claim.get("bundle_submissions") or [{}])[-1]
+        reason = ("Final evaluation was interrupted and not retried"
+                  + (f": {attempt['error']}" if attempt.get("error") else "."))
+        outcome = "experiment_blocked"
+    elif status == "EXECUTION_FAILED" and claim.get("failure") and not claim.get("execution_result"):
+        # A single implementer that ended without a bound implementation.
+        category = stop = claim["failure"]["category"]
+        reason = claim["failure"]["reason"]
+        if category in _BLOCKED_FAILURES:
+            outcome = "experiment_blocked"
     elif status == "EXECUTION_FAILED":
         execution = claim.get("execution_result") or {}
         state_stop = None
@@ -1732,6 +1749,15 @@ def _pre_evaluation_outcome(root: Path, claim: dict[str, Any]) -> dict[str, Any]
     if status in {"RESEARCH_INCOMPLETE", "CREATION_FAILED"}:
         result["not_executed_reason"] = reason
     return result
+
+
+def _recorded_agent_ids(registry: dict[str, Any]) -> frozenset[str]:
+    """Agents whose usage is reported under their own role, so a parent session must not count them again."""
+    ids = {claim[role].get("agent_id") for claim in registry["claims"]
+           for role in ("operator", "builder", "implementer") if isinstance(claim.get(role), dict)}
+    ids |= {session.get("agent_id") for session in registry.get("research_agent_sessions") or []
+            if isinstance(session, dict)}
+    return frozenset(i for i in ids if isinstance(i, str) and i)
 
 
 def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
@@ -1807,7 +1833,7 @@ def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
                            {"status": "not_recorded", "basis": "research.json recorded no agent_sessions."}),
         "orchestration_usage": sessions_usage(
             [{"role": "replica_agent", "agent_id": (registry.get("replica_agent") or registry.get("orchestrator") or {}).get("agent_id")}],
-            runtime),
+            runtime, _recorded_agent_ids(registry)),
         "cost_note": (
             "Usage comes from per-call receipts (web demo) and the runtimes' session logs (research, development, "
             "orchestration); a session whose log was not found is unknown, not zero. Usage keys are summed per key. "

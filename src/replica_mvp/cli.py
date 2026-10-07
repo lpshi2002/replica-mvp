@@ -40,7 +40,10 @@ from .experience import experience_input_once, experience_once, is_bundle_run
 from .intake import receive_second_pass
 from .project import build_project, evaluate_project, finalize_first_pass, init_project, write_report
 from .second_pass import MODEL_RUNTIMES
-from .single_agent import prepare_single_harness, start_single_implementation, bind_single_implementation
+from .single_agent import (
+    SINGLE_FAILURE_CATEGORIES, bind_single_implementation, fail_single_implementation, prepare_single_harness,
+    start_single_implementation,
+)
 from .web_demo import run_web_demo
 
 
@@ -138,6 +141,12 @@ def _parser() -> argparse.ArgumentParser:
     single_bind.add_argument("registry", type=Path)
     single_bind.add_argument("claim_id")
     single_bind.add_argument("--agent-id", required=True)
+    single_fail = sub.add_parser("single-agent-fail",
+                                 help="End a claim whose implementer could not be created or could not submit.")
+    single_fail.add_argument("registry", type=Path)
+    single_fail.add_argument("claim_id")
+    single_fail.add_argument("--category", choices=SINGLE_FAILURE_CATEGORIES, required=True)
+    single_fail.add_argument("--reason", required=True)
 
     harness_start = sub.add_parser(
         "agent-harness-start",
@@ -543,6 +552,10 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "single-agent-bind":
             result = bind_single_implementation(args.registry, args.claim_id, agent_id=args.agent_id)
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "single-agent-fail":
+            result = fail_single_implementation(args.registry, args.claim_id, category=args.category,
+                                                reason=args.reason)
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-harness-start":
             result = start_agent_claim(args.registry, args.claim_id)

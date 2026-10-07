@@ -243,8 +243,9 @@ built:
   (for example 1800, 30, 120).
 - `cases`, each with `id`; `goal`; `steps`, what a user does on screen in order,
   in plain language; `facts`, the only facts the tester may type; optional
-  `uploads: [{path}]`, public or synthetic files saved under the research
-  directory with paths relative to it; and `targeted_barrier: {claim, source}`
+  `uploads: [{path}]`, public or synthetic files saved under
+  `work/<company>/second_pass/<slug>-uploads/` and written as paths relative to
+  the research directory (`second_pass/<slug>-uploads/<file>`); and `targeted_barrier: {claim, source}`
   for a barrier the company publicly claims, or `null` with a `barrier_note`
   saying why none applies. Never invent a barrier.
 - `covers_steps`: the 1-based steps of the confirmed workflow the case passes
@@ -326,7 +327,8 @@ acceptance criteria.
 
 ## Output — write exactly one fragment
 
-Write `work/<company>/second_pass/<slug>.json` and nothing else.
+Write `work/<company>/second_pass/<slug>.json` and nothing else, except the
+demo plan's upload files under `work/<company>/second_pass/<slug>-uploads/`.
 
 ```json
 {
@@ -419,7 +421,7 @@ Do not return the research body — it lives in the fragment.
 
 ## Never
 
-1. Modify `research.json`. Write only your fragment.
+1. Modify `research.json`. Write only your fragment and its upload files.
 2. Spawn another worker.
 3. Read or research a claim other than your own.
 4. Return the research body instead of the status line.

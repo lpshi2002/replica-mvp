@@ -3,12 +3,13 @@ import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from replica_mvp.agent_harness import finish_agent_harness
 from replica_mvp.bundle_evaluation import digest, evaluate_agent_bundle, retry_agent_bundle
 from replica_mvp.single_agent import (
     prepare_single_harness, start_single_implementation, bind_single_implementation,
-    validate_single_implementation,
+    fail_single_implementation, validate_single_implementation,
 )
 from tests.test_bundle_evaluation import SOURCE, _fixture_judge
 from tests.test_second_pass import _research
@@ -109,6 +110,52 @@ class SingleAgentTest(unittest.TestCase):
             registry = json.loads(path.read_text())
             registry["claims"][0]["started_at"] = "2000-01-01T00:00:00+00:00"
             path.write_text(json.dumps(registry))
-            with self.assertRaisesRegex(ValueError, "budget_exhausted"):
-                bind_single_implementation(path, "claim-001", agent_id="real-child")
+            # A spent budget ends the claim with its reason instead of leaving it open forever.
+            closed = bind_single_implementation(path, "claim-001", agent_id="real-child")
+            claim = closed["claims"][0]
+            self.assertEqual(("EXECUTION_FAILED", "budget_exhausted"), (claim["status"], claim["failure"]["category"]))
             self.assertFalse((path.parent / "claims/claim-001/implementer/execution-state.json").exists())
+            company = json.loads((path.parent / finish_agent_harness(path)["company_result"]["path"]).read_text())
+            entry = next(c for c in company["claims"] if c["claim_id"] == "claim-001")
+            self.assertEqual(("experiment_blocked", "budget_exhausted"), (entry["outcome"], entry["failure_category"]))
+
+    def test_claim_without_a_bindable_bundle_can_be_closed(self):
+        with TemporaryDirectory() as tmp:
+            path, _ = prepare(Path(tmp))
+            start_single_implementation(path, "claim-001", agent_id="real-child", model="gpt-6-astra",
+                                        reasoning_effort="low")
+            with self.assertRaisesRegex(ValueError, "failure category"):
+                fail_single_implementation(path, "claim-001", category="gave_up", reason="x")
+            closed = fail_single_implementation(path, "claim-001", category="development_checks_failed",
+                                                reason="The browser self-check still fails after two resumes.")
+            self.assertEqual("EXECUTION_FAILED", closed["claims"][0]["status"])
+            with self.assertRaisesRegex(ValueError, "pending or implementing"):
+                fail_single_implementation(path, "claim-001", category="development_checks_failed", reason="again")
+            company = json.loads((path.parent / finish_agent_harness(path)["company_result"]["path"]).read_text())
+            entry = next(c for c in company["claims"] if c["claim_id"] == "claim-001")
+            self.assertEqual(("experiment_incomplete", "development_checks_failed"),
+                             (entry["outcome"], entry["failure_category"]))
+            self.assertIn("still fails", entry["failure_reason"])
+
+    def test_evaluation_interrupted_after_the_last_submission_is_terminal(self):
+        with TemporaryDirectory() as tmp:
+            path, _ = prepare(Path(tmp))
+            implement(path)
+            bind_single_implementation(path, "claim-001", agent_id="real-child")
+
+            def crash(registry_path, claim_id, **_):
+                registry = json.loads(registry_path.read_text())
+                registry["claims"][0].setdefault("bundle_submissions", []).append(
+                    {"attempt": 1, "candidate_sha256": "x", "status": "RUNNING"})
+                registry_path.write_text(json.dumps(registry))
+                raise RuntimeError("judge process vanished")
+            with patch("replica_mvp.bundle_evaluation._evaluate_agent_bundle", crash), \
+                    self.assertRaisesRegex(RuntimeError, "vanished"):
+                evaluate_agent_bundle(path, "claim-001")
+            claim = json.loads(path.read_text())["claims"][0]
+            self.assertEqual("EVALUATION_INTERRUPTED", claim["status"])
+            self.assertIn("vanished", claim["bundle_submissions"][-1]["error"])
+            company = json.loads((path.parent / finish_agent_harness(path)["company_result"]["path"]).read_text())
+            entry = next(c for c in company["claims"] if c["claim_id"] == "claim-001")
+            self.assertEqual(("experiment_blocked", "evaluation_interrupted"), (entry["outcome"], entry["failure_category"]))
+            self.assertIn("vanished", entry["failure_reason"])

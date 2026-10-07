@@ -76,8 +76,12 @@ def _codex_rollout(path: Path) -> dict[str, Any]:
     return {"usage": usage, "messages": None, "models": sorted(models), "first_at": first, "last_at": last}
 
 
-def agent_usage(agent_id: Any, runtime: str) -> dict[str, Any]:
-    """Usage of one recorded agent session, including a Claude session's own subagents."""
+def agent_usage(agent_id: Any, runtime: str, exclude: frozenset[str] = frozenset()) -> dict[str, Any]:
+    """Usage of one recorded agent session, including a Claude session's own subagents.
+
+    Subagents named in `exclude` are recorded under another role and are left out here,
+    so a parent session and its recorded children are not counted twice.
+    """
     unknown = {"agent_id": agent_id, "runtime": runtime, "status": "unknown", "usage": None, "models": [],
                "sources": [], "basis": "No session log was found for this agent id."}
     if not isinstance(agent_id, str) or not agent_id or "/" in agent_id or agent_id in {".", ".."}:
@@ -88,8 +92,10 @@ def agent_usage(agent_id: Any, runtime: str) -> dict[str, Any]:
         sessions = sorted(root.glob(f"*/{name}.jsonl")) + sorted(root.glob(f"*/*/subagents/agent-{name}.jsonl"))
         if not sessions:
             return unknown
+        excluded = {f"agent-{name.removeprefix('agent-')}" for name in exclude}
         files = sessions + sorted(p for s in sessions if s.parent.parent == root
-                                  for p in (s.parent / s.stem / "subagents").glob("agent-*.jsonl"))
+                                  for p in (s.parent / s.stem / "subagents").glob("agent-*.jsonl")
+                                  if p.stem not in excluded)
         usage: dict[str, int] = {}
         models, messages, first, last = set(), 0, None, None
         for path in files:
@@ -99,10 +105,14 @@ def agent_usage(agent_id: Any, runtime: str) -> dict[str, Any]:
             messages += part["messages"]
             first = min(filter(None, (first, part["first_at"])), default=None)
             last = max(filter(None, (last, part["last_at"])), default=None)
+        if not messages:
+            return {**unknown, "sources": [str(p) for p in files],
+                    "basis": "The Claude Code session log has no assistant message with usage."}
         return {"agent_id": agent_id, "runtime": runtime, "status": "measured", "usage": usage,
                 "models": sorted(models), "messages": messages, "first_at": first, "last_at": last,
                 "sources": [str(p) for p in files],
-                "basis": "Claude Code session transcript usage, counted once per message id; includes the session's subagents."}
+                "basis": ("Claude Code session transcript usage, counted once per message id; includes the session's "
+                          "subagents except those recorded under another role.")}
     if runtime == "codex":
         files = sorted(_codex_root().glob(f"**/rollout-*{agent_id}.jsonl"))
         if not files:
@@ -115,11 +125,12 @@ def agent_usage(agent_id: Any, runtime: str) -> dict[str, Any]:
     return {**unknown, "basis": f"Unsupported agent runtime {runtime!r}."}
 
 
-def sessions_usage(sessions: list[dict[str, Any]], runtime: str) -> dict[str, Any]:
+def sessions_usage(sessions: list[dict[str, Any]], runtime: str,
+                   exclude: frozenset[str] = frozenset()) -> dict[str, Any]:
     """Per-role usage for recorded sessions; a role total sums only measured sessions."""
     roles: dict[str, dict[str, Any]] = {}
     for session in sessions:
-        measured = agent_usage(session.get("agent_id"), session.get("runtime") or runtime)
+        measured = agent_usage(session.get("agent_id"), session.get("runtime") or runtime, exclude)
         role = roles.setdefault(session["role"], {"sessions": [], "usage": {}, "measured": 0, "unknown": 0, "models": []})
         role["sessions"].append(measured)
         if measured["status"] == "measured":

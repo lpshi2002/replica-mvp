@@ -141,7 +141,9 @@ def bind_single_implementation(registry_path: Path, claim_id: str, *, agent_id: 
     budget = payload["execution_policy"]["budget"]
     stop = budget_stop(budget, claim["started_at"], [resources])
     if stop:
-        raise ValueError(f"single implementation budget stop: {stop}")
+        # A spent budget ends the claim with a recorded reason instead of leaving it open.
+        return _close_unbuilt(registry_path, registry, claim, stop,
+                              f"The implementation budget stopped the claim before submission ({stop}).")
     relative = manifest_path.relative_to(root).as_posix()
     state = {
         "schema_version": "replica-single-execution/v1", "status": "SUCCESS", "claim_id": claim_id,
@@ -170,6 +172,32 @@ def bind_single_implementation(registry_path: Path, claim_id: str, *, agent_id: 
     claim.update(status="IMPLEMENTATION_READY", finished_at=utc_now())
     _replace_registry(registry_path, registry)
     return registry
+
+
+# Why a claim ended without a bound implementation; budget and availability stops block the experiment.
+SINGLE_FAILURE_CATEGORIES = ("development_checks_failed", "implementer_unavailable",
+                             "budget_exhausted", "budget_unverifiable")
+
+
+def _close_unbuilt(registry_path: Path, registry: dict[str, Any], claim: dict[str, Any],
+                   category: str, reason: str) -> dict[str, Any]:
+    claim["failure"] = {"category": category, "reason": reason, "recorded_at": utc_now()}
+    claim.update(status="EXECUTION_FAILED", finished_at=utc_now())
+    _replace_registry(registry_path, registry)
+    return registry
+
+
+def fail_single_implementation(registry_path: Path, claim_id: str, *, category: str, reason: str) -> dict[str, Any]:
+    """End a claim whose implementer could not be created or could not submit a bindable bundle."""
+    registry = _read_registry(registry_path)
+    claim = _claim_record(registry, claim_id)
+    if registry.get("execution_mode") != "single" or claim["status"] not in {"PENDING", "IMPLEMENTING"}:
+        raise ValueError("only a pending or implementing single claim can end without an implementation")
+    if category not in SINGLE_FAILURE_CATEGORIES:
+        raise ValueError(f"failure category must be one of {', '.join(SINGLE_FAILURE_CATEGORIES)}")
+    if not isinstance(reason, str) or not reason.strip():
+        raise ValueError("a failure reason is required")
+    return _close_unbuilt(registry_path, registry, claim, category, reason.strip())
 
 
 def retry_single_implementation(registry_path: Path, claim_id: str) -> dict[str, Any]:
