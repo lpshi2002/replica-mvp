@@ -213,7 +213,7 @@ AI가 복제품을 직접 써 보는 방식을 사용한다. 기업 입력 이�
 | `AGENTS.md`, `CLAUDE.md` 기업 평가 기본 경로 | 기업 평가 기본 경로에 sealed bundle evaluation | 기본 경로에서 봉인하지 않음 | 2026-10-06 수정. `demo_plan`이 있으면 공개 웹 시연, 없으면 봉인 평가. 2차 조사 Skill이 `demo_plan` 작성을 지시하므로 새 조사는 웹 경로로 간다 |
 | `README.md` "무엇을 검증하는가", "현재 한계" | 프로젝트 질문이 "UI를 제외한 고객 워크플로 전체", UI는 평가하지 않음 | 웹 앱 화면에서 사람과 AI가 같은 작업 수행 | 2026-10-06 수정. "원제품과 같은 UI는 복제하지 않음"은 방향과 일치해 유지 |
 | `.claude/skills/replica-builder-agent/SKILL.md:224`, `.agents/skills/replica-builder-agent/SKILL.md:232` 등 구현 Skill | `stdio_json`/`http_json` 런타임과 `input_contract`·`output_contract` 복사 | 웹 앱 실행 계약 | 2026-10-06 웹 앱 구현·브라우저 자체 점검 지시를 추가(`.claude`·`.agents` 두 벌과 단일 구현자). `demo_plan`이 없는 claim에는 JSON 런타임 지시가 그대로 적용된다 |
-| `.claude/skills/build-replica-operator/SKILL.md:114`, `.agents/skills/build-replica-operator/SKILL.md:114` | 단독 JSON 경로에서 브라우저 UI 금지 | 웹 앱 | 미수정. 단독 JSON 경로를 유지할지 함께 정한다 |
+| `.claude/skills/build-replica-operator/SKILL.md:114`, `.agents/skills/build-replica-operator/SKILL.md:114` | 단독 JSON 경로에서 브라우저 UI 금지 | 웹 앱 | 2026-10-08 사용자 결정으로 단독 JSON 경로를 유지하지 않고 Skill 두 벌을 제거했다. `prepare-operator`·`finalize-operator` 명령은 쌍 경로의 `operator.json` 후보 평가가 내부에서 쓰므로 남겼다 |
 | `context/tasks/cost-demo-outcomes-241765ec/conclusion.md` | 첫 검증을 엔진 JSON 다중 턴으로 권고 | 웹 앱 화면에서 AI 시험 | 웹 앱 결정 전의 토론 기록. 서두에 엔진 시험은 중간 단계라는 정정만 있다 |
 
 ## 8. 다음 작업의 우선순위와 완료 기준

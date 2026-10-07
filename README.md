@@ -14,12 +14,12 @@
 보고서 생성을 맡습니다.
 
 > [!IMPORTANT]
-> 구현 경로는 세 가지가 공존합니다.
+> 구현 경로는 두 가지가 공존합니다. 단독 JSON 전용 부품 경로(`build-replica-operator`)는
+> 복제품을 웹 앱으로 제공하기로 하면서 2026-10-08 제거했습니다.
 >
 > | 경로 | 입력 | 상태 |
 > |---|---|---|
 > | Sol/Terra(Operator/Builder) Agent 번들 | 완료된 회사 `research.json` | 회사 조사의 기본 구현 경로. 봉인 평가 후 `final-results/`에 공개 |
-> | JSON 전용 부품(`build-replica-operator`) | 단일 `replica-second-pass-result/v1` | 파일·네트워크가 필요 없는 순수 JSON 변환만 |
 > | `init/build/evaluate` 프롬프트 하네스 | 수동 작성한 run 디렉터리 | 호환용으로만 유지 |
 >
 > 어느 경로의 테스트 통과도 원제품 전체를 복제했다는 의미는 아닙니다.
@@ -598,8 +598,9 @@ python -m pip install -e .
 
 ### Second-pass 결과에서 전체 Replica 실행
 
-Codex는 저장소 자동 발견 위치인
-`.agents/skills/build-replica-operator/SKILL.md`를 통해 이 흐름을 실행합니다.
+단독 Second-pass JSON을 구현하는 Skill 경로는 제거했습니다. 아래 명령은
+Agent 하네스의 `agent-candidate-finalize`가 `operator.json` 후보를 평가할 때
+내부 단계로 사용합니다.
 `WORKSPACE`와 `EVALUATION_VAULT`는 서로 포함되지 않는 별도 경로여야 합니다.
 입력 Second-pass JSON도 공개 `WORKSPACE` 밖에 있어야 하며, 내부 경로를 주면
 준비 단계가 거부합니다. 최초 구현 1회와 수정 최대 2회, 총 3회까지 시도합니다.
@@ -930,9 +931,6 @@ Judge는 다음 형식의 JSON만 반환해야 합니다.
 ```text
 .
 ├── AGENTS.md                  # 요청을 Replica Skill로 보내는 라우팅 규칙
-├── .agents/skills/build-replica-operator/
-│   ├── SKILL.md               # Codex 구현·수정·비공개 평가 흐름
-│   └── agents/openai.yaml     # 자동 발견 Skill UI 메타데이터
 ├── README.md                  # 프로젝트 설명
 ├── pyproject.toml             # Python 패키지와 CLI 엔트리포인트
 ├── skills/replica-research/

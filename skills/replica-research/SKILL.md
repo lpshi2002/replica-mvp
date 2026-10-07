@@ -619,18 +619,6 @@ select a different scenario. A bundle that actually declares the selected CLI
 promotes an `oss_only` dependency level to `commercial_api` while preserving the
 selected scenario ID, input, and output.
 
-When producing the standalone `replica-second-pass-result/v1` build input for
-a question-answer capability, copy the frozen public `experience` object to
-its top-level `experience` field. A successful finalize publishes it as
-`experience.json`; the user then runs `replica-mvp experience RUN_DIR` without
-supplying another profile.
-
-When a ready `replica-second-pass-result/v1` artifact is already available,
-use `.agents/skills/build-replica-operator/SKILL.md` for implementation. That
-repo-discoverable Skill makes Codex write a new operator from the prepared
-contract, keeps frozen tests in a separate evaluator vault, and does not select
-a registered operator or call a model API from this repository.
-
 Run the frozen cases without changing their expectations after seeing output.
 Keep candidate generation and judging as separate passes. If the same session
 judges the output, label the Judge as same-session rather than independent.

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Build Replica Operator"
-  short_description: "Build a new Replica with private fixed tests"
-  default_prompt: "Use $build-replica-operator to turn a ready Second-pass Result JSON into a tested, published Replica."

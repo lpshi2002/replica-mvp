@@ -63,16 +63,11 @@ Agent may send identity-only activation controls and receive control metadata,
 but neither may relay, summarize, rewrite, or persist the semantic instruction
 or feedback.
 
-The JSON-only implementation Skill is a separate route for a standalone
-`replica-second-pass-result/v1` JSON, not for company research:
-
-- Use `.agents/skills/build-replica-operator/SKILL.md` when that JSON alone can
-  satisfy the full contract without file, network, or external-tool access.
-
-Only that JSON-only route excludes contracts that require PDF, XLSX, CSV,
-image, OCR, retrieval, network, or external API access. The bundle route runs
-such contracts, so never narrow a company claim to a JSON demo because it
-needs files or search.
+The standalone JSON-only route (`build-replica-operator`) was removed on
+2026-10-08 because a Replica is delivered as a web app. A standalone
+`replica-second-pass-result/v1` JSON is not an implementation entry point;
+run company research so the claim reaches the harness routes above. Never
+narrow a company claim to a JSON demo because it needs files or search.
 
 These are direct implementation routes even if the Skills are not shown in the
 current session's selector. Never route this work through a registered
