@@ -244,7 +244,9 @@ class WebHarnessTest(unittest.TestCase):
     def test_excluded_customer_step_caps_a_passing_demo_at_partial(self):
         research = _web_research()
         research["claims"][0]["second_pass"]["replication_contract"][1]["step_coverage"][1] = {
-            "step_index": 2, "disposition": "excluded", "reason": "Approval is left to the caller."}
+            "step_index": 2, "disposition": "excluded", "reason": "Approval is left to the caller.",
+            "alternatives": [{"candidate": "an approve button in the web app", "reason": "Fixture: scope reduction."}],
+            "needs": "An approval screen."}
         registry = _bind_web_app(self.root / "run", research)
         evaluated = evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(APPROVE), judge=_passing_judge,
                                           reviewer=_passing_review)
@@ -253,6 +255,47 @@ class WebHarnessTest(unittest.TestCase):
         self.assertEqual([{"claim_id": "claim-001", "step_index": 2}], claim["web_demo"]["scope"]["excluded_steps"])
         report = (self.root / "run" / claim["final_result"]["public_run_dir"] / "report.md").read_text()
         self.assertIn("부분 재현", report)
+
+    def test_excluded_part_of_a_step_also_caps_the_demo_at_partial(self):
+        research = _web_research()
+        research["claims"][0]["second_pass"]["replication_contract"][1]["step_coverage"][0]["excluded_parts"] = [{
+            "part": "voice input", "reason": "No speech route was chosen.",
+            "alternatives": [{"candidate": "openai-whisper", "reason": "Fixture."}], "needs": "A speech-to-text model."}]
+        registry = _bind_web_app(self.root / "run", research)
+        evaluated = evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(APPROVE), judge=_passing_judge,
+                                          reviewer=_passing_review)
+        claim = evaluated["claims"][0]
+        self.assertEqual("partially_reproduced", claim["final_result"]["reproduction_status"])
+        self.assertEqual([{"claim_id": "claim-001", "step_index": 1, "part": "voice input"}],
+                         claim["web_demo"]["scope"]["excluded_steps"])
+
+    def test_company_result_shows_the_plan_and_observation_for_each_step(self):
+        research = _web_research()
+        coverage = research["claims"][0]["second_pass"]["replication_contract"][1]["step_coverage"]
+        coverage[0].update(component={"description": "keyword retrieval over the creator's notes", "origin": "inferred"},
+                           route="rank_bm25 in the web app")
+        coverage[1].update(excluded_parts=[{"part": "voice replies", "reason": "No speech route was chosen.",
+                                            "alternatives": [{"candidate": "an open-source TTS model", "reason": "Fixture."}],
+                                            "needs": "A text-to-speech model and a consented voice sample."}])
+        registry = _bind_web_app(self.root / "run", research)
+        evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(APPROVE), judge=_passing_judge,
+                              reviewer=_passing_review)
+        finished = finish_agent_harness(registry)
+        company = json.loads((self.root / "run" / finished["company_result"]["path"]).read_text())
+        architecture = company["claims"][0]["architecture"]
+        first, second = architecture["steps"]
+        self.assertEqual(("implemented", "inferred", "rank_bm25 in the web app"),
+                         (first["plan"]["disposition"], first["plan"]["component"]["origin"], first["plan"]["route"]))
+        self.assertEqual([{"case_id": "approve", "execution_status": "completed", "passed": 2, "failed": 0,
+                           "not_evaluated": 0}], first["observation"]["cases"])
+        # No case is planned through step 2, so nothing is claimed about it.
+        self.assertEqual(([], "none: no demo case is planned through this step"),
+                         (second["observation"]["cases"], second["observation"]["evidence"]))
+        self.assertEqual("partially_reproduced", architecture["observation"]["reproduction_status"])
+        report = (self.root / "run" / finished["company_result"]["architecture_path"]).read_text()
+        self.assertIn("rank_bm25 in the web app", report)
+        self.assertIn("voice replies: No speech route was chosen. → 필요: A text-to-speech model", report)
+        self.assertIn("approve completed (충족 2, 불충족 0, 미평가 0)", report)
 
     def test_retry_feedback_writes_reasons_with_the_plan_values(self):
         fitted = APP.replace('if item["state"] == "approved":', 'if item["state"] == "approved" and item["text"] == "노트북 구매":')

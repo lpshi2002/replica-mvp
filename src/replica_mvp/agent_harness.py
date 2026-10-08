@@ -1005,9 +1005,13 @@ def _demo_scope(payload: dict[str, Any], selected: dict[str, Any], plan: dict[st
     return {"steps": steps,
             "uncovered_steps": [step for step in steps
                                 if step["disposition"] != "excluded" and step["step_index"] not in covered],
-            # Every excluded step of the selected scenario, merged claims included, caps the verdict at partial.
-            "excluded_steps": [{"claim_id": entry.get("claim_id", payload["claim_id"]), "step_index": entry["step_index"]}
-                               for entry in selected.get("step_coverage", []) if entry.get("disposition") == "excluded"]}
+            # Every excluded step or excluded part of a step in the selected scenario, merged claims included,
+            # caps the verdict at partial.
+            "excluded_steps": [
+                {"claim_id": entry.get("claim_id", payload["claim_id"]), "step_index": entry["step_index"],
+                 **({"part": part["part"]} if part else {})}
+                for entry in selected.get("step_coverage", [])
+                for part in ([None] if entry.get("disposition") == "excluded" else entry.get("excluded_parts", []))]}
 
 
 def is_web_claim(payload: dict[str, Any]) -> bool:
@@ -1677,9 +1681,13 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
         results_path.parent.mkdir(exist_ok=True)
         results_path.unlink(missing_ok=True)
         _write_new_json(results_path, company_results)
+        architecture_path = root / PUBLIC_RESULTS_ROOT / "architecture.md"
+        architecture_path.unlink(missing_ok=True)
+        architecture_path.write_text(render_architecture(company_results), encoding="utf-8")
         registry["company_result"] = {
             "path": _relative_path(root, results_path),
             "sha256": _sha256(results_path),
+            "architecture_path": _relative_path(root, architecture_path),
         }
     _replace_registry(registry_path, registry)
     return registry
@@ -1751,6 +1759,116 @@ def _pre_evaluation_outcome(root: Path, claim: dict[str, Any]) -> dict[str, Any]
     return result
 
 
+_PLAN_KEYS = ("disposition", "component", "route", "reason", "excluded_parts", "alternatives", "needs")
+
+
+def _claim_architecture(root: Path, claim: dict[str, Any], demo: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The researched workflow step by step: what research planned for it, and what the demo observed.
+
+    The plan comes from the frozen scenario's step_coverage. Observations are case-level: a step lists
+    the demo cases planned to pass through it and how those cases ended. No case result is turned into
+    a per-step pass or fail, because the demo does not record which step an expectation checks.
+    """
+    payload = json.loads((root / claim["claim_payload_path"]).read_text(encoding="utf-8"))
+    selected = _selected_scenario(payload)
+    if selected is None:
+        return None
+    own = (payload["second_pass"].get("workflow") or {}).get("steps") or \
+        ((payload.get("first_pass") or {}).get("workflow") or {}).get("steps") or []
+    texts = {(payload["claim_id"], i): s.get("step") for i, s in enumerate(own, 1) if isinstance(s, dict)}
+    for absorbed in payload.get("absorbed_claims", []):
+        steps = ((absorbed.get("first_pass") or {}).get("workflow") or {}).get("steps") or []
+        texts |= {(absorbed["claim_id"], i): s.get("step") for i, s in enumerate(steps, 1) if isinstance(s, dict)}
+    planned: dict[int, list[str]] = {}
+    if claim.get("web_demo"):
+        plan = json.loads((root / claim["web_demo"]["plan_path"]).read_text(encoding="utf-8"))
+        for case in plan["cases"]:
+            for index in case["covers_steps"]:
+                planned.setdefault(index, []).append(case["id"])
+    cases = {case["case_id"]: case for case in (demo or {}).get("cases", [])}
+
+    def case_result(case_id: str) -> dict[str, Any]:
+        case = cases.get(case_id)
+        if case is None:
+            return {"case_id": case_id, "execution_status": "not_run"}
+        statuses = [item["status"] for item in case["expectations"]]
+        return {"case_id": case_id, "execution_status": case["execution_status"],
+                **{name: statuses.count(name) for name in ("passed", "failed", "not_evaluated")}}
+    steps = []
+    for entry in selected.get("step_coverage", []):
+        owner = entry.get("claim_id", payload["claim_id"])
+        index = entry["step_index"]
+        case_ids = planned.get(index, []) if owner == payload["claim_id"] else []
+        steps.append({
+            "claim_id": owner, "step_index": index, "step": texts.get((owner, index)),
+            "plan": {key: deepcopy(entry[key]) for key in _PLAN_KEYS if key in entry},
+            "observation": {
+                "cases": [case_result(case_id) for case_id in case_ids] if demo is not None else [],
+                "evidence": ("case_level" if case_ids and demo is not None else
+                             "none: no demo case is planned through this step" if demo is not None else
+                             "none: no web demo result"),
+            },
+        })
+    final = claim.get("final_result") or {}
+    return {
+        "scenario_id": selected["id"],
+        "steps": steps,
+        "observation": {
+            "implementation_submitted": bool(claim.get("implementation_result") or final),
+            "code_review": final.get("code_review"),
+            "reproduction_status": final.get("reproduction_status"),
+        },
+        "note": ("plan is what pass-2 research froze before implementation; observation is what the final "
+                 "evaluation recorded. A planned route is never counted as a measured success."),
+    }
+
+
+_DISPOSITION_KO = {"implemented": "직접 구현", "external_dependency": "외부 서비스 사용", "excluded": "제외",
+                   "unconfirmed": "미확인"}
+_ORIGIN_KO = {"company_stated": "기업 공개", "inferred": "추론"}
+
+
+def render_architecture(company: dict[str, Any]) -> str:
+    """A readable plan-versus-observation table per executed claim."""
+    def cell(text: Any) -> str:
+        return str(text).replace("|", "\\|").replace("\n", " ") if text else "-"
+    lines = ["# 워크플로 설계도와 실측", "",
+             "단계마다 **계획**(구현 전 2차 조사가 고정한 처리 방식)과 **관측**(최종 평가 기록)을 나눠 적는다. "
+             "계획상 경로는 실측 성공으로 세지 않는다. 관측은 사례 단위이며, 사례 결과를 단계별 통과·실패로 바꾸지 않는다.", ""]
+    for claim in company["claims"]:
+        architecture = claim.get("architecture")
+        if architecture is None:
+            continue
+        observed = architecture["observation"]
+        lines += [f"## `{claim['claim_id']}` — 시나리오 `{architecture['scenario_id']}`", "",
+                  f"- 구현 제출: {'예' if observed['implementation_submitted'] else '아니오'} / "
+                  f"코드 검사: {observed['code_review'] or '-'} / 재현 판정: {observed['reproduction_status'] or '-'}", "",
+                  "| 단계 | 계획 | 구성요소(출처) | 우리 경로 | 빠진 것과 하려면 필요한 것 | 관측(계획된 사례) |",
+                  "|---|---|---|---|---|---|"]
+        for step in architecture["steps"]:
+            plan = step["plan"]
+            component = plan.get("component") or {}
+            left_out = []
+            if plan.get("disposition") == "excluded":
+                left_out.append(f"단계 전체: {plan.get('reason')} → 필요: {plan.get('needs')}")
+            for part in plan.get("excluded_parts", []):
+                left_out.append(f"{part['part']}: {part['reason']} → 필요: {part['needs']}")
+            cases = step["observation"]["cases"]
+            observed_text = ("; ".join(f"{c['case_id']} {c['execution_status']}"
+                                      + (f" (충족 {c['passed']}, 불충족 {c['failed']}, 미평가 {c['not_evaluated']})"
+                                         if "passed" in c else "") for c in cases)
+                             or step["observation"]["evidence"])
+            lines.append("| " + " | ".join(cell(x) for x in (
+                f"{step['claim_id']} {step['step_index']}. {step['step'] or ''}",
+                _DISPOSITION_KO.get(plan.get("disposition"), plan.get("disposition")),
+                f"{component.get('description')} ({_ORIGIN_KO.get(component.get('origin'), '미기록')})" if component else "미기록",
+                plan.get("route") or ("-" if plan.get("disposition") == "excluded" else "미기록"),
+                "<br>".join(left_out),
+                observed_text)) + " |")
+        lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 def _recorded_agent_ids(registry: dict[str, Any]) -> frozenset[str]:
     """Agents whose usage is reported under their own role, so a parent session must not count them again."""
     ids = {claim[role].get("agent_id") for claim in registry["claims"]
@@ -1796,6 +1914,9 @@ def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
             }
         elif final.get("public_run_dir"):
             result = json.loads((root / final["public_run_dir"] / "replica-result.json").read_text(encoding="utf-8"))
+        architecture = _claim_architecture(root, claim, demo if web else None)
+        if architecture is not None:
+            entry["architecture"] = architecture
         if claim.get("development_log"):
             entry["development_log"] = claim["development_log"]
         entry["development_usage"] = sessions_usage(

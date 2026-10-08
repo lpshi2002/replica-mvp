@@ -794,7 +794,8 @@ def render_demo_report(result: dict[str, Any]) -> str:
                        f"{s['step_index']}번" + (f" {s['step']}" if s.get("step") else "") for s in uncovered)), ""]
     if result["scope"].get("excluded_steps"):
         lines += ["계약이 조사된 고객 단계 일부를 구현 범위에서 뺐으므로, 사례를 모두 통과해도 부분 재현이다: " + ", ".join(
-            f"{s['claim_id']} {s['step_index']}번" for s in result["scope"]["excluded_steps"]), ""]
+            f"{s['claim_id']} {s['step_index']}번" + (f"의 일부({s['part']})" if s.get("part") else "")
+            for s in result["scope"]["excluded_steps"]), ""]
     for case in result["cases"]:
         lines += [f"## 사례 `{case['case_id']}` — {_EXECUTION_KO.get(case['execution_status'], case['execution_status'])}", ""]
         instance = case.get("instance") or {}

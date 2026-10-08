@@ -31,6 +31,8 @@ FINDING_BUCKETS = (
 )
 FINDING_STATES = {"filled", "unknown", "not_applicable"}
 STEP_DISPOSITIONS = {"implemented", "external_dependency", "excluded", "unconfirmed"}
+# Where the estimated component of a step comes from: a public company statement, or our inference.
+COMPONENT_ORIGINS = {"company_stated", "inferred"}
 REQUIRED_SCENARIO_TEST_KINDS = {"normal", "boundary", "insufficient_information"}
 SECOND_PASS_FIELDS = {
     "schema_version",
@@ -436,6 +438,33 @@ def _confirmed_workflow(claim_id: str, owner: str, claim: dict[str, Any]) -> dic
     }
 
 
+def _left_out(claim_id: str, label: str, entry: dict[str, Any]) -> dict[str, Any]:
+    """A step or part left out of the build must say what was tried and what building it would take."""
+    alternatives = entry.get("alternatives")
+    if (not isinstance(alternatives, list) or not alternatives
+            or not all(isinstance(a, dict) and _is_nonempty_text(a.get("candidate")) and _is_nonempty_text(a.get("reason"))
+                       for a in alternatives)):
+        raise ResearchIncomplete(
+            claim_id,
+            f"{label} needs alternatives: each candidate route checked with the reason it was not used",
+        )
+    if not _is_nonempty_text(entry.get("needs")):
+        raise ResearchIncomplete(claim_id, f"{label} needs `needs`: what building it would take")
+    return {"alternatives": copy.deepcopy(alternatives), "needs": entry["needs"]}
+
+
+def _validate_component(claim_id: str, label: str, component: Any) -> None:
+    if component is None:
+        return
+    if (not isinstance(component, dict) or not _is_nonempty_text(component.get("description"))
+            or component.get("origin") not in COMPONENT_ORIGINS):
+        raise ResearchIncomplete(
+            claim_id, f"{label} component needs a description and an origin in {sorted(COMPONENT_ORIGINS)}",
+        )
+    if component["origin"] == "company_stated" and not _valid_sources(component.get("sources"), allow_empty=False):
+        raise ResearchIncomplete(claim_id, f"{label} component stated by the company needs sources with excerpts")
+
+
 def _step_coverage(
     claim_id: str,
     scenario: dict[str, Any],
@@ -449,7 +478,7 @@ def _step_coverage(
             f"scenario {scenario['id']} needs step_coverage for every researched workflow step",
         )
     seen: set[tuple[str, int]] = set()
-    excluded, external = [], []
+    excluded, external, excluded_parts = [], [], []
     for entry in coverage:
         if not isinstance(entry, dict):
             raise ResearchIncomplete(claim_id, "step_coverage entries must be objects")
@@ -474,11 +503,26 @@ def _step_coverage(
         step = steps[index - 1].get("step") if isinstance(steps[index - 1], dict) else None
         if disposition == "unconfirmed":
             raise ResearchIncomplete(claim_id, f"workflow step {owner}#{index} is unconfirmed: {step}")
+        _validate_component(claim_id, f"step {owner}#{index}", entry.get("component"))
         if disposition in {"excluded", "external_dependency"}:
             if not _is_nonempty_text(entry.get("reason")):
                 raise ResearchIncomplete(claim_id, f"{disposition} step {owner}#{index} needs a reason")
             record = {"claim_id": owner, "step_index": index, "step": step, "reason": entry["reason"]}
+            if disposition == "excluded":
+                record.update(_left_out(claim_id, f"excluded step {owner}#{index}", entry))
             (excluded if disposition == "excluded" else external).append(record)
+        parts = entry.get("excluded_parts", [])
+        if not isinstance(parts, list) or (parts and disposition == "excluded"):
+            raise ResearchIncomplete(
+                claim_id, f"step {owner}#{index} excluded_parts must be a list on a step that is not excluded",
+            )
+        for part in parts:
+            # A documented sub-function or input variant left out of a step the build otherwise performs.
+            if not isinstance(part, dict) or not _is_nonempty_text(part.get("part")) or not _is_nonempty_text(part.get("reason")):
+                raise ResearchIncomplete(claim_id, f"step {owner}#{index} excluded_parts need a part and a reason")
+            excluded_parts.append({"claim_id": owner, "step_index": index, "step": step, "part": part["part"],
+                                   "reason": part["reason"],
+                                   **_left_out(claim_id, f"excluded part of step {owner}#{index}", part)})
     missing = [
         f"{owner}#{index}"
         for owner, steps in workflows.items()
@@ -488,8 +532,9 @@ def _step_coverage(
     if missing:
         raise ResearchIncomplete(claim_id, f"workflow steps without step_coverage: {', '.join(missing)}")
     return {
-        "scope": "partial_workflow" if excluded else "whole_workflow",
+        "scope": "partial_workflow" if excluded or excluded_parts else "whole_workflow",
         "excluded_steps": excluded,
+        "excluded_parts": excluded_parts,
         "external_dependencies": external,
     }
 
@@ -676,7 +721,9 @@ def _research_agent_claims(
         _validate_findings(claim_id, second_pass)
         if not _valid_sources(selected.get("sources", []), allow_empty=True):
             raise ResearchIncomplete(claim_id, "scenario sources need a url and a non-empty excerpt")
-        _validate_scenario_tests(claim_id, selected)
+        if "demo_plan" not in selected:
+            # A web claim is evaluated by its demo plan; JSON tests belong to the JSON bundle route only.
+            _validate_scenario_tests(claim_id, selected)
         confirmed = [
             _confirmed_workflow(claim_id, owner, by_id[owner])
             for owner in (claim_id, *absorbed.get(claim_id, []))

@@ -453,10 +453,21 @@ caller, is `excluded` and makes the scenario a partial scope of the customer
 workflow. `unconfirmed` steps block implementation, and a workflow with no
 steps cannot be whole-workflow scope.
 
+Pass 2 researches and designs in one worker, in order: keep the whole workflow
+and its input and output variants, find routes step by step, choose and record,
+then write the contract and demo plan. Each `step_coverage` entry is also the
+step's line in the workflow design the final report shows: the estimated
+`component` and its origin (`company_stated` or `inferred`), our `route`, and
+any `excluded_parts` of a performed step. An excluded step or part must record
+the `alternatives` checked and what building it would `needs`; implementation
+refuses an exclusion without them. The local CLI's limits are not the app's
+limits, and an unavailable company vendor is not by itself a reason to exclude.
+
 Each scenario carries `id`, `self_sufficiency`, `boundaries` with
 `boundaries_origin` (`company` or `ours`), `input`, `output` including its
 structure and format, `acceptance_criteria`, `out_of_scope`, `evidence_level`,
-`sources`, and `tests` with at least `normal`, `boundary`, and
+`sources`, and — on the JSON bundle route, when the selected scenario has no
+`demo_plan` — `tests` with at least `normal`, `boundary`, and
 `insufficient-information`. Leave no placeholders. These names match what
 `replica-mvp init`, `build`, and `evaluate` actually read: the exclusions field
 is `out_of_scope`, and there is no separate output-schema field because
@@ -500,8 +511,9 @@ an AI browser tester and saves costs, actions, screenshots, and verdicts (see
 the README section on web-app Replicas). When the selected scenario has a
 `demo_plan`, the harness takes this route: implementers build a web app, no
 sealed suite is prepared, and `agent-bundle-evaluate` runs the frozen plan and
-binds its result. The input and output contracts and the JSON `tests` are still
-required research fields. A claim without `demo_plan` stays on the JSON bundle
+binds its result. The input and output contracts are still required research
+fields; JSON `tests` and `evaluation` are not, and a web claim omits them. A
+claim without `demo_plan` stays on the JSON bundle
 route (`stdio_json` or `http_json`) with its sealed tests. Treat that route, the
 `experience` object, and `replica-mvp experience` as interim development checks:
 report that the web-app experience was not produced or tested, and never present
@@ -515,7 +527,7 @@ After a successful build, report the public run path and the generated
 implementation, result, assessment, and report files.
 
 For a question-answer capability, include a small robustness matrix in the
-frozen evaluation: Korean and English paraphrases when both are in scope, one
+frozen evaluation (as `demo_plan` cases on the web route): Korean and English paraphrases when both are in scope, one
 representative typo, an unsupported personal-fact question, and an urgent
 request when the safety rules require escalation. Keep public experience
 examples distinct from every robustness case and expected output.
@@ -523,11 +535,12 @@ examples distinct from every robustness case and expected output.
 Pass 2 is complete when every pass-1 claim has a readiness decision and every
 ready claim contract is complete: all six findings closed, boundaries `stated`
 or `undisclosed`, every source with an excerpt, the selected scenario's
-`step_coverage` complete, and `normal`, `boundary`, and
-`insufficient-information` tests present. `agent-harness-init` checks these and
+`step_coverage` complete with alternatives for every exclusion, and either a
+`demo_plan` or `normal`, `boundary`, and `insufficient-information` tests
+present. `agent-harness-init` checks these and
 refuses the research as `RESEARCH_INCOMPLETE` otherwise.
 
-For the Sol/Terra bundle route, also prepare the executable evaluation data described
+For the JSON bundle route (a selected scenario without `demo_plan`), also prepare the executable evaluation data described
 in `../../docs/replica-bundle-execution.md`. Reuse existing findings and cases. Add
 only genuinely missing transport details, criterion/check mappings, materially new
 inputs, invariant/changed-fact relations, separate public examples, and input/output
@@ -588,7 +601,10 @@ carries its demo outcome (passed, failed, not evaluated), case statuses, report
 path, and per-call costs; every executed claim carries development usage read
 from its agents' session logs, and the file carries research and orchestration
 usage. Unmeasured sessions are `unknown`, never zero. A `not_evaluated` demo is
-not a failure. Report from that file
+not a failure. Each executed claim also carries `architecture`: per workflow
+step, the plan research froze and the case-level observations, rendered with
+every left-out step or part and what it would take in
+`final-results/architecture.md`. Report from that file
 so the denominator and every unexecuted reason stay visible. Stops before
 final evaluation also carry a `failure_reason`. Research, Agent creation or
 protocol, environment, access, and budget blocks are `experiment_blocked`,

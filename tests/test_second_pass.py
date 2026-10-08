@@ -213,9 +213,53 @@ class SecondPassParserTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "excluded step claim-001#1 needs a reason"):
             parse_second_pass(research)
         self._selected(research)["step_coverage"][0]["reason"] = "Retrieval is supplied by the caller."
+        # Leaving a step out needs the routes that were checked and what building it would take.
+        with self.assertRaisesRegex(ValueError, "excluded step claim-001#1 needs alternatives"):
+            parse_second_pass(research)
+        self._selected(research)["step_coverage"][0]["alternatives"] = [
+            {"candidate": "rank_bm25 over the policy corpus", "reason": "No public policy corpus was found."}]
+        with self.assertRaisesRegex(ValueError, "needs `needs`"):
+            parse_second_pass(research)
+        self._selected(research)["step_coverage"][0]["needs"] = "A licensed policy corpus."
         coverage = parse_second_pass(research)["claims"][0]["payload"]["workflow_coverage"]
         self.assertEqual("partial_workflow", coverage["scope"])
         self.assertEqual("retrieve passages", coverage["excluded_steps"][0]["step"])
+        self.assertEqual("A licensed policy corpus.", coverage["excluded_steps"][0]["needs"])
+
+    def test_excluded_part_of_an_implemented_step_makes_the_contract_partial(self):
+        research = _research()
+        self._selected(research)["step_coverage"][0]["excluded_parts"] = [
+            {"part": "audio and video sources", "reason": "No transcription route was chosen."}]
+        with self.assertRaisesRegex(ValueError, "excluded part of step claim-001#1 needs alternatives"):
+            parse_second_pass(research)
+        self._selected(research)["step_coverage"][0]["excluded_parts"][0].update(
+            alternatives=[{"candidate": "openai-whisper", "reason": "Not checked against the time budget."}],
+            needs="A local speech-to-text model and audio fixtures.")
+        coverage = parse_second_pass(research)["claims"][0]["payload"]["workflow_coverage"]
+        self.assertEqual("partial_workflow", coverage["scope"])
+        self.assertEqual(("audio and video sources", 1),
+                         (coverage["excluded_parts"][0]["part"], coverage["excluded_parts"][0]["step_index"]))
+
+    def test_step_component_records_where_it_comes_from(self):
+        research = _research()
+        entry = self._selected(research)["step_coverage"][0]
+        entry["component"] = {"description": "keyword retrieval", "origin": "guess"}
+        with self.assertRaisesRegex(ValueError, "component needs a description and an origin"):
+            parse_second_pass(research)
+        entry["component"] = {"description": "keyword retrieval", "origin": "company_stated"}
+        with self.assertRaisesRegex(ValueError, "stated by the company needs sources"):
+            parse_second_pass(research)
+        entry["component"]["origin"] = "inferred"
+        parse_second_pass(research)
+
+    def test_web_claim_does_not_need_json_tests(self):
+        research = _research()
+        selected = self._selected(research)
+        del selected["tests"]
+        with self.assertRaisesRegex(ValueError, "tests must be a list"):
+            parse_second_pass(research)
+        selected["demo_plan"] = {"title": "demo"}
+        self.assertEqual(1, len(parse_second_pass(research)["claims"]))
 
     def test_research_must_complete_both_passes_before_implementation(self):
         research = _research()
@@ -346,7 +390,9 @@ class SecondPassParserTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "workflow steps without step_coverage: claim-001#3"):
             parse_second_pass(research)
         self._selected(research)["step_coverage"].append(
-            {"step_index": 3, "disposition": "excluded", "reason": "Storage is left to the caller."}
+            {"step_index": 3, "disposition": "excluded", "reason": "Storage is left to the caller.",
+             "alternatives": [{"candidate": "SQLite", "reason": "The public scenario hands storage to the caller."}],
+             "needs": "A storage layer the caller can query."}
         )
         coverage = parse_second_pass(research)["claims"][0]["payload"]["workflow_coverage"]
         self.assertEqual("partial_workflow", coverage["scope"])

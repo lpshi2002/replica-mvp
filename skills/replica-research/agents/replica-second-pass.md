@@ -85,6 +85,23 @@ interview, and job terms. Do not recrawl unrelated company pages.
 
 ## What to do
 
+Research and design are one job here, done in this order. Do not write the
+contract or the demo plan before the earlier steps are recorded.
+
+1. **Keep the whole workflow.** Carry every step of the confirmed workflow and
+   its main input and output variants (file types, channels, voice or video
+   forms). Scope the contract against this workflow, not against the shorter
+   `testable_claim`.
+2. **Find routes step by step.** For each step, look for what could perform it:
+   OSS models and libraries, public APIs, synthetic fallbacks. Search each step
+   with capability terms (for example "open-source voice cloning", "talking-head
+   video generation"), not only the company's names.
+3. **Choose and record.** Pick a route per step, or leave a step or part of a
+   step out, recording what was checked and what building it would take
+   (section 6).
+4. **Write the contract and demo plan** from those decisions, then check that
+   every step and part you left out appears in `step_coverage`.
+
 ### 1. Establish boundaries by reopening your own sources
 
 Pass 1 does not record boundaries. You do, as an object with a state — not a
@@ -136,9 +153,17 @@ must absorb; the orchestrator sets `merged_into` and hands them to the parent.
 - When a text or supported-vision model is required, mark that step so the
   harness-selected `codex` or `claude` local CLI runtime can replace only the
   generative model. Do not switch the whole claim to an unrelated commercial
-  retrieval or storage scenario merely to obtain a model. Keep embeddings,
-  OCR, speech, audio, video, and other modality-specific dependencies explicit
-  when the selected runtime cannot perform them.
+  retrieval or storage scenario merely to obtain a model.
+- **The local CLI's limits are not the app's limits.** Embeddings, OCR, speech,
+  audio, video, and other modality-specific steps run inside the app through
+  their own OSS models, libraries, or APIs; name them in `impl_path`. That the
+  CLI cannot synthesise speech, or that the company's own vendor (its API, keys,
+  or customer samples) is unavailable, is not a reason to leave a step out:
+  look for another route first.
+- A synthetic sample (an invented creator's notes, a synthetic voice) lets a case
+  test input handling and general behaviour. It cannot show likeness to a real
+  person or quality on real data; state such limits in `out_of_scope` instead of
+  writing expectations that need them.
 
 ### 4. Decide readiness and handoff
 
@@ -222,7 +247,11 @@ evidence is**. `self_sufficiency` measures **how much the build leans on
 others**. They are different axes; judge each per scenario and do not map one
 onto the other.
 
-`tests` needs at least the three cases the execution code creates and requires:
+`tests` belongs to the JSON bundle route: it is required only when the selected
+scenario has no `demo_plan`. A web claim puts these cases, and any robustness
+cases such as a paraphrase or a typo, into `demo_plan` instead and needs no
+`tests` or `evaluation`. On the JSON route `tests` needs at least the three
+cases the execution code creates and requires:
 `normal`, `boundary`, and `insufficient-information`. Each carries `id`,
 a non-empty `input`, `expected_behavior`, and `reference_facts`. Use those
 exact ids or set `kind` to `normal`, `boundary`, `insufficient_information`,
@@ -266,7 +295,8 @@ built:
   can be named without knowing how the app will be built.
 
 Cover at least a normal, a boundary, and an insufficient-information case,
-mirroring `tests`, and keep the whole customer workflow: conversation turns,
+plus robustness cases the claim calls for (a paraphrase, a typo, another
+language in scope), and keep the whole customer workflow: conversation turns,
 files, approvals, and saved results. The tester never sees the expectations, so
 do not put answers into `steps` or `facts`. Expectations are frozen; they are
 never changed after seeing output.
@@ -291,9 +321,28 @@ entry. A workflow with no steps cannot be whole-workflow scope.
 | `disposition` | Meaning | `reason` |
 |---|---|---|
 | `implemented` | the replica performs this step itself | optional |
-| `external_dependency` | a named external service performs it (and the scenario uses it) | required |
+| `external_dependency` | a named external service performs it and the scenario actually uses it; never a service that is unavailable | required |
 | `excluded` | the scenario leaves it out | required: why, and what the customer loses |
 | `unconfirmed` | research could not settle it | blocks implementation |
+
+Each entry is also the step's line in the workflow design the final report
+shows, so record:
+
+- `component`: `{description, origin, sources}` — what appears to perform the
+  step in the original product. `origin` is `company_stated` (sources with
+  excerpts required) or `inferred`.
+- `route`: how the replica performs it (an `implemented` or
+  `external_dependency` step).
+- `excluded_parts`: on a step the replica performs, each documented
+  sub-function or input/output variant left out, as `{part, reason,
+  alternatives, needs}`. One makes the scenario a partial scope, like an
+  excluded step. Things outside the claimed workflow stay in `out_of_scope`.
+- `alternatives` and `needs` on an `excluded` step and on every excluded part:
+  each candidate route checked as `{candidate, reason, sources}` with why it was
+  not used, and what building it would take (route, resources, data, cost if
+  known; never an invented number). Implementation refuses an exclusion
+  without them. Check candidates that fit the step; do not list routes you did
+  not look at.
 
 Rewriting the list never drops scope silently: a dropped pass-1 step needs its
 removal record, and a step you exclude from the scenario stays `excluded` below.
@@ -303,9 +352,11 @@ scope of the customer workflow; the final result can then be at most
 `partially_reproduced`. Implementation refuses any `unconfirmed` step or any
 step without an entry.
 
-### 7. Prepare the bundle evaluation — Sol/Terra route
+### 7. Prepare the bundle evaluation — JSON route only
 
-The harness evaluates the selected scenario with frozen data you prepare now.
+Skip this section when the selected scenario has a `demo_plan`; the web demo is
+its final evaluation. Otherwise the harness evaluates the selected scenario with
+frozen data you prepare now.
 Record in `handoff`:
 
 - `selected_scenario_id` and `selection_reason`, or `scenario_priority`;
@@ -374,7 +425,13 @@ demo plan's upload files under `work/<company>/second_pass/<slug>-uploads/`.
       "evidence_level": "direct|public|claim_only",
       "sources": [],
       "step_coverage": [
-        { "step_index": 1, "disposition": "implemented|external_dependency|excluded|unconfirmed", "reason": "…" }
+        { "step_index": 1, "disposition": "implemented", "reason": "…",
+          "component": { "description": "…", "origin": "company_stated|inferred", "sources": [] },
+          "route": "…",
+          "excluded_parts": [{ "part": "…", "reason": "…", "alternatives": [{ "candidate": "…", "reason": "…", "sources": [] }], "needs": "…" }] },
+        { "step_index": 2, "disposition": "excluded", "reason": "…",
+          "component": { "description": "…", "origin": "inferred" },
+          "alternatives": [{ "candidate": "…", "reason": "…", "sources": [] }], "needs": "…" }
       ],
       "evaluation": { "runtime": { "transport": "stdio_json" }, "…": "see docs/replica-bundle-execution.md" },
       "demo_plan": { "title": "…", "case_design": "prospective", "case_author": "…", "budget": {},
@@ -396,6 +453,9 @@ demo plan's upload files under `work/<company>/second_pass/<slug>-uploads/`.
   "run": { "completed_at": "<ISO-8601>", "fragment": "second_pass/<slug>.json" }
 }
 ```
+
+Omit `evaluation` and `tests` from a scenario that carries `demo_plan`; they
+belong to the JSON route only.
 
 Every source is
 `{ "url": "…", "type": "…", "excerpt": "…", "finding": "…", "supports_field": "…" }`.

@@ -493,7 +493,9 @@ def assess_bundle_execution(
     elif coverage["scope"] != "whole_workflow":
         gaps.append(
             "The contract excludes researched workflow steps, so it reproduces a partial scope of the customer workflow: "
-            + "; ".join(f"{s['claim_id']}#{s['step_index']} {s['step']} ({s['reason']})" for s in coverage["excluded_steps"])
+            + "; ".join([f"{s['claim_id']}#{s['step_index']} {s['step']} ({s['reason']})" for s in coverage["excluded_steps"]]
+                        + [f"{s['claim_id']}#{s['step_index']} part {s['part']} ({s['reason']})"
+                           for s in coverage.get("excluded_parts", [])])
         )
     if not plan["prepared_before_implementation"]:
         gaps.append("Final evaluation was prepared retrospectively; pre-implementation isolation was not established.")
