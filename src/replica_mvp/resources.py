@@ -103,9 +103,13 @@ def validate_budget(value: Any) -> dict[str, Any]:
     return value
 
 
-def budget_stop(budget: dict[str, Any], started_at: str, resources: list[dict[str, Any]]) -> str | None:
+def budget_stop(budget: dict[str, Any], started_at: str, resources: list[dict[str, Any]],
+                *, elapsed_seconds: float | None = None) -> str | None:
     limit = budget["time_limit_seconds"]
-    if limit is not None and (datetime.now(timezone.utc) - timestamp(started_at)).total_seconds() >= limit:
+    elapsed = (datetime.now(timezone.utc) - timestamp(started_at)).total_seconds() if elapsed_seconds is None else elapsed_seconds
+    if not nonnegative(elapsed):
+        raise ValueError("budget elapsed time must be finite and nonnegative")
+    if limit is not None and elapsed >= limit:
         return "budget_exhausted"
     cost = budget["cost_limit"]
     if cost is not None:

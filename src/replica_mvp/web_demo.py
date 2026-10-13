@@ -10,6 +10,7 @@ the ones the web app itself makes through the claude/codex CLIs, leave receipts.
 """
 from __future__ import annotations
 
+import contextlib
 import fnmatch
 import hashlib
 import json
@@ -21,13 +22,16 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from .bundle_runtime import safe_relative, validate_web_runtime, web_app_session
-from .model_calls import install_meter, run_model_cli, summarize_receipts
+from .bundle_runtime import mountable, safe_relative, validate_web_runtime, web_app_session
+from .company_app import company_app_session
+from .model_calls import (install_meter, run_model_cli, summarize_receipts, ModelUsageLimitError,
+                          read_limit_gate, trip_limit_gate)
+from .web_checkpoint import evaluator_version, load_checkpoint, write_checkpoint
 
 
 PLAN_SCHEMA = "replica-web-demo-plan/v1"
 RESULT_SCHEMA = "replica-web-demo-result/v1"
-ACTIONS = ("click", "fill", "select", "upload", "press", "wait", "done", "give_up")
+ACTIONS = ("click", "fill", "select", "upload", "press", "wait", "wait_for", "read", "check", "uncheck", "done", "give_up")
 BASIS_TYPES = {"public_rule", "original_observation", "separate_verification", "our_condition"}
 CHECK_TYPES = {"file_exists", "file_absent", "file_contains", "files_unchanged", "page_contains"}
 EXPECTATION_STATUSES = ("passed", "failed", "not_evaluated")
@@ -105,6 +109,10 @@ _OBSERVE_SCRIPT = """() => {
     elements.push({
       ref, tag: el.tagName.toLowerCase(), type: el.getAttribute('type'), label: label.trim().slice(0, 200),
       value: editable ? String(el.value).slice(0, 200) : null,
+      value_length: editable ? String(el.value).length : null,
+      value_truncated: editable && String(el.value).length > 200,
+      checked: ['checkbox', 'radio'].includes(el.type) ? el.checked : null,
+      aria_checked: el.getAttribute('aria-checked'),
       options: el.tagName === 'SELECT' ? [...el.options].map(o => o.text).slice(0, 50) : null,
       disabled: !!el.disabled,
     });
@@ -257,28 +265,83 @@ def _deterministic(check: dict[str, Any], root: Path, before: dict[str, str], af
     return ("passed" if old == new else "failed"), f"files matching {check['path']} {'unchanged' if old == new else 'changed'} during the case"
 
 
+_COMPANY_START = ("The app opens at the company app's home menu, which lists its features. Open the feature this "
+                  "case is about from the menu or the navigation bar before the first step. ")
+_HISTORY_REASON_LIMIT = 160
+
+
+def _tester_history(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Compact only the tester's view; recorded actions remain full judge evidence."""
+    result = []
+    for event in history[-15:]:
+        item = {key: value for key, value in event.items() if value is not None}
+        reason = item.get("reason")
+        if (not event.get("error") and event.get("action") not in {"done", "give_up"}
+                and isinstance(reason, str) and len(reason) > _HISTORY_REASON_LIMIT):
+            marker = "…[truncated]"
+            item["reason"] = reason[:_HISTORY_REASON_LIMIT - len(marker)] + marker
+        result.append(item)
+    return result
+
+
 def _tester_prompt(case: dict[str, Any], uploads: list[str], page: dict[str, Any], history: list[dict[str, Any]],
-                   remaining: int) -> str:
+                   remaining: int, company: bool = False) -> str:
     return json.dumps({
         "instruction": (
             "You are testing a web app the way an ordinary user would, through its screens only. "
+            + (_COMPANY_START if company else "") +
             "Follow the case steps in order, using only the listed facts and upload files. "
             "Choose exactly one next action on the current page, referring to an element by its ref. "
             "Do not invent names, IDs, data or results that are not on the page or in the facts. "
             "Return done only after all steps are performed and the final result is visible on the page. "
             "Return give_up with the reason if the screens make a step impossible. "
+            "A truncated value is an observation limit, not evidence that the app lost text; use read to inspect it. "
+            "Use check/uncheck to set a checkbox explicitly; observe checked before changing it. "
             "You are not told the expected results and must not assume success."
         ),
         "actions": {
             "click": "click element ref", "fill": "type value into element ref (replaces its content)",
             "select": "choose option text value in select ref", "upload": "attach upload file value to file input ref",
-            "press": "press key value (default Enter) on element ref or the page", "wait": "wait value seconds (max 10)",
+            "press": "press key value (default Enter) on element ref or the page",
+            "check": "set checkbox/radio checked", "uncheck": "set checkbox unchecked",
+            "read": "read 4000 characters of an editable field; value is the character offset, default 0",
+            "wait": "wait value seconds (up to 600); use a single wait for a known timer",
+            "wait_for": 'wait on visible UI: value is JSON {"text":"Processing", "state":"absent", "seconds":120}; '
+                        'state may be present or absent; returns on condition, navigation or timeout',
             "done": "all steps finished", "give_up": "a step cannot be done; explain in reason",
         },
         "case": {"goal": case["goal"], "steps": case["steps"], "facts": case.get("facts", [])},
         "upload_files": uploads, "remaining_actions": remaining,
-        "previous_actions": history[-15:], "page": page,
-    }, ensure_ascii=False)
+        "previous_actions": _tester_history(history), "page": page,
+    }, ensure_ascii=False, separators=(",", ":"))
+
+
+def _screen_evidence(record: dict[str, Any]) -> list[dict[str, Any]]:
+    seen_lines: set[tuple[str, str]] = set()
+    seen_fields: set[str] = set()
+    evidence = []
+    for observation in record.get("observations", []):
+        page = observation["page"]
+        lines = []
+        for line in page.get("text", "").splitlines():
+            key = (page["url"], line)
+            if key not in seen_lines:
+                seen_lines.add(key)
+                lines.append(line)
+        fields = []
+        for element in page.get("elements", []):
+            if element.get("value") is None and element.get("checked") is None:
+                continue
+            item = {k: element.get(k) for k in ("label", "value", "value_truncated", "checked")}
+            key = json.dumps([page["url"], item], sort_keys=True)
+            if key not in seen_fields:
+                seen_fields.add(key)
+                fields.append(item)
+        if lines or fields or page.get("read_result"):
+            evidence.append({"event_id": observation["event_id"], "url": page["url"],
+                             "new_text": "\n".join(lines), "changed_fields": fields,
+                             "read_result": page.get("read_result")})
+    return evidence
 
 
 def _judge_prompt(case: dict[str, Any], expectations: list[dict[str, Any]], record: dict[str, Any], root: Path,
@@ -299,6 +362,7 @@ def _judge_prompt(case: dict[str, Any], expectations: list[dict[str, Any]], reco
         "execution_status": record["execution_status"], "stop_reason": record["stop_reason"],
         "events": [{k: e.get(k) for k in ("event_id", "action", "element", "value", "reason", "error", "url_after")}
                    for e in record["events"]],
+        "screen_evidence": _screen_evidence(record),
         "final_page": record["final_page"], "file_changes": files, "deterministic_checks": deterministic,
     }, ensure_ascii=False)
 
@@ -312,13 +376,22 @@ def _browser_factory():
     return sync_playwright
 
 
-def _perform(page, action: dict[str, Any], uploads: dict[str, Path]) -> None:
+def _perform(page, action: dict[str, Any], uploads: dict[str, Path]) -> dict[str, Any] | None:
     kind, ref, value = action["action"], action.get("ref"), action.get("value")
     target = page.locator(f'[data-replica-ref="{ref}"]') if ref is not None else None
-    if kind in {"click", "fill", "select", "upload"} and target is None:
+    if kind in {"click", "fill", "select", "upload", "check", "uncheck", "read"} and target is None:
         raise ValueError(f"{kind} needs an element ref")
     if kind == "click":
         target.click(timeout=10_000)
+    elif kind in {"check", "uncheck"}:
+        target.set_checked(kind == "check", timeout=10_000)
+    elif kind == "read":
+        if target.get_attribute("type") == "password":
+            raise ValueError("password fields cannot be read")
+        text = target.input_value(timeout=10_000)
+        offset = max(0, int(value or 0))
+        return {"ref": ref, "offset": offset, "text": text[offset:offset + 4000],
+                "length": len(text), "more": offset + 4000 < len(text)}
     elif kind == "fill":
         target.fill(value or "", timeout=10_000)
     elif kind == "select":
@@ -332,8 +405,35 @@ def _perform(page, action: dict[str, Any], uploads: dict[str, Path]) -> None:
         target.set_input_files(str(uploads[value]), timeout=10_000)
     elif kind == "press":
         (target.press if target is not None else page.keyboard.press)(value or "Enter")
-    elif kind == "wait":
-        time.sleep(min(10.0, max(0.0, float(value or 2))))
+
+
+
+def _wait_on_screen(page, action: dict[str, Any], deadline: float, gate: Path | None) -> dict[str, Any]:
+    condition = json.loads(action["value"]) if action["action"] == "wait_for" else None
+    if condition is not None and (not isinstance(condition, dict) or not isinstance(condition.get("text"), str)
+                                  or not condition["text"] or condition.get("state") not in {"present", "absent"}):
+        raise ValueError("wait_for requires visible text and state present/absent")
+    seconds = float(condition.get("seconds", 120) if condition else action.get("value") or 2)
+    import math
+    if not math.isfinite(seconds) or seconds < 0:
+        raise ValueError("wait duration must be finite and nonnegative")
+    started = time.monotonic()
+    end = min(deadline, started + min(600, seconds))
+    url, polls, reason = page.url, 0, "timeout" if condition else "elapsed"
+    while time.monotonic() < end:
+        if read_limit_gate(gate):
+            raise ModelUsageLimitError("Replica model usage limit reached while waiting")
+        if page.url != url:
+            reason = "navigation"
+            break
+        if condition:
+            text = page.locator("body").inner_text(timeout=5000)
+            polls += 1
+            if (condition["text"] in text) == (condition["state"] == "present"):
+                reason = "condition_met"
+                break
+        page.wait_for_timeout(min(500, max(0, (end - time.monotonic()) * 1000)))
+    return {"reason": reason, "polls": polls, "seconds": round(time.monotonic() - started, 3)}
 
 
 def _settle(page) -> None:
@@ -344,8 +444,23 @@ def _settle(page) -> None:
     time.sleep(0.2)
 
 
+@contextlib.contextmanager
+def _app_session(plan: dict[str, Any], manifest: dict[str, Any], manifest_path: Path, timeout: float, workspace: Path,
+                 meter_bin: Path, log, company: str | None):
+    """Yield (start URL, workspace root, surface): a mountable bundle runs inside the company app shell."""
+    if mountable(manifest.get("runtime") or {}):
+        feature = {"id": plan["claim_id"], "title": plan["title"], "manifest": manifest_path, "workspace": workspace}
+        with company_app_session(company or "Company app", [feature], timeout, path_prefix=meter_bin,
+                                 logs={plan["claim_id"]: log}) as (shell, roots):
+            yield shell + "/", roots[plan["claim_id"]], "company_app"
+    else:
+        with web_app_session(manifest_path, timeout, workspace=workspace, path_prefix=meter_bin, log=log) as (url, root):
+            yield url + "/", root, "standalone_app"
+
+
 def _run_case(case: dict[str, Any], plan: dict[str, Any], plan_dir: Path, manifest_path: Path, case_dir: Path,
-              meter_bin: Path, tester: Callable, deadline: float, browser, events_log) -> dict[str, Any]:
+              meter_bin: Path, tester: Callable, deadline: float, browser, events_log, gate: Path | None = None,
+              company: str | None = None) -> dict[str, Any]:
     budget = plan["budget"]
     uploads = {u["path"]: (plan_dir / u["path"]).resolve() for u in case.get("uploads", [])}
     screens = case_dir / "screens"
@@ -353,32 +468,41 @@ def _run_case(case: dict[str, Any], plan: dict[str, Any], plan_dir: Path, manife
     events: list[dict[str, Any]] = []
     history: list[dict[str, Any]] = []
     record = {"case_id": case["id"], "started_at": time.time(), "execution_status": "blocked", "stop_reason": None,
-              "events": [], "file_changes": [], "final_page": None, "workspace": None}
+              "events": [], "file_changes": [], "final_page": None, "workspace": None, "observations": []}
     manifest = json.loads(manifest_path.read_text())
     implementation_files = {f["path"] for f in manifest["files"]}
     with open(case_dir / "server.log", "wb") as log:
         try:
-            with web_app_session(manifest_path, min(60.0, deadline - time.monotonic()), workspace=case_dir / "workspace",
-                                 path_prefix=meter_bin, log=log) as (base_url, root):
+            with _app_session(plan, manifest, manifest_path, min(60.0, deadline - time.monotonic()),
+                              case_dir / "workspace", meter_bin, log, company) as (start_url, root, surface):
                 record["workspace"] = root.relative_to(case_dir.parent.parent).as_posix()
+                record["surface"] = surface
                 before = _tree(root, implementation_files)
                 context = browser.new_context(viewport={"width": 1280, "height": 900})
                 page = context.new_page()
                 try:
-                    page.goto(base_url + "/", timeout=30_000)
+                    page.goto(start_url, timeout=30_000)
                     _settle(page)
                     page.screenshot(path=str(screens / "000-start.png"), full_page=True)
                     record["execution_status"] = "action_limit"
+                    read_result = None
                     for index in range(1, budget["max_actions_per_case"] + 1):
                         if time.monotonic() >= deadline:
                             record["execution_status"] = "time_limit"
+                            record["environment_error"] = "time_budget"
+                            record["stop_reason"] = "active evaluation time budget exhausted"
                             break
                         observed = page.evaluate(_OBSERVE_SCRIPT)
+                        if read_result is not None:
+                            observed["read_result"] = read_result
+                        record["observations"].append({"event_id": f"{case['id']}-{index:03d}", "page": observed})
                         started = time.time()
                         try:
                             action, call_id = tester(_tester_prompt(
-                                case, sorted(uploads), observed, history, budget["max_actions_per_case"] - index + 1))
+                                case, sorted(uploads), observed, history, budget["max_actions_per_case"] - index + 1,
+                                company=surface == "company_app"))
                         except (OSError, RuntimeError, ValueError, KeyError) as error:
+                            record["environment_error"] = type(error).__name__
                             record["execution_status"], record["stop_reason"] = "blocked", f"tester call failed: {error}"
                             break
                         element = next((e for e in observed["elements"] if e["ref"] == action.get("ref")), None)
@@ -392,7 +516,11 @@ def _run_case(case: dict[str, Any], plan: dict[str, Any], plan_dir: Path, manife
                             event["error"] = "tester returned an unknown action"
                         elif action["action"] not in {"done", "give_up"}:
                             try:
-                                _perform(page, action, uploads)
+                                if action["action"] in {"wait", "wait_for"}:
+                                    event["wait"] = _wait_on_screen(page, action, deadline, gate)
+                                    read_result = None
+                                else:
+                                    read_result = _perform(page, action, uploads)
                             except Exception as error:  # A failed UI action is evidence, not a crash.
                                 event["error"] = f"{type(error).__name__}: {str(error)[:300]}"
                             _settle(page)
@@ -407,6 +535,10 @@ def _run_case(case: dict[str, Any], plan: dict[str, Any], plan_dir: Path, manife
                         events_log.write(json.dumps(event, ensure_ascii=False) + "\n")
                         events_log.flush()
                         history.append({k: event[k] for k in ("index", "action", "element", "value", "reason", "error")})
+                        if read_limit_gate(gate):
+                            record["execution_status"], record["stop_reason"] = "blocked", "provider usage limit"
+                            record["environment_error"] = "ModelUsageLimitError"
+                            break
                         if action.get("action") == "done":
                             record["execution_status"] = "completed"
                             break
@@ -414,12 +546,15 @@ def _run_case(case: dict[str, Any], plan: dict[str, Any], plan_dir: Path, manife
                             record["execution_status"], record["stop_reason"] = "gave_up", action.get("reason")
                             break
                     final = page.evaluate(_OBSERVE_SCRIPT)
-                    record["final_page"] = {"url": final["url"], "title": final["title"], "text": final["text"]}
+                    record["final_page"] = final
+                    record["observations"].append({"event_id": events[-1]["event_id"] if events else f"{case['id']}-start",
+                                                   "page": final})
                 finally:
                     context.close()
                 after = _tree(root, implementation_files)
                 record["file_changes"] = _file_changes(before, after)
                 record["_trees"] = (before, after, root)
+                record["tree_before"], record["tree_after"] = before, after
         except Exception as error:
             if record["execution_status"] == "blocked" and record["stop_reason"] is None:
                 record["stop_reason"] = f"{type(error).__name__}: {str(error)[:500]}"
@@ -454,7 +589,8 @@ def _evaluate_case(case: dict[str, Any], record: dict[str, Any], judge: Callable
     semantic = [e for e in case["expectations"] if not e.get("check")]
     verdicts: dict[str, dict[str, Any]] = {}
     judge_call = None
-    if semantic:
+    missing_reason = f"evaluation interrupted: {record.get('stop_reason') or record.get('environment_error')}"
+    if semantic and not record.get("environment_error"):
         try:
             answer, judge_call = judge(_judge_prompt(case, semantic, record, root, deterministic))
             known = {e["id"] for e in semantic}
@@ -462,6 +598,7 @@ def _evaluate_case(case: dict[str, Any], record: dict[str, Any], judge: Callable
                         and v.get("status") in EXPECTATION_STATUSES}
             missing_reason = "judge returned no verdict for this expectation"
         except (OSError, RuntimeError, ValueError, KeyError) as error:
+            record["environment_error"] = type(error).__name__
             missing_reason = f"judge call failed: {error}"
     event_ids = {e["event_id"] for e in record["events"]}
     for expectation in case["expectations"]:
@@ -518,6 +655,8 @@ def freeze_demo_plan(demo_plan: Any, claim_id: str, source_root: Path | None, de
 
 def web_reproduction_status(result: dict[str, Any]) -> str:
     """Name what the demo showed; unevaluated expectations never count as failures."""
+    if result.get("complete_plan") is False:
+        return "not_evaluated"
     outcome = result["outcome"]
     executed = [c for c in result["cases"] if c["execution_status"] not in {"blocked", "not_run"}]
     if outcome["passed"] and not outcome["failed"] and not outcome["not_evaluated"] \
@@ -612,11 +751,13 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
                  model: str | None = None, tester: Callable | None = None, judge: Callable | None = None,
                  browser_factory: Callable | None = None, instance_generator: Callable | None = None,
                  review_context: dict[str, Any] | None = None, reviewer: Callable | None = None,
-                 scope: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Run each case once with values drawn now under its variation rule, then (with research context) a code review.
+                 scope: dict[str, Any] | None = None, case_ids: list[str] | None = None,
+                 phase_models: dict[str, str] | None = None, resume_from: Path | None = None,
+                 gate: Path | None = None, clear_limit: bool = False, company: str | None = None) -> dict[str, Any]:
+    """Run a frozen demo, checkpointing cases and preserving prior observations on resume.
 
-    The plan's values are an example of the workflow, not inputs to build for; a case without a
-    variation rule runs as written.
+    A partial development selection can never produce a whole-plan reproduced verdict.
+    New evaluator versions reuse drawn values, but obtain fresh evidence and judgments.
     """
     plan_path = plan_path.resolve()
     plan_dir = plan_path.parent
@@ -624,20 +765,49 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
     manifest_path = _plan_manifest(plan, plan_dir, manifest_path)
     if manifest_path is None:
         raise ValueError("demo plan has no manifest; pass the candidate manifest to run it")
+    manifest_path = manifest_path.resolve()
+    selected = set(case_ids or [c["id"] for c in plan["cases"]])
+    if not selected or selected - {c["id"] for c in plan["cases"]}:
+        raise ValueError("case selection contains unknown cases")
+    phase_models = phase_models or {}
+    if set(phase_models) - {"tester", "judge", "instance", "code_review"}:
+        raise ValueError("unknown model phase")
+    configuration = {"provider": provider, "models": {k: phase_models.get(k, model)
+                     for k in ("tester", "judge", "instance", "code_review")}}
+    identity = {"plan_sha256": _digest(plan_path), "candidate_manifest_sha256": _digest(manifest_path),
+                "evaluator_version": evaluator_version(), "model_configuration": configuration,
+                "selected_cases": sorted(selected)}
+    previous, reusable = ({}, False) if resume_from is None else load_checkpoint(resume_from.resolve(), identity)
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError("output directory must be new or empty; earlier demo results are never overwritten")
     output_dir.mkdir(parents=True, exist_ok=True)
-    started, clock = time.time(), time.monotonic()
-    deadline = clock + plan["budget"]["time_limit_seconds"]
     shutil.copyfile(plan_path, output_dir / "demo-plan.json")
-    manifest_path = manifest_path.resolve()
+    started, clock = time.time(), time.monotonic()
+    # Paused wall time is not active evaluation time. A new observer starts a separately labeled run.
+    prior_active = previous.get("active_seconds", 0) if reusable else 0
+    deadline = clock + max(0, plan["budget"]["time_limit_seconds"] - prior_active)
     receipts = output_dir / "receipts"
+    if gate is None:
+        gate = output_dir / "usage-limit.json"
+        prior_gate = resume_from / "usage-limit.json" if resume_from else None
+        if prior_gate is not None and prior_gate.exists():
+            shutil.copyfile(prior_gate, gate)
+    if clear_limit and gate.exists():
+        shutil.copyfile(gate, output_dir / "prior-usage-limit.json")
+        gate.unlink()
     call_timeout = plan["budget"]["model_call_timeout_seconds"]
+    interruption: dict[str, Any] | None = None
 
     def model_call(phase: str, schema: dict[str, Any]) -> Callable:
         def call(prompt: str) -> tuple[dict[str, Any], str]:
-            return run_model_cli(provider, prompt, schema, receipts=receipts, phase=phase, model=model,
-                                 timeout=call_timeout)
+            nonlocal interruption
+            try:
+                return run_model_cli(provider, prompt, schema, receipts=receipts, phase=phase,
+                                     model=configuration["models"][phase], gate=gate,
+                                     timeout=min(call_timeout, max(0, deadline - time.monotonic())))
+            except (ModelUsageLimitError, TimeoutError, OSError) as error:
+                interruption = {"kind": type(error).__name__, "phase": phase, "reason": str(error)}
+                raise
         return call
 
     injected = tester is not None
@@ -645,11 +815,35 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
     judge = judge or model_call("judge", JUDGE_SCHEMA)
     instance_generator = instance_generator or model_call("instance", INSTANCE_SCHEMA)
     reviewer = reviewer or model_call("code_review", REVIEW_SCHEMA)
-    cases_out, expectations_out = [], {}
+    cases_out, instances = [], dict(previous.get("instances", {}))
+    prior_cases = {c["case_id"]: c for c in previous.get("cases", [])}
+    for cid, case in prior_cases.items():
+        if case.get("instance"):
+            instances.setdefault(cid, case["instance"])
+    lineage = None if resume_from is None else {
+        "source": str(resume_from.resolve()), "source_sha256": previous["source_sha256"],
+        "reused_evidence": reusable,
+        "reason": "same evaluator and verified evidence" if reusable else "evaluator/settings changed; fresh observations required",
+    }
+    code_review = {"status": "not_run", "reason": "No research context was given for a code review.", "findings": []}
+
+    def checkpoint() -> None:
+        write_checkpoint(output_dir, {**identity, "cases": cases_out, "instances": instances,
+                                     "code_review": code_review, "lineage": lineage,
+                                     "active_seconds": prior_active + time.monotonic() - clock})
+
+    def blocked_case(case: dict[str, Any], reason: str, kind: str = "blocked") -> dict[str, Any]:
+        now = time.time()
+        return {"case_id": case["id"], "started_at": now, "ended_at": now, "execution_status": kind,
+                "stop_reason": reason, "events": [], "file_changes": [], "final_page": None, "workspace": None,
+                "expectations": [{"id": e["id"], "description": e["description"], "basis": e["basis"],
+                                  "method": "none", "status": "not_evaluated", "reason": reason,
+                                  "evidence_event_ids": []} for e in case["expectations"]]}
+
+    checkpoint()
     with tempfile.TemporaryDirectory(prefix="replica-meter-") as meter, \
             open(output_dir / "events.jsonl", "w", encoding="utf-8") as events_log:
-        meter_bin = Path(meter) / "bin"
-        metered = install_meter(meter_bin, receipts, "replica_runtime")
+        metered = install_meter(Path(meter) / "bin", receipts, "replica_runtime", gate=gate)
         playwright_context, browser, browser_error = None, None, None
         try:
             entered = (browser_factory or _browser_factory())()
@@ -661,90 +855,124 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
                 playwright_context.__exit__(None, None, None)
             playwright_context = None
             browser_error = f"browser unavailable: {type(error).__name__}: {str(error)[:300]}"
-        def execute(case: dict[str, Any], instance: dict[str, Any], blocked: str | None = None) -> None:
-            if blocked or browser is None or time.monotonic() >= deadline:
-                record = {"case_id": case["id"], "started_at": time.time(), "ended_at": time.time(),
-                          "execution_status": "blocked" if (blocked or browser is None) else "not_run",
-                          "stop_reason": blocked or browser_error or "plan time limit reached before this case",
-                          "events": [], "file_changes": [], "final_page": None, "workspace": None}
-            else:
-                record = _run_case(case, plan, plan_dir, manifest_path, output_dir / "cases" / case["id"], meter_bin,
-                                   tester, deadline, browser, events_log)
-            record["instance"] = instance
-            expectations_out[case["id"]] = _evaluate_case(case, record, judge)
-            cases_out.append(record)
-
+            interruption = {"kind": "browser_unavailable", "reason": browser_error}
         try:
-            for case in plan["cases"]:
-                if not case.get("variation"):
-                    execute(case, {"values": "example", "note": case.get("variation_note")})
+            for source_case in plan["cases"]:
+                case, cid = source_case, source_case["id"]
+                if cid not in selected:
                     continue
-                # Values drawn after the build, so a Replica fitted to the public example cannot pass by rote.
-                seed = secrets.token_hex(8)
-                info = {"values": "drawn_at_run", "seed": seed}
-                try:
-                    answer, call_id = instance_generator(_instance_prompt(case, seed))
-                    instance = _instance_case(case, answer)
-                    info.update({"generator_call_id": call_id, "goal": instance["goal"], "steps": instance["steps"],
-                                 "facts": instance["facts"], "replacements": answer.get("replacements", [])})
-                    execute(instance, info)
-                except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
-                    # Never fall back to the public example: that is exactly what a fitted Replica would pass.
-                    execute(case, info, f"instance generation failed: {error}")
+                info = instances.get(cid, {})
+                prior = prior_cases.get(cid)
+                # A completed UI execution remains useful even if only its judge was interrupted.
+                if reusable and prior and prior["execution_status"] == "completed":
+                    prior_dir = resume_from / "cases" / cid
+                    if prior_dir.exists():
+                        shutil.copytree(prior_dir, output_dir / "cases" / cid)
+                    record = json.loads(json.dumps(prior))
+                    for event in record.get("events", []):
+                        events_log.write(json.dumps(event, ensure_ascii=False) + "\n")
+                    if all(e["status"] != "not_evaluated" for e in record["expectations"]):
+                        cases_out.append(record)
+                        checkpoint()
+                        continue
+                    if record.get("tree_before") is not None and record.get("workspace"):
+                        if case.get("variation"):
+                            case = _instance_case(case, info)
+                        record["_trees"] = (record["tree_before"], record["tree_after"], output_dir / record["workspace"])
+                        record.pop("environment_error", None)
+                        record["expectations"] = _evaluate_case(case, record, judge)
+                        if record.get("environment_error"):
+                            interruption = {"kind": record["environment_error"], "phase": "judge"}
+                        cases_out.append(record)
+                        checkpoint()
+                        continue
+                stopped = read_limit_gate(gate)
+                if stopped or interruption or browser is None or time.monotonic() >= deadline:
+                    reason = ("provider usage limit" if stopped else browser_error
+                              or (interruption or {}).get("reason") or "evaluation interrupted or active time budget exhausted")
+                    interruption = interruption or {"kind": "provider_usage_limit" if stopped else "time_budget", "reason": reason}
+                    record = blocked_case(case, reason)
+                else:
+                    try:
+                        if case.get("variation"):
+                            if not info.get("steps"):
+                                info = {"values": "drawn_at_run", "seed": info.get("seed") or secrets.token_hex(8)}
+                                instances[cid] = info
+                                checkpoint()
+                                answer, call_id = instance_generator(_instance_prompt(case, info["seed"]))
+                                instance = _instance_case(case, answer)
+                                info.update({"generator_call_id": call_id, "goal": instance["goal"], "steps": instance["steps"],
+                                             "facts": instance["facts"], "replacements": answer.get("replacements", [])})
+                            case = _instance_case(case, info)
+                        else:
+                            info = {"values": "example", "note": case.get("variation_note")}
+                        instances[cid] = info
+                        checkpoint()
+                        record = _run_case(case, plan, plan_dir, manifest_path, output_dir / "cases" / cid,
+                                           Path(meter) / "bin", tester, deadline, browser, events_log, gate, company)
+                        if read_limit_gate(gate):
+                            record["environment_error"] = "ModelUsageLimitError"
+                        # The gate in model_call stops the judge before sending when runtime calls hit a limit.
+                        record["expectations"] = _evaluate_case(case, record, judge)
+                        if record.get("environment_error"):
+                            interruption = {"kind": record["environment_error"], "case_id": cid,
+                                            "reason": record.get("stop_reason")}
+                    except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
+                        record = blocked_case(case, f"instance generation failed: {error}")
+                        interruption = {"kind": type(error).__name__, "phase": "instance", "reason": str(error)}
+                record["instance"] = info
+                cases_out.append(record)
+                checkpoint()
         finally:
             if browser is not None:
                 browser.close()
+            if playwright_context is not None:
                 playwright_context.__exit__(None, None, None)
-    cases_summary = [{**{k: v for k, v in r.items() if k != "events"}, "event_count": len(r["events"]),
-                      "expectations": expectations_out[r["case_id"]]} for r in cases_out]
-    if review_context is None:
-        code_review = {"status": "not_run", "reason": "No research context was given for a code review.", "findings": []}
-    else:
-        try:
-            answer, call_id = reviewer(_review_prompt(manifest_path, review_context, plan, cases_summary))
-            if answer.get("status") not in EXPECTATION_STATUSES or not _nonempty(answer.get("reason")):
-                raise ValueError("code review returned no status and reason")
-            code_review = {"status": answer["status"], "reason": answer["reason"],
-                           "findings": answer.get("findings", []), "call_id": call_id}
-        except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
-            code_review = {"status": "not_evaluated", "reason": f"code review failed: {error}", "findings": []}
+    if review_context is not None:
+        prior_review = previous.get("code_review", {})
+        if reusable and prior_review.get("status") in {"passed", "failed"}:
+            code_review = prior_review
+        elif interruption or read_limit_gate(gate) or time.monotonic() >= deadline:
+            code_review = {"status": "not_evaluated", "reason": "evaluation interrupted before code review", "findings": []}
+        else:
+            try:
+                answer, call_id = reviewer(_review_prompt(manifest_path, review_context, plan, cases_out))
+                if answer.get("status") not in EXPECTATION_STATUSES or not _nonempty(answer.get("reason")):
+                    raise ValueError("code review returned no status and reason")
+                code_review = {"status": answer["status"], "reason": answer["reason"],
+                               "findings": answer.get("findings", []), "call_id": call_id}
+            except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
+                interruption = {"kind": type(error).__name__, "phase": "code_review", "reason": str(error)}
+                code_review = {"status": "not_evaluated", "reason": f"code review failed: {error}", "findings": []}
+    checkpoint()
     summary = summarize_receipts(receipts)
     _attribute([c for c in summary["calls"] if c["phase"] == "replica_runtime"], cases_out)
-    statuses = [r["status"] for results in expectations_out.values() for r in results]
+    statuses = [e["status"] for c in cases_out for e in c["expectations"]]
     result = {
-        "schema_version": RESULT_SCHEMA,
-        "claim_id": plan["claim_id"], "title": plan["title"],
-        "plan_sha256": _digest(output_dir / "demo-plan.json"),
-        "candidate_manifest_sha256": _digest(manifest_path),
-        "case_design": plan["case_design"], "case_author": plan["case_author"],
-        "interaction_surface": "web_app_browser",
-        "tester": {"provider": "injected"} if injected else {"provider": provider, "requested_model": model},
+        "schema_version": RESULT_SCHEMA, **identity,
+        "claim_id": plan["claim_id"], "title": plan["title"], "case_design": plan["case_design"], "case_author": plan["case_author"],
+        # A mountable bundle is tested inside the company app shell, starting at its feature menu.
+        "interaction_surface": ("company_app_browser" if mountable(json.loads(manifest_path.read_text()).get("runtime") or {})
+                                else "web_app_browser"),
+        "lineage": lineage, "interruption": interruption,
+        "complete_plan": len(selected) == len(plan["cases"]),
+        "tester": {"provider": "injected"} if injected else {"provider": provider, "requested_model": configuration["models"]["tester"]},
         "started_at": started, "wall_seconds": round(time.time() - started, 3),
+        "active_seconds": round(prior_active + time.monotonic() - clock, 3),
         "costs": {
-            "billed_amount": None,
-            "billed_amount_note": "Subscription CLI use has no per-run bill; cli_list_estimate_usd is the CLI's own list-price estimate.",
+            "billed_amount": None, "billed_amount_note": "Subscription CLI use has no per-run bill; cli_list_estimate_usd is the CLI's own list-price estimate.",
             "phases": summary["phases"],
-            "replica_runtime_meter": {
-                "wrapped_tools": sorted(metered),
-                "coverage": "Calls the web app makes to claude/codex resolved through PATH. Absolute-path CLI calls "
-                            "and direct HTTP model APIs are not observed.",
-            },
-            "usage_note": "Usage keys are summed per key; no cross-key token total is computed because cache and "
-                          "output-detail keys overlap differently by provider.",
+            "replica_runtime_meter": {"wrapped_tools": sorted(metered), "coverage": "Calls the web app makes to claude/codex resolved through PATH. Absolute-path CLI calls and direct HTTP model APIs are not observed."},
+            "usage_note": "Usage keys are summed per key. This segment records newly sent calls; prior segments are linked by lineage.",
             "excluded": ["human time (not a cost item of the automated run)", "development cost of the candidate"],
         },
-        "cases": cases_summary,
-        "code_review": code_review,
-        "scope": scope or {"note": "No researched workflow was given; step coverage was not checked."},
-        "outcome": {
-            "passed": statuses.count("passed"), "failed": statuses.count("failed"),
-            "not_evaluated": statuses.count("not_evaluated"),
-            "cases_completed": sum(r["execution_status"] == "completed" for r in cases_out),
-            "cases_total": len(cases_out),
-        },
+        "cases": [{**{k: v for k, v in c.items() if k not in {"events", "observations", "tree_before", "tree_after"}},
+                   "event_count": len(c.get("events", []))} for c in cases_out],
+        "code_review": code_review, "scope": scope or {"note": "No researched workflow was given; step coverage was not checked."},
+        "outcome": {"passed": statuses.count("passed"), "failed": statuses.count("failed"), "not_evaluated": statuses.count("not_evaluated"),
+                    "cases_completed": sum(c["execution_status"] == "completed" for c in cases_out), "cases_total": len(cases_out)},
         "human_review": "optional; not required for this result",
-        "receipts": [{k: c[k] for k in ("call_id", "phase", "tool", "status", "started_at", "ended_at", "usage",
-                                         "models", "cost_usd", "case_id", "event_id") if k in c}
+        "receipts": [{k: c[k] for k in ("call_id", "phase", "tool", "status", "started_at", "ended_at", "usage", "models", "cost_usd", "case_id", "event_id") if k in c}
                      for c in summary["calls"]],
     }
     _write_json(output_dir / "demo-result.json", result)

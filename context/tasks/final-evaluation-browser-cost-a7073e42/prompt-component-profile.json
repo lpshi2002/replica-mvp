@@ -1,0 +1,14 @@
+{
+  "scope": "Current O3 serializer over identical archived 323 pre-action observations; only UTF-8 content sizes, not token prices.",
+  "requests": 323,
+  "total_bytes": 2725379,
+  "value_bytes_by_field": {
+    "instruction": 242896,
+    "actions": 250002,
+    "case": 382914,
+    "upload_files": 17181,
+    "remaining_actions": 637,
+    "previous_actions": 582739,
+    "page": 1216710
+  }
+}

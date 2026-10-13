@@ -20,10 +20,16 @@ from replica_mvp.web_demo import run_web_demo, validate_demo_plan
 HAS_PLAYWRIGHT = importlib.util.find_spec("playwright") is not None
 
 # A small approval workflow: register a request, the app asks the model CLI for a summary,
-# then a reviewer approves (writes outbox/) or rejects (no outbox file).
+# then a reviewer approves (writes outbox/) or rejects (no outbox file). With --base-path it
+# serves every page and form under that path, as a company-app feature does.
 APP = r'''
 import argparse, html, json, os, subprocess, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+parser = argparse.ArgumentParser()
+parser.add_argument("--port", type=int, required=True)
+parser.add_argument("--base-path", default="")
+ARGS = parser.parse_args()
+BASE = ARGS.base_path
 DATA = "data/requests.json"
 def load():
     return json.load(open(DATA)) if os.path.exists(DATA) else []
@@ -36,12 +42,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         rows = "".join(
             f"<li>{html.escape(r['text'])} [{r['state']}] {html.escape(r['summary'])}"
-            + (f"<form method=post action=/review><input type=hidden name=id value={r['id']}>"
+            + (f"<form method=post action={BASE}/review><input type=hidden name=id value={r['id']}>"
                f"<button name=decision value=approve>승인 {r['id']}</button>"
                f"<button name=decision value=reject>거절 {r['id']}</button></form>" if r["state"] == "pending" else "")
             + "</li>" for r in load())
         body = ("<html><head><title>승인 요청</title></head><body><h1>승인 요청</h1>"
-                "<form method=post action=/requests><label for=t>요청 내용</label>"
+                f"<form method=post action={BASE}/requests><label for=t>요청 내용</label>"
                 "<textarea id=t name=text></textarea><button>등록</button></form>"
                 f"<ul>{rows}</ul></body></html>").encode()
         self.send_response(200)
@@ -51,7 +57,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         form = urllib.parse.parse_qs(self.rfile.read(int(self.headers["Content-Length"])).decode())
         items = load()
-        if self.path == "/requests":
+        if self.path == BASE + "/requests":
             text = form["text"][0]
             out = subprocess.run(["claude", "-p", "--output-format", "json"], input=text.encode(),
                                  capture_output=True, timeout=20)
@@ -65,11 +71,9 @@ class Handler(BaseHTTPRequestHandler):
                 json.dump(item, open(f"outbox/{item['id']}.json", "w"), ensure_ascii=False)
         save(items)
         self.send_response(303)
-        self.send_header("Location", "/")
+        self.send_header("Location", BASE + "/")
         self.end_headers()
-parser = argparse.ArgumentParser()
-parser.add_argument("--port", type=int, required=True)
-ThreadingHTTPServer(("127.0.0.1", parser.parse_args().port), Handler).serve_forever()
+ThreadingHTTPServer(("127.0.0.1", ARGS.port), Handler).serve_forever()
 '''
 
 # Stands in for the real model CLI: echoes a usage envelope, or sleeps when asked to.
@@ -152,7 +156,8 @@ def _scripted_tester(script):
         action, label, value = remaining.pop(0)
         ref = None
         if label is not None:
-            ref = next(e["ref"] for e in page["elements"] if label in e["label"])
+            # The last match: a company app's navigation bar comes before the feature's own controls.
+            ref = [e["ref"] for e in page["elements"] if label in e["label"]][-1]
         return {"action": action, "ref": ref, "value": value, "reason": f"step {action}"}, None
     return tester
 

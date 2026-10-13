@@ -153,9 +153,15 @@ def _builder_context(
         interface = {"interface": {
             "kind": "web_app",
             "demo_plan_path": demo_plan_path,
-            "manifest_runtime": {"transport": "web_app", "port_argument": "--<name>", "ready_path": "/<path>"},
-            "note": ("Build a web app a person uses in a browser. The frozen demo plan is public; an AI tester "
-                     "runs it through the same screens for the final evaluation."),
+            "mount_path": f"/{claim_id}",
+            "manifest_runtime": {"transport": "web_app", "port_argument": "--<name>", "ready_path": "/<path>",
+                                 "base_path_argument": "--<name>"},
+            "note": ("Build a web app a person uses in a browser. It is one feature of the company's single app: the "
+                     f"company app shell serves its menu at / and this feature at /{claim_id}/, and starts the "
+                     f"entrypoint with the base path argument set to /{claim_id}. Serve every page, asset, form "
+                     "action, fetch and redirect under that base path; ready_path is relative to it. The shell adds "
+                     "a navigation bar to each HTML page. The frozen demo plan is public; an AI tester starts at the "
+                     "company app menu and runs it through the same screens for the final evaluation."),
         }}
     return {
         **interface,
@@ -167,7 +173,9 @@ def _builder_context(
         "workflow": deepcopy(second_pass.get("workflow")),
         "findings": public_research(second_pass.get("findings")),
         "selected_scenario": public_scenario,
-        "available_scenarios": public_research(scenarios),
+        "available_scenarios": [{"id": scenario["id"], "selected": scenario["id"] == selected["id"]}
+                                for scenario in scenarios],
+        "research_reference": {"path": "claim.json", "read_when": "consult research evidence or an unselected scenario"},
         "scenario_selection": deepcopy(payload.get("scenario_selection")),
         "handoff": public_research(second_pass.get("handoff")),
         "execution_policy": deepcopy(payload.get("execution_policy")),
@@ -987,8 +995,17 @@ def freeze_web_claim(payload: dict[str, Any], claim_id: str, fragment_root: Path
         scope = _demo_scope(payload, selected, json.loads(plan_path.read_text(encoding="utf-8")))
     except (OSError, ValueError) as error:
         return None, [f"demo plan: {error}"]
+    # Every web claim of a company is one feature of the company app, served under its own path.
     return {"plan_path": _relative_path(run_dir, plan_path), "plan_sha256": _sha256(plan_path),
-            "frozen_at": utc_now(), "scope": scope}, []
+            "frozen_at": utc_now(), "scope": scope, "mount_path": f"/{claim_id}"}, []
+
+
+def require_company_mount(claim: dict[str, Any], manifest: dict[str, Any]) -> None:
+    """A claim frozen as a company-app feature must ship a bundle that serves under its mount path."""
+    mount = (claim.get("web_demo") or {}).get("mount_path")
+    if mount and "base_path_argument" not in (manifest.get("runtime") or {}):
+        raise ValueError(f"this feature is served at {mount}/ in the company app: declare runtime.base_path_argument "
+                         "and serve every page, asset, form action, request and redirect under the base path it receives")
 
 
 def _demo_scope(payload: dict[str, Any], selected: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
@@ -1264,6 +1281,7 @@ def finalize_agent_candidate(
             expected_candidate,
             claim_payload_value,
         )
+        require_company_mount(claim, manifest)
         if any(attempt["candidate_sha256"] == candidate_sha256 for attempt in claim.get("bundle_submissions", [])):
             raise ValueError("the same candidate cannot be resubmitted to sealed tests")
         claim["status"] = "IMPLEMENTATION_READY"
@@ -1678,6 +1696,8 @@ def finish_agent_harness(registry_path: Path) -> dict[str, Any]:
         root = registry_path.parent.resolve()
         results_path = root / PUBLIC_RESULTS_ROOT / "company-claims.json"
         company_results = _company_results(root, registry)
+        from .company_app import check_company_app
+        company_results["company_app"] = check_company_app(registry, root)
         results_path.parent.mkdir(exist_ok=True)
         results_path.unlink(missing_ok=True)
         _write_new_json(results_path, company_results)
@@ -1835,6 +1855,18 @@ def render_architecture(company: dict[str, Any]) -> str:
     lines = ["# 워크플로 설계도와 실측", "",
              "단계마다 **계획**(구현 전 2차 조사가 고정한 처리 방식)과 **관측**(최종 평가 기록)을 나눠 적는다. "
              "계획상 경로는 실측 성공으로 세지 않는다. 관측은 사례 단위이며, 사례 결과를 단계별 통과·실패로 바꾸지 않는다.", ""]
+    app = company.get("company_app")
+    if app:
+        state = {"assembled": "모든 기능 탑재", "partially_assembled": "일부 기능만 탑재", "failed": "기동 실패",
+                 "not_assembled": "탑재할 기능 없음"}.get(app["status"], app["status"])
+        lines += ["## 기업 앱", "", f"하나의 앱(공통 틀)에 기능을 경로별로 올린 기동 점검: **{state}**. "
+                  "각 기능의 첫 화면이 공통 틀을 거쳐 열리는지만 확인하며, 기능 동작은 기능별 시연 평가로 판정한다.", ""]
+        lines += [f"- `{f['path']}` {f['claim_id']}: {'열림' if f['status'] == 'loaded' else '실패'}"
+                  + (f" ({f['reason']})" if f.get("reason") else "") for f in app["features"]]
+        lines += [f"- {e['claim_id']}: 앱에 올리지 않음 ({e['reason']})" for e in app["excluded"]]
+        if app.get("reason"):
+            lines.append(f"- 기동 실패 사유: {app['reason']}")
+        lines.append("")
     for claim in company["claims"]:
         architecture = claim.get("architecture")
         if architecture is None:
@@ -1891,6 +1923,9 @@ def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
             entries.append(entry)
             continue
         final = claim.get("final_result") or {}
+        if claim.get("web_demo"):
+            from .web_evaluation import cumulative_web_costs
+            entry["cumulative_model_calls"] = cumulative_web_costs(root, claim)
         result = {}
         web = final.get("schema_version") == "replica-agent-web-demo-result/v1"
         if web:

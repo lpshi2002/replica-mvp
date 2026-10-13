@@ -149,7 +149,7 @@ URL을 모르면 기업명만 입력해도 됩니다. 특정 기능을 지정하
 
 조사와 조율은 현재 열려 있는 Codex·Claude 세션이 오케스트레이터로서 수행합니다.
 모델을 직접 호출하는 구현·평가 경로는 위 "어떻게 작동하는가"에 정리했습니다.
-결과가 나온 뒤 사람은 `serve-web`으로 같은 복제품을 직접 써 볼 수 있지만, 자동
+결과가 나온 뒤 사람은 `serve-company`(기업 앱 하나) 또는 `serve-web`(기능 하나)으로 같은 복제품을 직접 써 볼 수 있지만, 자동
 실행이 사람의 체험이나 승인을 기다리지는 않습니다.
 
 ## 전체 파이프라인
@@ -601,7 +601,8 @@ python -m pip install -e '.[web]' && python -m playwright install chromium   # w
 | `replica-mvp single-agent-fail REGISTRY CLAIM_ID --category CATEGORY --reason TEXT` | 구현자를 만들지 못했거나 고정 가능한 제출물을 끝내 내지 못한 claim을 사유와 함께 종료 |
 | `replica-mvp agent-bundle-evaluate REGISTRY CLAIM_ID` | 웹 claim은 `web-demo`, 그 밖에는 봉인 시험으로 최종 평가 |
 | `replica-mvp agent-bundle-retry REGISTRY CLAIM_ID` | 실패한 claim의 재제출 준비와 `retry-feedback-NNN.json` 작성 |
-| `replica-mvp agent-harness-finish REGISTRY` | `final-results/company-claims.json` 작성 |
+| `replica-mvp agent-harness-finish REGISTRY` | `final-results/company-claims.json` 작성. 고정된 웹 기능을 기업 앱 하나로 띄워 각 기능 첫 화면이 열리는지 점검해 `company_app`에 기록 |
+| `replica-mvp serve-company REGISTRY [--state-dir DIR] [--port N] [--open]` | 실행의 고정된 웹 기능을 기업 앱 하나(메뉴 `/`, 기능 `/<claim-id>/`)로 띄워 사람이 사용 |
 
 쌍 경로(`agent-harness-init` 이하 `agent-*` 명령)는 `.claude/skills/`·`.agents/skills/`의
 쌍 Agent Skill이 사용합니다. 아래는 Replica 실행과 `operator.json` 후보 평가에 쓰는
@@ -845,12 +846,24 @@ API를 사용하는 질문에는 해당 run의 공개 또는 합성 `creator_cor
 `command`, `environment_variables` 등)는 기존 번들 manifest와 같습니다.
 
 ```json
-"runtime": {"transport": "web_app", "port_argument": "--port", "ready_path": "/"}
+"runtime": {"transport": "web_app", "port_argument": "--port",
+            "base_path_argument": "--base-path", "ready_path": "/health"}
 ```
+
+한 기업의 웹 기능들은 앱 하나로 제공합니다. 하네스가 공통 틀(기업 앱 셸)을 맡아 `/`에
+기능 메뉴를 보여 주고, 각 claim의 번들을 `/<claim-id>/` 경로에 올립니다. 번들은
+`--base-path /<claim-id>`로 시작되어 모든 페이지·자원·폼·요청·이동을 그 경로 아래에서
+처리하고, `ready_path`는 그 경로 기준입니다. 셸은 기능의 HTML 페이지마다 공통 이동 막대를
+넣고, 기능 사이 데이터를 공유하지는 않습니다. 구현·평가·재시도는 지금처럼 claim별로
+따로 하며, AI 테스터는 기업 앱 메뉴에서 시작해 해당 기능으로 들어갑니다.
+`base_path_argument`가 없는 번들은 기업 앱 이전 실행의 단독 앱으로 취급하며, 새 하네스
+실행의 웹 claim은 이를 제출(bind) 단계에서 거부합니다.
 
 ```bash
 # 사람이 브라우저로 직접 사용. 저장 데이터는 --state-dir에 남음
 replica-mvp serve-web path/to/manifest.json --state-dir work/demo-state --open
+# 실행 하나의 모든 웹 기능을 기업 앱 하나로 사용
+replica-mvp serve-company RUN_DIR/agent-harness.json --open
 
 # 고정 사례를 AI 테스터가 같은 화면으로 실행 (선택 의존성 필요)
 pip install -e '.[web]' && python -m playwright install chromium
@@ -984,6 +997,7 @@ Judge는 다음 형식의 JSON만 반환해야 합니다.
 │   ├── bundle_runtime.py      # 구현 번들 실행
 │   ├── bundle_evaluation.py   # 봉인 시험 평가
 │   ├── web_demo.py            # 웹 앱 실행(serve-web)과 AI 사례 시연(web-demo)
+│   ├── company_app.py         # 기업 앱 공통 틀: 기능 메뉴와 /<claim-id>/ 경로 중계
 │   ├── web_evaluation.py      # 하네스의 웹 최종 평가와 재시도 피드백
 │   ├── model_calls.py         # 로컬 모델 CLI 호출 영수증과 비용 요약
 │   ├── session_usage.py       # Claude·Codex 세션 기록의 사용량 읽기

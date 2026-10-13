@@ -1,0 +1,60 @@
+[
+  {
+    "run": "work/delphi-ai-v4/single-harness-2026-10-09/final-results/runs/claim-001/web-attempt-002-fb54a7a38843",
+    "calls": 164,
+    "models": {
+      "claude-opus-5-5": 164
+    },
+    "tokens": {
+      "input_tokens": 328,
+      "output_tokens": 36471,
+      "cache_creation_input_tokens": 552365,
+      "cache_read_input_tokens": 324228,
+      "ephemeral_1h_input_tokens": 552365,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_reads_distribution": {
+      "1977": 164
+    },
+    "cli_list_estimate_usd": 5.214497599999999
+  },
+  {
+    "run": "work/delphi-ai-v4/single-harness-2026-10-09/final-results/runs/claim-002/web-attempt-002-31975ba1bb37",
+    "calls": 185,
+    "models": {
+      "claude-sonnet-5-5": 185
+    },
+    "tokens": {
+      "input_tokens": 370,
+      "output_tokens": 29250,
+      "cache_creation_input_tokens": 759313,
+      "cache_read_input_tokens": 369075,
+      "ephemeral_1h_input_tokens": 759313,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_reads_distribution": {
+      "1995": 185
+    },
+    "cli_list_estimate_usd": 3.4043070000000006
+  },
+  {
+    "run": "work/delphi-ai-v4/single-harness-2026-10-09/final-results/runs/claim-003/web-attempt-002-a80003d5034d",
+    "calls": 78,
+    "models": {
+      "claude-opus-5-5": 78
+    },
+    "tokens": {
+      "input_tokens": 156,
+      "output_tokens": 17636,
+      "cache_creation_input_tokens": 244851,
+      "cache_read_input_tokens": 152229,
+      "ephemeral_1h_input_tokens": 244851,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "cache_reads_distribution": {
+      "1977": 77,
+      "0": 1
+    },
+    "cli_list_estimate_usd": 2.3425977999999987
+  }
+]

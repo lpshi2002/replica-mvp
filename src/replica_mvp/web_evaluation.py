@@ -7,16 +7,70 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from .resources import utc_now
 from .web_demo import run_web_demo, web_reproduction_status
+from .web_checkpoint import evaluator_version
+from .model_calls import summarize_receipts, summarize_receipt_directories
 
 
 WEB_RESULT_SCHEMA = "replica-agent-web-demo-result/v1"
 MAX_WEB_SUBMISSIONS = 3
+
+
+def register_development_run(registry_path: Path, claim_id: str, source: Path) -> dict[str, Any]:
+    """Import existing development receipts without touching the implementation or verdict."""
+    from .agent_harness import _read_registry, _claim_record, _replace_registry
+    registry = _read_registry(registry_path)
+    claim = _claim_record(registry, claim_id)
+    source = source.resolve()
+    result_path = source / "demo-result.json"
+    result = json.loads(result_path.read_text())
+    if result.get("claim_id") != claim_id or not (source / "receipts").is_dir():
+        raise ValueError("development result must identify this claim and contain receipts")
+    result_hash = _digest(result_path)
+    records = claim.setdefault("development_evaluations", [])
+    found = next((r for r in records if r["result_sha256"] == result_hash), None)
+    if found:
+        return found
+    target = registry_path.parent / claim["namespace"] / "development-evaluations" / result_hash[:16]
+    if target.exists():
+        raise ValueError("unregistered development evidence already exists; inspect before retrying import")
+    if any(p.is_symlink() for p in (source / "receipts").rglob("*")):
+        raise ValueError("development receipts must not contain symlinks")
+    target.mkdir(parents=True)
+    shutil.copyfile(result_path, target / "demo-result.json")
+    shutil.copytree(source / "receipts", target / "receipts")
+    record = {"path": target.relative_to(registry_path.parent).as_posix(), "result_sha256": result_hash,
+              "source": str(source), "registered_at": utc_now()}
+    records.append(record)
+    _replace_registry(registry_path, registry)
+    return record
+
+
+def cumulative_web_costs(root: Path, claim: dict[str, Any]) -> dict[str, Any]:
+    directories = []
+    sources = []
+    for record in [*claim.get("bundle_submissions", []), *claim.get("development_evaluations", [])]:
+        name = record.get("public_run_dir") or record.get("path")
+        if not name:
+            continue
+        directory = root / name
+        if not directory.resolve().is_relative_to(root.resolve()):
+            raise ValueError("cost evidence escaped the run directory")
+        if record.get("result_sha256") and _digest(directory / "demo-result.json") != record["result_sha256"]:
+            raise ValueError("cost evidence result changed")
+        directories.append(directory / "receipts")
+        sources.append(name)
+    summary = summarize_receipt_directories(directories)
+    return {"phases": summary["phases"], "sources": sources,
+            "unique_calls": sum(p["calls"] for p in summary["phases"].values()), "unique_receipts": len(summary["calls"]),
+            "coverage": "All registered evaluation and development-demo segments; agent session usage is reported separately. Unregistered development calls are unknown, not zero."}
 
 
 def _digest(path: Path) -> str:
@@ -96,63 +150,126 @@ def write_retry_feedback(root: Path, claim: dict[str, Any], directory: Path) -> 
     return path
 
 
+def interrupted_attempt(root: Path, attempt: dict[str, Any]) -> bool:
+    if attempt.get("status") == "INTERRUPTED" or attempt.get("environment_interrupted"):
+        return True
+    directory = attempt.get("public_run_dir")
+    if not directory:
+        return False
+    path = root / directory
+    if not path.resolve().is_relative_to((root / "final-results" / "runs").resolve()):
+        raise ValueError("evaluation directory escaped public runs")
+    return any(c.get("usage_limit") or c["status"] == "timeout"
+               for c in summarize_receipts(path / "receipts")["calls"])
+
+
+def submission_count(root: Path, claim: dict[str, Any]) -> int:
+    return len({a["candidate_sha256"] for a in claim.get("bundle_submissions", [])
+                if not interrupted_attempt(root, a)})
+
+
 def evaluate_web_bundle(registry_path: Path, claim_id: str, *, provider: str | None = None, model: str | None = None,
                         tester: Callable | None = None, judge: Callable | None = None,
                         browser_factory: Callable | None = None, instance_generator: Callable | None = None,
-                        reviewer: Callable | None = None) -> dict[str, Any]:
+                        reviewer: Callable | None = None, recovery_reason: str | None = None,
+                        clear_limit: bool = False, phase_models: dict[str, str] | None = None) -> dict[str, Any]:
     from .agent_harness import (
         PUBLIC_RESULTS_ROOT, _claim_record, _read_registry, _relative_path, _replace_registry,
         _validate_implementation_result,
     )
+    from .bundle_evaluation import _validate_history
     registry = _read_registry(registry_path)
     claim = _claim_record(registry, claim_id)
     root = registry_path.parent.resolve()
-    if claim.get("status") != "IMPLEMENTATION_READY":
-        raise ValueError("final web evaluation requires IMPLEMENTATION_READY")
-    _validate_implementation_result(root, claim)
     web = claim.get("web_demo")
     if not isinstance(web, dict):
         raise ValueError("this claim has no frozen demo plan")
+    attempts = claim.setdefault("bundle_submissions", [])
+    recovering = bool(recovery_reason) or claim.get("status") == "EVALUATION_INTERRUPTED"
+    if claim.get("status") != "IMPLEMENTATION_READY" and not recovering:
+        raise ValueError("final web evaluation requires IMPLEMENTATION_READY or explicit recovery")
+    if any(a["status"] == "RUNNING" for a in attempts):
+        raise ValueError("the existing web evaluation has not finished")
+    _validate_implementation_result(root, claim)
+    _validate_history(root, claim)
     plan_path = root / web["plan_path"]
     if _digest(plan_path) != web["plan_sha256"]:
         raise ValueError("the frozen demo plan changed after it was fixed")
     manifest_path = root / claim["implementation_result"]["candidate_path"]
     manifest_sha256 = _digest(manifest_path)
-    attempts = claim.setdefault("bundle_submissions", [])
-    if any(a["status"] == "RUNNING" for a in attempts):
-        raise ValueError("the existing web evaluation has not finished")
-    if len(attempts) >= MAX_WEB_SUBMISSIONS:
-        raise ValueError("three web evaluation submissions are exhausted")
-    if any(a["candidate_sha256"] == manifest_sha256 for a in attempts):
-        raise ValueError("the same candidate cannot be evaluated twice")
+    previous, resume_from = None, None
+    if recovering:
+        if claim.get("status") not in {"RESULT_FAILED", "EVALUATION_INTERRUPTED"} or not attempts:
+            raise ValueError("recovery requires a failed/interrupted evaluation, not a successful result")
+        previous = attempts[-1]
+        if previous["candidate_sha256"] != manifest_sha256 or previous["plan_sha256"] != web["plan_sha256"]:
+            raise ValueError("recovery requires the same bound candidate and frozen plan")
+        old_version = previous.get("evaluator_version")
+        if not interrupted_attempt(root, previous) and old_version == evaluator_version():
+            raise ValueError("a completed evaluation requires an evaluator fix before recovery")
+        resume_from = root / previous["public_run_dir"]
+        if previous.get("checkpoint_sha256") and _digest(resume_from / "checkpoint.json") != previous["checkpoint_sha256"]:
+            raise ValueError("recovery checkpoint changed")
+    else:
+        if submission_count(root, claim) >= MAX_WEB_SUBMISSIONS:
+            raise ValueError("three web evaluation submissions are exhausted")
+        if any(a["candidate_sha256"] == manifest_sha256 for a in attempts):
+            raise ValueError("the same candidate cannot be evaluated twice; use explicit recovery after an interruption")
     number = len(attempts) + 1
     output = root / PUBLIC_RESULTS_ROOT / "runs" / claim_id / f"web-attempt-{number:03d}-{manifest_sha256[:12]}"
-    attempts.append({"attempt": number, "mode": "web_demo", "candidate_sha256": manifest_sha256,
-                     "plan_sha256": web["plan_sha256"], "started_at": utc_now(), "status": "RUNNING"})
+    attempt = {"attempt": number, "mode": "web_demo", "candidate_sha256": manifest_sha256,
+               "plan_sha256": web["plan_sha256"], "started_at": utc_now(), "status": "RUNNING",
+               "evaluator_version": evaluator_version(), "public_run_dir": _relative_path(root, output)}
+    if previous:
+        attempt["recovery_of"] = previous["attempt"]
+        attempt["recovery_reason"] = recovery_reason or "resume interrupted evaluation"
+        attempt["pause_wall_seconds"] = max(0, time.time() - datetime.fromisoformat(
+            previous.get("finished_at", previous["started_at"])).timestamp())
+        attempt["budget_policy"] = "evaluation recovery uses the bound candidate; no development retry or elapsed-development-budget charge"
+    attempts.append(attempt)
+    # The old result remains in its immutable attempt; a crash must not present it as this attempt's result.
+    claim.pop("final_result", None)
+    claim["status"] = "IMPLEMENTATION_READY"
     _replace_registry(registry_path, registry)
     started = time.monotonic()
-    result = run_web_demo(plan_path, output, manifest_path=manifest_path,
-                          provider=provider or registry["model_runtime"]["provider"], model=model,
-                          tester=tester, judge=judge, browser_factory=browser_factory,
-                          instance_generator=instance_generator, reviewer=reviewer,
-                          review_context=review_context(root, claim), scope=web["scope"])
+    try:
+        result = run_web_demo(plan_path, output, manifest_path=manifest_path,
+                              provider=provider or registry["model_runtime"]["provider"], model=model,
+                              tester=tester, judge=judge, browser_factory=browser_factory,
+                              instance_generator=instance_generator, reviewer=reviewer,
+                              review_context=review_context(root, claim), scope=web["scope"],
+                              phase_models=phase_models, resume_from=resume_from,
+                              gate=root / f"{provider or registry['model_runtime']['provider']}-usage-limit.json",
+                              clear_limit=clear_limit, company=(registry.get("company") or {}).get("name"))
+    except BaseException:
+        registry = _read_registry(registry_path)
+        claim = _claim_record(registry, claim_id)
+        current = claim["bundle_submissions"][-1]
+        current.update(status="INTERRUPTED", environment_interrupted=True, finished_at=utc_now(),
+                       elapsed_seconds=time.monotonic() - started)
+        if (output / "checkpoint.json").exists():
+            current["checkpoint_sha256"] = _digest(output / "checkpoint.json")
+        claim["status"] = "EVALUATION_INTERRUPTED"
+        _replace_registry(registry_path, registry)
+        raise
     reproduction = web_reproduction_status(result)
-    # Other claims may have advanced while the demo ran; update only this claim.
     registry = _read_registry(registry_path)
     claim = _claim_record(registry, claim_id)
     public_dir = _relative_path(root, output)
     result_sha256 = _digest(output / "demo-result.json")
+    interrupted = bool(result.get("interruption"))
     claim["bundle_submissions"][-1].update({
-        "status": "COMPLETED", "finished_at": utc_now(), "elapsed_seconds": time.monotonic() - started,
+        "status": "INTERRUPTED" if interrupted else "COMPLETED", "environment_interrupted": interrupted,
+        "finished_at": utc_now(), "elapsed_seconds": time.monotonic() - started,
+        "active_seconds": result.get("active_seconds"), "checkpoint_sha256": _digest(output / "checkpoint.json"),
         "reproduction_status": reproduction, "public_run_dir": public_dir, "result_sha256": result_sha256,
     })
     claim["final_result"] = {
         "schema_version": WEB_RESULT_SCHEMA, "status": "COMPLETED", "reproduction_status": reproduction,
         "candidate_sha256": manifest_sha256, "plan_sha256": web["plan_sha256"],
-        "public_run_dir": public_dir, "result_sha256": result_sha256,
-        "code_review": result["code_review"]["status"],
+        "public_run_dir": public_dir, "result_sha256": result_sha256, "code_review": result["code_review"]["status"],
     }
-    claim["status"] = "RESULT_SUCCESS" if reproduction == "reproduced" else "RESULT_FAILED"
+    claim["status"] = "EVALUATION_INTERRUPTED" if interrupted else "RESULT_SUCCESS" if reproduction == "reproduced" else "RESULT_FAILED"
     _replace_registry(registry_path, registry)
     return registry
 

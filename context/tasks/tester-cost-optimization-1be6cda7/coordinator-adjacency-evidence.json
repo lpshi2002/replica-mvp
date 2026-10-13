@@ -1,0 +1,193 @@
+{
+  "basis": "Read-only adjacency count, same case and unchanged URL, no logged error. Allows fill/check/uncheck/select only; does not prove DOM identity or batch safety. No model calls or live browser replay. Final selected runs only; 401 events.",
+  "rows": [
+    {
+      "claim": "claim-001",
+      "events": 138,
+      "by_action": {
+        "click": 57,
+        "upload": 15,
+        "wait_for": 30,
+        "fill": 22,
+        "check": 4,
+        "done": 10
+      },
+      "cap_3": {
+        "possible_calls_saved": 4,
+        "groups": [
+          {
+            "case": "grounded-multiturn-citation",
+            "first_index": 6,
+            "count": 3
+          },
+          {
+            "case": "unsupported-personal-fact-fallback",
+            "first_index": 5,
+            "count": 2
+          },
+          {
+            "case": "creativity-mode-boundary",
+            "first_index": 5,
+            "count": 2
+          }
+        ]
+      },
+      "cap_5": {
+        "possible_calls_saved": 4,
+        "groups": [
+          {
+            "case": "grounded-multiturn-citation",
+            "first_index": 6,
+            "count": 3
+          },
+          {
+            "case": "unsupported-personal-fact-fallback",
+            "first_index": 5,
+            "count": 2
+          },
+          {
+            "case": "creativity-mode-boundary",
+            "first_index": 5,
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "claim": "claim-002",
+      "events": 185,
+      "by_action": {
+        "click": 103,
+        "fill": 47,
+        "check": 7,
+        "wait_for": 18,
+        "done": 6,
+        "select": 2,
+        "read": 1,
+        "wait": 1
+      },
+      "cap_3": {
+        "possible_calls_saved": 17,
+        "groups": [
+          {
+            "case": "pricing-interest-autonomous",
+            "first_index": 5,
+            "count": 3
+          },
+          {
+            "case": "milestone-approval",
+            "first_index": 5,
+            "count": 3
+          },
+          {
+            "case": "milestone-approval",
+            "first_index": 10,
+            "count": 3
+          },
+          {
+            "case": "quiet-new-contact-wait-cancel",
+            "first_index": 10,
+            "count": 3
+          },
+          {
+            "case": "quiet-new-contact-wait-cancel",
+            "first_index": 18,
+            "count": 3
+          },
+          {
+            "case": "consent-blocks-sms",
+            "first_index": 5,
+            "count": 3
+          },
+          {
+            "case": "vip-alert-typo",
+            "first_index": 5,
+            "count": 3
+          },
+          {
+            "case": "vip-alert-typo",
+            "first_index": 10,
+            "count": 2
+          },
+          {
+            "case": "conversation-ended-organize",
+            "first_index": 5,
+            "count": 3
+          }
+        ]
+      },
+      "cap_5": {
+        "possible_calls_saved": 18,
+        "groups": [
+          {
+            "case": "pricing-interest-autonomous",
+            "first_index": 5,
+            "count": 3
+          },
+          {
+            "case": "milestone-approval",
+            "first_index": 5,
+            "count": 3
+          },
+          {
+            "case": "milestone-approval",
+            "first_index": 10,
+            "count": 3
+          },
+          {
+            "case": "quiet-new-contact-wait-cancel",
+            "first_index": 10,
+            "count": 3
+          },
+          {
+            "case": "quiet-new-contact-wait-cancel",
+            "first_index": 18,
+            "count": 3
+          },
+          {
+            "case": "consent-blocks-sms",
+            "first_index": 5,
+            "count": 4
+          },
+          {
+            "case": "vip-alert-typo",
+            "first_index": 5,
+            "count": 3
+          },
+          {
+            "case": "vip-alert-typo",
+            "first_index": 10,
+            "count": 2
+          },
+          {
+            "case": "conversation-ended-organize",
+            "first_index": 5,
+            "count": 3
+          }
+        ]
+      }
+    },
+    {
+      "claim": "claim-003",
+      "events": 78,
+      "by_action": {
+        "click": 37,
+        "wait": 22,
+        "fill": 13,
+        "done": 5,
+        "upload": 1
+      },
+      "cap_3": {
+        "possible_calls_saved": 0,
+        "groups": []
+      },
+      "cap_5": {
+        "possible_calls_saved": 0,
+        "groups": []
+      }
+    }
+  ],
+  "total_events": 401,
+  "cap_3_saved": 21,
+  "cap_5_saved": 22
+}

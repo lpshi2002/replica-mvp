@@ -993,7 +993,7 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
     return registry
 
 
-_WEB_OPTIONS = {"provider", "model", "tester", "judge", "browser_factory", "instance_generator", "reviewer"}
+_WEB_OPTIONS = {"provider", "model", "tester", "judge", "browser_factory", "instance_generator", "reviewer", "recovery_reason", "clear_limit", "phase_models"}
 
 
 def evaluate_agent_bundle(registry_path: Path, claim_id: str, **kwargs) -> dict[str, Any]:
@@ -1033,6 +1033,8 @@ def retry_agent_bundle(registry_path: Path, claim_id: str) -> dict[str, Any]:
     registry = _read_registry(registry_path)
     claim = _claim_record(registry, claim_id)
     packaging_retry = claim["status"] == "EXECUTION_SUCCESS" and "implementation_result" not in claim
+    if claim.get("web_demo") and claim["status"] == "EVALUATION_INTERRUPTED":
+        raise ValueError("resume the same bundle with agent-web-recover; an evaluation interruption does not require implementation retry")
     if not packaging_retry and claim["status"] not in {"RESULT_FAILED", "EVALUATION_INTERRUPTED"}:
         raise ValueError("only a failed or interrupted bundle evaluation can reopen the same pair")
     root = registry_path.parent.resolve()
@@ -1061,7 +1063,8 @@ def retry_agent_bundle(registry_path: Path, claim_id: str) -> dict[str, Any]:
         write_retry_feedback(root, claim, root / claim["operator"]["artifact_namespace"])
     _validate_history(root, claim)
     attempts = claim.get("bundle_submissions", [])
-    if len(attempts) >= MAX_SUBMISSIONS:
+    from .web_evaluation import submission_count
+    if (submission_count(root, claim) if claim.get("web_demo") else len(attempts)) >= MAX_SUBMISSIONS:
         raise ValueError("three web evaluation submissions are exhausted" if claim.get("web_demo")
                          else "three sealed submissions are exhausted")
     if "bundle_evaluation" in claim:

@@ -37,7 +37,10 @@ DEMO_PLAN = {
         ],
     }],
 }
-APPROVE = [("fill", "요청 내용", "노트북 구매"), ("click", "등록", None), ("click", "승인", None), ("done", None, None)]
+# The tester starts at the company app menu and opens the feature by its plan title.
+APPROVE = [("click", "승인 워크플로", None), ("fill", "요청 내용", "노트북 구매"), ("click", "등록", None),
+           ("click", "승인", None), ("done", None, None)]
+WEB_RUNTIME = {"transport": "web_app", "port_argument": "--port", "base_path_argument": "--base-path", "ready_path": "/"}
 
 
 def _passing_review(prompt):
@@ -83,7 +86,7 @@ def _bind_web_app(root: Path, research=None, *, runtime=True, app=APP) -> Path:
         "files": [{"path": "app.py", "sha256": hashlib.sha256(app.encode()).hexdigest()}],
     }
     if runtime:
-        manifest["runtime"] = {"transport": "web_app", "port_argument": "--port", "ready_path": "/"}
+        manifest["runtime"] = dict(runtime) if isinstance(runtime, dict) else dict(WEB_RUNTIME)
     manifest_path.write_text(json.dumps(manifest))
     finalize_agent_candidate(registry, claim_id, manifest_path)
     return registry
@@ -214,7 +217,7 @@ class WebHarnessTest(unittest.TestCase):
             seen.append(json.loads(prompt))
             return self._chair(prompt)
         # The tester only ever sees the drawn values; the public example is never run.
-        chair = [("fill", "요청 내용", "의자 구매"), ("click", "등록", None), ("click", "승인", None), ("done", None, None)]
+        chair = [("click", "승인 워크플로", None), ("fill", "요청 내용", "의자 구매"), ("click", "등록", None), ("click", "승인", None), ("done", None, None)]
         evaluated = evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(chair), judge=_passing_judge,
                                           reviewer=_passing_review, instance_generator=generator)
         claim = evaluated["claims"][0]
@@ -230,7 +233,7 @@ class WebHarnessTest(unittest.TestCase):
     def test_replica_fitted_to_the_public_example_fails_on_drawn_values(self):
         fitted = APP.replace('if item["state"] == "approved":', 'if item["state"] == "approved" and item["text"] == "노트북 구매":')
         registry = _bind_web_app(self.root / "run", _web_research(self._varied_plan()), app=fitted)
-        chair = [("fill", "요청 내용", "의자 구매"), ("click", "등록", None), ("click", "승인", None), ("done", None, None)]
+        chair = [("click", "승인 워크플로", None), ("fill", "요청 내용", "의자 구매"), ("click", "등록", None), ("click", "승인", None), ("done", None, None)]
         evaluated = evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(chair), judge=_passing_judge,
                                           reviewer=_passing_review, instance_generator=self._chair)
         claim = evaluated["claims"][0]
@@ -300,7 +303,7 @@ class WebHarnessTest(unittest.TestCase):
     def test_retry_feedback_writes_reasons_with_the_plan_values(self):
         fitted = APP.replace('if item["state"] == "approved":', 'if item["state"] == "approved" and item["text"] == "노트북 구매":')
         registry = _bind_web_app(self.root / "run", _web_research(self._varied_plan()), app=fitted)
-        chair = [("fill", "요청 내용", "의자 구매"), ("click", "등록", None), ("click", "승인", None), ("done", None, None)]
+        chair = [("click", "승인 워크플로", None), ("fill", "요청 내용", "의자 구매"), ("click", "등록", None), ("click", "승인", None), ("done", None, None)]
 
         def judge_quoting_the_page(prompt):
             request = json.loads(prompt)
@@ -364,16 +367,20 @@ class WebHarnessTest(unittest.TestCase):
         evaluated = evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(APPROVE), judge=broken_judge)
         claim = evaluated["claims"][0]
         self.assertEqual("partially_reproduced", claim["final_result"]["reproduction_status"])
-        self.assertEqual("RESULT_FAILED", claim["status"])
-        reopened = retry_agent_bundle(registry, "claim-001")
-        self.assertEqual("READY_FOR_PROTOCOL", reopened["claims"][0]["status"])
-        feedback = json.loads((self.root / "run" / "claims/claim-001/operator/retry-feedback-001.json").read_text())
-        reasons = {item["id"]: (item["status"], item["reason"]) for item in feedback["cases"][0]["expectations"]}
-        self.assertEqual("not_evaluated", reasons["summary"][0])
-        self.assertIn("judge unavailable", reasons["summary"][1])
-        # Reasons only: no screenshots, page text or action records go back to the implementer.
-        self.assertNotIn("screens", json.dumps(feedback))
-        self.assertNotIn("final_page", feedback["cases"][0])
+        self.assertEqual("EVALUATION_INTERRUPTED", claim["status"])
+        previous = self.root / "run" / claim["final_result"]["public_run_dir"]
+        original = (previous / "demo-result.json").read_bytes()
+        with self.assertRaisesRegex(ValueError, "agent-web-recover"):
+            retry_agent_bundle(registry, "claim-001")
+        # Completed UI evidence is rejudged without re-running its tester or app.
+        recovered = evaluate_agent_bundle(registry, "claim-001", recovery_reason="judge restored",
+                                          tester=_scripted_tester([]), judge=_passing_judge,
+                                          reviewer=_passing_review)
+        claim = recovered["claims"][0]
+        self.assertEqual("RESULT_SUCCESS", claim["status"])
+        self.assertEqual(1, claim["bundle_submissions"][-1]["recovery_of"])
+        self.assertEqual(original, (previous / "demo-result.json").read_bytes())
+        self.assertFalse((previous / "../retry-feedback-001.json").exists())
 
     def test_blocked_browser_reports_execution_blocked(self):
         registry = _bind_web_app(self.root / "run")
@@ -417,6 +424,9 @@ class SingleWebRouteTest(unittest.TestCase):
                 self.assertNotIn("bundle_evaluation", claim)
                 plan_dir = (path.parent / claim["web_demo"]["plan_path"]).parent
                 self.assertEqual("노트북 1대", (plan_dir / "inputs" / "order.txt").read_text())
+                interface = json.loads((path.parent / "claims/claim-001/implementation-context.json").read_text())["interface"]
+                self.assertEqual(("/claim-001", "--<name>"),
+                                 (interface["mount_path"], interface["manifest_runtime"]["base_path_argument"]))
                 start_single_implementation(path, "claim-001", agent_id="real-child", model="gpt-6-astra",
                                             reasoning_effort="low")
                 workspace = path.parent / "claims/claim-001/implementer"
@@ -430,7 +440,7 @@ class SingleWebRouteTest(unittest.TestCase):
                     "entrypoint": "app.py", "command": [sys.executable, "app.py"], "dependencies": [],
                     "environment_variables": [],
                     "files": [{"path": "app.py", "sha256": hashlib.sha256(APP.encode()).hexdigest()}],
-                    "runtime": {"transport": "web_app", "port_argument": "--port", "ready_path": "/"},
+                    "runtime": dict(WEB_RUNTIME),
                 }))
                 (workspace / "development.json").write_text(json.dumps({"status": "passed", "checks": [
                     {"command": "browser self-check fixture", "exit_code": 0}]}))

@@ -1,0 +1,704 @@
+{
+  "basis": "Potential adjacency only, same-URL form operations and optional final button click, cap5. Not proof of same form/DOM identity or stable state. No replay and no model calls.",
+  "total_potential_saved_calls": 95,
+  "of_401": 0.23690773067331672,
+  "runs": [
+    {
+      "run": "claim-001/web-attempt-004-5fa1c5939ec3",
+      "potential_saved_calls": 26,
+      "groups": [
+        {
+          "case": "grounded-multiturn-citation",
+          "index": 6,
+          "actions": [
+            "fill",
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Save settings"
+        },
+        {
+          "case": "grounded-multiturn-citation",
+          "index": 11,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "grounded-multiturn-citation",
+          "index": 14,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "audio-and-qa-ingestion",
+          "index": 6,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "audio-and-qa-ingestion",
+          "index": 9,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "unsupported-personal-fact-fallback",
+          "index": 5,
+          "actions": [
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Save settings"
+        },
+        {
+          "case": "unsupported-personal-fact-fallback",
+          "index": 9,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "unsupported-personal-fact-fallback",
+          "index": 12,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "creativity-mode-boundary",
+          "index": 5,
+          "actions": [
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Save settings"
+        },
+        {
+          "case": "creativity-mode-boundary",
+          "index": 9,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "creativity-mode-boundary",
+          "index": 13,
+          "actions": [
+            "check",
+            "click"
+          ],
+          "last_label": "Save settings"
+        },
+        {
+          "case": "creativity-mode-boundary",
+          "index": 16,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "recency-conflict",
+          "index": 4,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save quick note"
+        },
+        {
+          "case": "recency-conflict",
+          "index": 8,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "sensitive-handoff",
+          "index": 5,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save settings"
+        },
+        {
+          "case": "sensitive-handoff",
+          "index": 8,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "visitor-image-attachment-typo",
+          "index": 6,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "korean-question",
+          "index": 5,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "korean-question",
+          "index": 8,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "creator-correction-training",
+          "index": 5,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "creator-correction-training",
+          "index": 8,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        },
+        {
+          "case": "creator-correction-training",
+          "index": 14,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send"
+        }
+      ]
+    },
+    {
+      "run": "claim-002/web-attempt-002-31975ba1bb37",
+      "potential_saved_calls": 56,
+      "groups": [
+        {
+          "case": "pricing-interest-autonomous",
+          "index": 2,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save style notes"
+        },
+        {
+          "case": "pricing-interest-autonomous",
+          "index": 5,
+          "actions": [
+            "fill",
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Add contact"
+        },
+        {
+          "case": "pricing-interest-autonomous",
+          "index": 10,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Build automation"
+        },
+        {
+          "case": "pricing-interest-autonomous",
+          "index": 16,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "pricing-interest-autonomous",
+          "index": 19,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "milestone-approval",
+          "index": 2,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save style notes"
+        },
+        {
+          "case": "milestone-approval",
+          "index": 5,
+          "actions": [
+            "fill",
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Add contact"
+        },
+        {
+          "case": "milestone-approval",
+          "index": 10,
+          "actions": [
+            "fill",
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Add contact"
+        },
+        {
+          "case": "milestone-approval",
+          "index": 15,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Build automation"
+        },
+        {
+          "case": "milestone-approval",
+          "index": 21,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "milestone-approval",
+          "index": 24,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "milestone-approval",
+          "index": 28,
+          "actions": [
+            "select",
+            "click"
+          ],
+          "last_label": "Open chat"
+        },
+        {
+          "case": "milestone-approval",
+          "index": 30,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "milestone-approval",
+          "index": 38,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Approve and send"
+        },
+        {
+          "case": "quiet-new-contact-wait-cancel",
+          "index": 2,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save style notes"
+        },
+        {
+          "case": "quiet-new-contact-wait-cancel",
+          "index": 5,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Build automation"
+        },
+        {
+          "case": "quiet-new-contact-wait-cancel",
+          "index": 10,
+          "actions": [
+            "fill",
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Add contact"
+        },
+        {
+          "case": "quiet-new-contact-wait-cancel",
+          "index": 15,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "quiet-new-contact-wait-cancel",
+          "index": 18,
+          "actions": [
+            "fill",
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Add contact"
+        },
+        {
+          "case": "underspecified-instruction",
+          "index": 2,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save style notes"
+        },
+        {
+          "case": "underspecified-instruction",
+          "index": 6,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Build automation"
+        },
+        {
+          "case": "underspecified-instruction",
+          "index": 9,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send answer"
+        },
+        {
+          "case": "consent-blocks-sms",
+          "index": 2,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save style notes"
+        },
+        {
+          "case": "consent-blocks-sms",
+          "index": 5,
+          "actions": [
+            "fill",
+            "fill",
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Add contact"
+        },
+        {
+          "case": "consent-blocks-sms",
+          "index": 11,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Build automation"
+        },
+        {
+          "case": "consent-blocks-sms",
+          "index": 17,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "vip-alert-typo",
+          "index": 2,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save style notes"
+        },
+        {
+          "case": "vip-alert-typo",
+          "index": 5,
+          "actions": [
+            "fill",
+            "fill",
+            "fill",
+            "click"
+          ],
+          "last_label": "Add contact"
+        },
+        {
+          "case": "vip-alert-typo",
+          "index": 10,
+          "actions": [
+            "fill",
+            "fill",
+            "click"
+          ],
+          "last_label": "Add contact"
+        },
+        {
+          "case": "vip-alert-typo",
+          "index": 14,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Build automation"
+        },
+        {
+          "case": "vip-alert-typo",
+          "index": 20,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "vip-alert-typo",
+          "index": 24,
+          "actions": [
+            "select",
+            "click"
+          ],
+          "last_label": "Open chat"
+        },
+        {
+          "case": "vip-alert-typo",
+          "index": 26,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "conversation-ended-organize",
+          "index": 2,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save style notes"
+        },
+        {
+          "case": "conversation-ended-organize",
+          "index": 5,
+          "actions": [
+            "fill",
+            "fill",
+            "check",
+            "click"
+          ],
+          "last_label": "Add contact"
+        },
+        {
+          "case": "conversation-ended-organize",
+          "index": 10,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Build automation"
+        },
+        {
+          "case": "conversation-ended-organize",
+          "index": 16,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        },
+        {
+          "case": "conversation-ended-organize",
+          "index": 19,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Send message"
+        }
+      ]
+    },
+    {
+      "run": "claim-003/web-attempt-002-a80003d5034d",
+      "potential_saved_calls": 13,
+      "groups": [
+        {
+          "case": "typed-topic-to-insight",
+          "index": 3,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "typed-topic-to-insight",
+          "index": 6,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "typed-topic-to-insight",
+          "index": 9,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "typed-topic-to-insight",
+          "index": 12,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "non-answers-do-not-count",
+          "index": 3,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "non-answers-do-not-count",
+          "index": 6,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "non-answers-do-not-count",
+          "index": 9,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "spoken-answer-custom-topic",
+          "index": 3,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Add custom topic"
+        },
+        {
+          "case": "save-exit-resume-edit",
+          "index": 3,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "save-exit-resume-edit",
+          "index": 12,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Save snippet"
+        },
+        {
+          "case": "typo-paraphrase-answers",
+          "index": 3,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "typo-paraphrase-answers",
+          "index": 6,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        },
+        {
+          "case": "typo-paraphrase-answers",
+          "index": 9,
+          "actions": [
+            "fill",
+            "click"
+          ],
+          "last_label": "Submit answer"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "run": "claim-001/web-attempt-004-5fa1c5939ec3",
+    "num_turns": {
+      "2": 138
+    },
+    "iteration_count": {
+      "1": 138
+    },
+    "iteration_types": {
+      "message": 138
+    }
+  },
+  {
+    "run": "claim-002/web-attempt-002-31975ba1bb37",
+    "num_turns": {
+      "2": 185
+    },
+    "iteration_count": {
+      "1": 185
+    },
+    "iteration_types": {
+      "message": 185
+    }
+  },
+  {
+    "run": "claim-003/web-attempt-002-a80003d5034d",
+    "num_turns": {
+      "2": 78
+    },
+    "iteration_count": {
+      "1": 78
+    },
+    "iteration_types": {
+      "message": 78
+    }
+  }
+]

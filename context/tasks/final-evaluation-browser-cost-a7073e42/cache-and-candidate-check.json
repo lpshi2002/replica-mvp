@@ -1,0 +1,67 @@
+{
+  "note": "Recorded CLI list estimates, inferred write rates (Sonnet 4, Opus 8 USD/1M); not verified current provider price. 5m scenario assumes identical token allocation/model/calls and 1.25x vs 2x write multiplier; cannot identify cached content from counts. Post-input set is coordinator heuristic, not safety bound.",
+  "rows": {
+    "tester / claude-sonnet-5-5": {
+      "calls": 323.0,
+      "usd": 5.866006000000001,
+      "input_tokens": 646.0,
+      "cache_creation_input_tokens": 1303534.0,
+      "cache_read_input_tokens": 642390.0,
+      "output_tokens": 52210.0,
+      "1h_write_tokens": 1303534.0,
+      "inferred_write_usd": 5.214136,
+      "conditional_5m_write_saving_usd": 1.955301
+    },
+    "judge / claude-opus-5-5": {
+      "calls": 22.0,
+      "usd": 2.9400866,
+      "input_tokens": 46.0,
+      "cache_creation_input_tokens": 303747.0,
+      "cache_read_input_tokens": 69233.0,
+      "output_tokens": 24804.0,
+      "1h_write_tokens": 303747.0,
+      "inferred_write_usd": 2.429976,
+      "conditional_5m_write_saving_usd": 0.911241
+    },
+    "code_review / claude-opus-5-5": {
+      "calls": 3.0,
+      "usd": 1.4696449999999999,
+      "input_tokens": 6.0,
+      "cache_creation_input_tokens": 159796.0,
+      "cache_read_input_tokens": 2065.0,
+      "output_tokens": 9542.0,
+      "1h_write_tokens": 159796.0,
+      "inferred_write_usd": 1.278368,
+      "conditional_5m_write_saving_usd": 0.479388
+    },
+    "tester / claude-opus-5-5": {
+      "calls": 78.0,
+      "usd": 2.3425977999999996,
+      "input_tokens": 156.0,
+      "cache_creation_input_tokens": 244851.0,
+      "cache_read_input_tokens": 152229.0,
+      "output_tokens": 17636.0,
+      "1h_write_tokens": 244851.0,
+      "inferred_write_usd": 1.958808,
+      "conditional_5m_write_saving_usd": 0.734553
+    }
+  },
+  "candidate_sets": {
+    "wait": {
+      "calls": 71,
+      "usd": 1.5273578
+    },
+    "post_input": {
+      "calls": 97,
+      "usd": 1.8982026
+    },
+    "intersection": {
+      "calls": 0,
+      "usd": 0
+    },
+    "union": {
+      "calls": 168,
+      "usd": 3.4255604
+    }
+  }
+}

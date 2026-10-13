@@ -34,7 +34,8 @@ from .agent_harness import (
 from .agent_protocol import validate_agent_protocol_message_from_path
 from .builder import run_built_replica
 from .bundle_evaluation import evaluate_agent_bundle, prepare_bundle_evaluation, retry_agent_bundle
-from .bundle_runtime import native_model_judge, run_json_command, web_app_session
+from .bundle_runtime import mountable, native_model_judge, run_json_command, web_app_session
+from .company_app import company_app_session
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .experience import experience_input_once, experience_once, is_bundle_run
 from .intake import receive_second_pass
@@ -328,6 +329,20 @@ def _parser() -> argparse.ArgumentParser:
     bundle_evaluate.add_argument("--judge-command", type=_command_arguments)
     bundle_evaluate.add_argument("--judge-identity")
     bundle_evaluate.add_argument("--judge-mode", choices=("independent", "same_session"), default="same_session")
+    web_recover = sub.add_parser("agent-web-recover", help="Resume the same web bundle after an environment stop or evaluator fix; preserve history.")
+    web_recover.add_argument("registry", type=Path)
+    web_recover.add_argument("claim_id")
+    web_recover.add_argument("--reason", required=True)
+    web_recover.add_argument("--clear-usage-limit", action="store_true", help="After provider reset, archive the old gate and try again.")
+    web_recover.add_argument("--model")
+    bundle_check = sub.add_parser("agent-bundle-check", help="Check bundle packaging against a public claim without models or registry writes.")
+    bundle_check.add_argument("run_dir", type=Path)
+    bundle_check.add_argument("claim_id")
+    bundle_check.add_argument("manifest", type=Path)
+    register_dev = sub.add_parser("agent-development-register", help="Register existing development-demo receipts for cumulative costs.")
+    register_dev.add_argument("registry", type=Path)
+    register_dev.add_argument("claim_id")
+    register_dev.add_argument("run_dir", type=Path)
     bundle_retry = sub.add_parser("agent-bundle-retry", help="Reopen the same pair after a failed final evaluation, preserving history and budgets.")
     bundle_retry.add_argument("registry", type=Path)
     bundle_retry.add_argument("claim_id")
@@ -449,6 +464,12 @@ def _parser() -> argparse.ArgumentParser:
     serve_web.add_argument("--port", type=int, help="Loopback port (default: a free port).")
     serve_web.add_argument("--open", action="store_true", help="Open the app in the default browser.")
 
+    serve_company = sub.add_parser("serve-company", help="Serve every bound web-app feature of a run as one company app.")
+    serve_company.add_argument("registry", type=Path, help="agent-harness.json of the run.")
+    serve_company.add_argument("--state-dir", type=Path, help="Saved app data (default: company-app-state in the run).")
+    serve_company.add_argument("--port", type=int, help="Loopback port (default: a free port).")
+    serve_company.add_argument("--open", action="store_true", help="Open the app in the default browser.")
+
     web_demo = sub.add_parser("web-demo", help="Run fixed cases through the web app with an AI browser tester.")
     web_demo.add_argument("plan", type=Path, help="replica-web-demo-plan/v1 JSON.")
     web_demo.add_argument("--output", type=Path, required=True, help="New directory for the saved demo result.")
@@ -456,6 +477,13 @@ def _parser() -> argparse.ArgumentParser:
     web_demo.add_argument("--provider", choices=sorted(MODEL_RUNTIMES), default="claude")
     web_demo.add_argument("--model", help="Model for the tester and judge (default: the CLI default).")
 
+    web_demo.add_argument("--case", action="append", dest="case_ids", help="Development only: run this case ID (repeatable).")
+    web_demo.add_argument("--resume-from", type=Path, help="Previous demo directory; writes a new result, preserving old evidence.")
+    web_demo.add_argument("--clear-usage-limit", action="store_true")
+    for command in (web_demo, bundle_evaluate, web_recover):
+        for role in ("tester", "judge", "instance", "code-review"):
+            command.add_argument(f"--{role}-model", help=f"Override the {role} model; otherwise keep the default.")
+    bundle_evaluate.add_argument("--clear-usage-limit", action="store_true")
     return parser
 
 
@@ -473,7 +501,15 @@ def _serve_web(manifest: Path, state_dir: Path | None, port: int | None, open_br
         if state_dir is None:
             state_dir = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="replica-web-"))) / "state"
             print(f"상태 디렉터리: {state_dir} (종료 시 삭제, 유지하려면 --state-dir)")
-        base_url, root = stack.enter_context(web_app_session(manifest.resolve(), 60, workspace=state_dir, port=port))
+        manifest_value = json.loads(manifest.read_text(encoding="utf-8"))
+        if mountable(manifest_value.get("runtime") or {}):
+            # A company-app feature runs behind the same shell a person and the AI tester use.
+            feature = {"id": manifest_value["claim_id"], "title": manifest_value["claim_id"],
+                       "manifest": manifest.resolve(), "workspace": state_dir}
+            shell, roots = stack.enter_context(company_app_session("Company app", [feature], 60, port=port or 0))
+            base_url, root = shell, roots[feature["id"]]
+        else:
+            base_url, root = stack.enter_context(web_app_session(manifest.resolve(), 60, workspace=state_dir, port=port))
         print(f"웹 앱 실행 중: {base_url}/  (작업 디렉터리 {root}, 종료는 Ctrl-C)", flush=True)
         if open_browser:
             webbrowser.open(base_url + "/")
@@ -484,8 +520,51 @@ def _serve_web(manifest: Path, state_dir: Path | None, port: int | None, open_br
             print("종료합니다.")
 
 
+def _serve_company(registry_path: Path, state_dir: Path | None, port: int | None, open_browser: bool) -> None:
+    """Serve every bound, mountable feature of a company run as one app; others are listed, not served."""
+    import signal
+    import time
+    import webbrowser
+
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, interrupt)
+    registry = _read_registry(registry_path)
+    root = registry_path.parent.resolve()
+    company = (registry.get("company") or {}).get("name") or "Company app"
+    state = (state_dir or root / "company-app-state").resolve()
+    features, skipped = [], []
+    for claim in registry["claims"]:
+        bound = claim.get("implementation_result")
+        if not bound or not claim.get("web_demo"):
+            skipped.append((claim["claim_id"], "no bound web-app implementation"))
+            continue
+        manifest = root / bound["candidate_path"]
+        if not mountable(json.loads(manifest.read_text(encoding="utf-8")).get("runtime") or {}):
+            skipped.append((claim["claim_id"], "bundle declares no base_path_argument (built before the company app)"))
+            continue
+        plan = json.loads((root / claim["web_demo"]["plan_path"]).read_text(encoding="utf-8"))
+        features.append({"id": claim["claim_id"], "title": plan["title"], "manifest": manifest,
+                         "workspace": state / claim["claim_id"]})
+    for claim_id, reason in skipped:
+        print(f"제외: {claim_id} ({reason})", flush=True)
+    if not features:
+        raise ValueError("no bound feature of this run can be mounted in the company app")
+    with company_app_session(company, features, 120, port=port or 0) as (shell, roots):
+        print(f"기업 앱 실행 중: {shell}/  (기능 {len(features)}개, 상태 {state}, 종료는 Ctrl-C)", flush=True)
+        if open_browser:
+            webbrowser.open(shell + "/")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("종료합니다.")
+
+
 def _evaluate_bundle_cli(registry_path: Path, claim_id: str, *, judge_command: list[str] | None = None,
-                         judge_identity: str | None = None, judge_mode: str = "same_session") -> dict:
+                         judge_identity: str | None = None, judge_mode: str = "same_session",
+                         phase_models: dict | None = None, clear_limit: bool = False) -> dict:
     if judge_command is None:
         registry = _read_registry(registry_path)
         provider = registry.get("model_runtime", {}).get("provider")
@@ -496,6 +575,7 @@ def _evaluate_bundle_cli(registry_path: Path, claim_id: str, *, judge_command: l
         return evaluate_agent_bundle(
             registry_path, claim_id, semantic_judge=lambda request: native_model_judge(provider, request),
             judge_identity=judge_identity or f"{provider}-cli-final-evaluator", judge_mode="same_session",
+            phase_models=phase_models, clear_limit=clear_limit,
         )
     if not judge_identity:
         raise ValueError("a custom evaluator requires --judge-identity")
@@ -510,6 +590,8 @@ def _evaluate_bundle_cli(registry_path: Path, claim_id: str, *, judge_command: l
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    phase_models = {role: getattr(args, f"{role}_model", None) for role in ("tester", "judge", "instance", "code_review")}
+    phase_models = {role: model for role, model in phase_models.items() if model}
     try:
         if args.command == "intake":
             result = receive_second_pass(args.source, args.workspace)
@@ -679,12 +761,28 @@ def main(argv: list[str] | None = None) -> int:
             if claim["status"] == "IMPLEMENTATION_READY" and not args.bind_only:
                 result = _evaluate_bundle_cli(args.registry, args.claim_id)
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+        elif args.command == "agent-web-recover":
+            result = evaluate_agent_bundle(args.registry, args.claim_id, recovery_reason=args.reason,
+                                           clear_limit=args.clear_usage_limit, model=args.model, phase_models=phase_models)
+            print(json.dumps(next(c["final_result"] for c in result["claims"] if c["claim_id"] == args.claim_id), ensure_ascii=False, indent=2))
+        elif args.command == "agent-bundle-check":
+            from .agent_harness import REGISTRY_NAME, _claim_record, _validate_implementation_bundle, require_company_mount
+            payload = json.loads((args.run_dir / "claims" / args.claim_id / "claim.json").read_text())
+            manifest, artifacts = _validate_implementation_bundle(args.run_dir.resolve(), args.claim_id, args.manifest.resolve(), payload)
+            registry_path = args.run_dir / REGISTRY_NAME
+            if registry_path.exists():
+                require_company_mount(_claim_record(_read_registry(registry_path), args.claim_id), manifest)
+            print(json.dumps({"status": "passed", "files": len(artifacts), "scenario_id": manifest["scenario_id"]}))
+        elif args.command == "agent-development-register":
+            from .web_evaluation import register_development_run
+            print(json.dumps(register_development_run(args.registry, args.claim_id, args.run_dir), ensure_ascii=False))
         elif args.command == "agent-bundle-prepare":
             result = prepare_bundle_evaluation(args.registry, args.claim_id, args.supplement)
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-bundle-evaluate":
             result = _evaluate_bundle_cli(args.registry, args.claim_id, judge_command=args.judge_command,
-                                         judge_identity=args.judge_identity, judge_mode=args.judge_mode)
+                                         judge_identity=args.judge_identity, judge_mode=args.judge_mode,
+                                         phase_models=phase_models, clear_limit=args.clear_usage_limit)
             # Per-case outputs and diagnostic reasons stay in the evaluator vault.
             print(json.dumps(next(c["final_result"] for c in result["claims"] if c["claim_id"] == args.claim_id),
                              ensure_ascii=False, indent=2, sort_keys=True))
@@ -798,9 +896,12 @@ def main(argv: list[str] | None = None) -> int:
                         )
         elif args.command == "serve-web":
             _serve_web(args.manifest, args.state_dir, args.port, args.open)
+        elif args.command == "serve-company":
+            _serve_company(args.registry, args.state_dir, args.port, args.open)
         elif args.command == "web-demo":
             result = run_web_demo(args.plan, args.output, manifest_path=args.manifest,
-                                  provider=args.provider, model=args.model)
+                                  provider=args.provider, model=args.model, case_ids=args.case_ids, phase_models=phase_models,
+                                  resume_from=args.resume_from, clear_limit=args.clear_usage_limit)
             print(json.dumps({"output": str(args.output), "outcome": result["outcome"],
                               "costs": result["costs"]["phases"],
                               "cases": {c["case_id"]: c["execution_status"] for c in result["cases"]}},

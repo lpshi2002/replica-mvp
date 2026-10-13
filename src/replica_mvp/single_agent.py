@@ -13,12 +13,12 @@ from typing import Any
 from .agent_harness import (
     HARNESS_SCHEMA, IMPLEMENTATION_RESULT_SCHEMA, REGISTRY_NAME,
     _builder_context, _claim_record, freeze_web_claim, _public_research, _read_registry,
-    _replace_registry, _validate_bound_artifact, _validate_implementation_bundle,
+    _replace_registry, _validate_bound_artifact, _validate_implementation_bundle, require_company_mount,
     _write_new_json,
 )
 from .bundle_evaluation import digest, prepare_bundle_evaluation, _validate_history, MAX_SUBMISSIONS
 from .bundle_runtime import copy_bundle
-from .resources import budget_stop, unknown_resources, utc_now
+from .resources import budget_stop, timestamp, unknown_resources, utc_now
 from .second_pass import parse_second_pass
 
 
@@ -104,6 +104,21 @@ def start_single_implementation(registry_path: Path, claim_id: str, *, agent_id:
     return registry
 
 
+def _development_seconds(claim: dict[str, Any]) -> float:
+    """Count development intervals, stopping the clock while evaluation owns the bundle.
+
+    Legacy intervals use their recorded start/finish conservatively; unknown idle time
+    inside an implementation session is not silently subtracted.
+    """
+    accumulated = claim.get("development_elapsed_seconds", 0)
+    if claim["status"] == "IMPLEMENTING":
+        start = claim.get("development_active_since", claim["started_at"])
+        return accumulated + max(0, (timestamp(utc_now()) - timestamp(start)).total_seconds())
+    if "development_elapsed_seconds" in claim:
+        return accumulated
+    return max(0, (timestamp(claim["finished_at"]) - timestamp(claim["started_at"])).total_seconds())
+
+
 def bind_single_implementation(registry_path: Path, claim_id: str, *, agent_id: str) -> dict[str, Any]:
     registry = _read_registry(registry_path)
     claim = _claim_record(registry, claim_id)
@@ -115,6 +130,7 @@ def bind_single_implementation(registry_path: Path, claim_id: str, *, agent_id: 
     manifest_path = workspace / "implementation" / "manifest.json"
     payload = json.loads((root / claim["claim_payload_path"]).read_text())
     manifest, artifacts = _validate_implementation_bundle(root, claim_id, manifest_path, payload)
+    require_company_mount(claim, manifest)
     if any(a["candidate_sha256"] == digest(manifest_path) for a in claim.get("bundle_submissions", [])):
         raise ValueError("the same candidate cannot be resubmitted to sealed tests")
     report_path = workspace / "development.json"
@@ -139,7 +155,8 @@ def bind_single_implementation(registry_path: Path, claim_id: str, *, agent_id: 
                            "entries": len(entries)}
     resources = unknown_resources()
     budget = payload["execution_policy"]["budget"]
-    stop = budget_stop(budget, claim["started_at"], [resources])
+    elapsed = _development_seconds(claim)
+    stop = budget_stop(budget, claim["started_at"], [resources], elapsed_seconds=elapsed)
     if stop:
         # A spent budget ends the claim with a recorded reason instead of leaving it open.
         return _close_unbuilt(registry_path, registry, claim, stop,
@@ -170,6 +187,8 @@ def bind_single_implementation(registry_path: Path, claim_id: str, *, agent_id: 
                                   "command", "dependencies", "environment_variables")}, "artifacts": artifacts,
     }
     claim.update(status="IMPLEMENTATION_READY", finished_at=utc_now())
+    claim["development_elapsed_seconds"] = elapsed
+    claim.pop("development_active_since", None)
     _replace_registry(registry_path, registry)
     return registry
 
@@ -207,6 +226,8 @@ def retry_single_implementation(registry_path: Path, claim_id: str) -> dict[str,
         raise ValueError("single retry requires a failed or interrupted evaluation")
     root = registry_path.parent.resolve()
     validate_single_implementation(root, claim)
+    if claim.get("web_demo") and claim["status"] == "EVALUATION_INTERRUPTED":
+        raise ValueError("resume the same bundle with agent-web-recover; an evaluation interruption does not require implementation retry")
     if claim["status"] == "RESULT_FAILED":
         from .agent_harness import _validate_final_result
         from .web_evaluation import write_retry_feedback
@@ -214,10 +235,12 @@ def retry_single_implementation(registry_path: Path, claim_id: str) -> dict[str,
         write_retry_feedback(root, claim, root / claim["implementer"]["artifact_namespace"])
     _validate_history(root, claim)
     attempts = claim.get("bundle_submissions", [])
-    if not attempts or len(attempts) >= MAX_SUBMISSIONS:
+    from .web_evaluation import submission_count
+    if not attempts or (submission_count(root, claim) if claim.get("web_demo") else len(attempts)) >= MAX_SUBMISSIONS:
         raise ValueError("three sealed submissions are exhausted or no prior submission exists")
     payload = json.loads((root / claim["claim_payload_path"]).read_text())
-    if budget_stop(payload["execution_policy"]["budget"], claim["started_at"], [unknown_resources()]):
+    elapsed = _development_seconds(claim)
+    if budget_stop(payload["execution_policy"]["budget"], claim["started_at"], [unknown_resources()], elapsed_seconds=elapsed):
         raise ValueError("single implementation budget prevents retry")
     state_path = root / claim["implementer"]["artifact_namespace"] / "execution-state.json"
     state = json.loads(state_path.read_text())
@@ -234,6 +257,8 @@ def retry_single_implementation(registry_path: Path, claim_id: str) -> dict[str,
     for key in ("execution_result", "implementation_result", "final_result", "finished_at"):
         claim.pop(key, None)
     claim["status"] = "IMPLEMENTING"
+    claim["development_elapsed_seconds"] = elapsed
+    claim["development_active_since"] = utc_now()
     claim.setdefault("retries", []).append({"requested_at": utc_now(), "agent_id": claim["implementer"]["agent_id"]})
     _replace_registry(registry_path, registry)
     state_path.unlink()

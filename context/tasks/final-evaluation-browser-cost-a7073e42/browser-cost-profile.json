@@ -1,0 +1,226 @@
+{
+  "scope": "Latest chosen 3 evaluations: 22 cases, 85 expectations, 401 tester CLI calls. Historical CLI list estimates; pre-O3, mixed Sonnet/Opus, not live optimized baseline.",
+  "by_action": {
+    "click": {
+      "calls": 197,
+      "usd": 4.0291114000000015
+    },
+    "upload": {
+      "calls": 16,
+      "usd": 0.2631884
+    },
+    "wait_for": {
+      "calls": 48,
+      "usd": 0.8677079999999999
+    },
+    "fill": {
+      "calls": 82,
+      "usd": 1.6029052000000004
+    },
+    "check": {
+      "calls": 11,
+      "usd": 0.205737
+    },
+    "done": {
+      "calls": 21,
+      "usd": 0.5166890000000001
+    },
+    "select": {
+      "calls": 2,
+      "usd": 0.037492
+    },
+    "read": {
+      "calls": 1,
+      "usd": 0.026123
+    },
+    "wait": {
+      "calls": 23,
+      "usd": 0.6596498000000001
+    }
+  },
+  "common_action_labels": [
+    {
+      "action": "wait_for",
+      "label": "",
+      "count": 48
+    },
+    {
+      "action": "wait",
+      "label": "",
+      "count": 23
+    },
+    {
+      "action": "done",
+      "label": "",
+      "count": 21
+    },
+    {
+      "action": "click",
+      "label": "Send",
+      "count": 16
+    },
+    {
+      "action": "fill",
+      "label": "Message",
+      "count": 14
+    },
+    {
+      "action": "upload",
+      "label": "Upload documents (DOCX, PDF, TXT, MD), audio or video (M4A, MP3, WAV, MP4) or a Q&A CSV (header: question,answer)",
+      "count": 12
+    },
+    {
+      "action": "fill",
+      "label": "Your answer",
+      "count": 12
+    },
+    {
+      "action": "click",
+      "label": "Knowledge",
+      "count": 11
+    },
+    {
+      "action": "click",
+      "label": "Visitor chat",
+      "count": 11
+    },
+    {
+      "action": "click",
+      "label": "Contacts",
+      "count": 11
+    },
+    {
+      "action": "fill",
+      "label": "Your message",
+      "count": 11
+    },
+    {
+      "action": "click",
+      "label": "Send message",
+      "count": 11
+    },
+    {
+      "action": "click",
+      "label": "Submit answer",
+      "count": 11
+    },
+    {
+      "action": "fill",
+      "label": "Name",
+      "count": 9
+    },
+    {
+      "action": "fill",
+      "label": "Email",
+      "count": 9
+    },
+    {
+      "action": "click",
+      "label": "Add contact",
+      "count": 9
+    },
+    {
+      "action": "click",
+      "label": "Edit voice & style notes",
+      "count": 7
+    },
+    {
+      "action": "fill",
+      "label": "Voice and style notes (how the mind writes and talks as you)",
+      "count": 7
+    }
+  ],
+  "runs": [
+    {
+      "run": "work/delphi-ai-v4/single-harness-2026-10-09/final-results/runs/claim-001/web-attempt-004-5fa1c5939ec3",
+      "by_action": {
+        "click": {
+          "calls": 57,
+          "usd": 1.0137280000000002
+        },
+        "upload": {
+          "calls": 15,
+          "usd": 0.23778899999999997
+        },
+        "wait_for": {
+          "calls": 30,
+          "usd": 0.535492
+        },
+        "fill": {
+          "calls": 22,
+          "usd": 0.387624
+        },
+        "check": {
+          "calls": 4,
+          "usd": 0.07902999999999999
+        },
+        "done": {
+          "calls": 10,
+          "usd": 0.208036
+        }
+      }
+    },
+    {
+      "run": "work/delphi-ai-v4/single-harness-2026-10-09/final-results/runs/claim-002/web-attempt-002-31975ba1bb37",
+      "by_action": {
+        "click": {
+          "calls": 103,
+          "usd": 1.9238050000000002
+        },
+        "fill": {
+          "calls": 47,
+          "usd": 0.8144369999999999
+        },
+        "check": {
+          "calls": 7,
+          "usd": 0.12670700000000001
+        },
+        "wait_for": {
+          "calls": 18,
+          "usd": 0.33221600000000007
+        },
+        "done": {
+          "calls": 6,
+          "usd": 0.118788
+        },
+        "select": {
+          "calls": 2,
+          "usd": 0.037492
+        },
+        "read": {
+          "calls": 1,
+          "usd": 0.026123
+        },
+        "wait": {
+          "calls": 1,
+          "usd": 0.024739
+        }
+      }
+    },
+    {
+      "run": "work/delphi-ai-v4/single-harness-2026-10-09/final-results/runs/claim-003/web-attempt-002-a80003d5034d",
+      "by_action": {
+        "click": {
+          "calls": 37,
+          "usd": 1.0915783999999997
+        },
+        "wait": {
+          "calls": 22,
+          "usd": 0.6349108
+        },
+        "fill": {
+          "calls": 13,
+          "usd": 0.4008442
+        },
+        "done": {
+          "calls": 5,
+          "usd": 0.189865
+        },
+        "upload": {
+          "calls": 1,
+          "usd": 0.0253994
+        }
+      }
+    }
+  ]
+}

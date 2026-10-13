@@ -511,7 +511,14 @@ an AI browser tester and saves costs, actions, screenshots, and verdicts (see
 the README section on web-app Replicas). When the selected scenario has a
 `demo_plan`, the harness takes this route: implementers build a web app, no
 sealed suite is prepared, and `agent-bundle-evaluate` runs the frozen plan and
-binds its result. The input and output contracts are still required research
+binds its result. A company's web claims are features of one company app: the
+harness freezes each claim's mount path `/<claim-id>`, the implementer's bundle
+declares `base_path_argument` and serves under that path, the AI tester starts at
+the shared shell's feature menu, and `agent-harness-finish` starts every bound
+feature in one shell and records the startup check as `company_app`.
+`replica-mvp serve-company REGISTRY` serves that app to a person. Each feature is
+still built, evaluated, and retried on its own; the shell adds no data sharing
+between features. The input and output contracts are still required research
 fields; JSON `tests` and `evaluation` are not, and a web claim omits them. A
 claim without `demo_plan` stays on the JSON bundle
 route (`stdio_json` or `http_json`) with its sealed tests. Treat that route, the
@@ -582,14 +589,27 @@ section of `AGENTS.md` or `CLAUDE.md` gives the spawn primitive and model policy
    a spent budget at bind ends the claim on its own. A web claim
    runs each demo case once with values drawn now under its variation rule,
    then the code review.
-4. If the claim is `RESULT_FAILED` or `EVALUATION_INTERRUPTED` and fewer than
-   three submissions exist, run `agent-bundle-retry REGISTRY CLAIM_ID`; it
+4. For a web `EVALUATION_INTERRUPTED`, retain the bound implementation. After
+   the provider/environment is available, run `agent-web-recover REGISTRY CLAIM_ID
+   --reason TEXT`; add `--clear-usage-limit` only after a confirmed provider reset.
+   A `RESULT_FAILED` from an older evaluator can use this same explicit recovery
+   after the evaluator is fixed. Recovery preserves history, completed compatible
+   cases and drawn inputs; an evaluator/settings change obtains fresh evidence.
+   It does not consume another candidate submission or require an implementer.
+   For an actual `RESULT_FAILED` with fewer than three distinct evaluated
+   candidates (or a sealed evaluation interruption), run
+   `agent-bundle-retry REGISTRY CLAIM_ID`; it
    writes `retry-feedback-NNN.json` (reasons only) into the implementer's
    namespace. Resume the same implementer to read it, then repeat step 3. Do
    not pass screenshots, page text, or run values to the implementer.
-5. When every claim is terminal, run `agent-harness-finish REGISTRY`. An
-   evaluation still interrupted after the last submission is terminal and is
-   reported as `experiment_blocked`.
+5. Import each development demo with `agent-development-register REGISTRY
+   CLAIM_ID DEMO_DIR` so cumulative costs include it. When every claim is
+   terminal, run `agent-harness-finish REGISTRY`. A still-interrupted evaluation
+   is reported as `experiment_blocked`; its evidence remains available for recovery.
+
+For selective development checks, packaging validation, role-specific models,
+and bounded implementation context, follow
+[`docs/replica-implementation-guide.md`](../../docs/replica-implementation-guide.md).
 
 The orchestrator does not edit the implementation or judge it; the evaluation
 commands do that. Keep the candidate exclusions and

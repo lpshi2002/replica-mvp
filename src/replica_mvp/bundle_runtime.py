@@ -364,13 +364,13 @@ def _loopback_opener() -> urllib.request.OpenerDirector:
 
 @contextmanager
 def _local_server(command: list[str], port_argument: str, root: Path, environment: dict[str, str],
-                  timeout: float, log, port: int | None = None):
+                  timeout: float, log, port: int | None = None, extra_arguments: tuple[str, ...] = ()):
     """Start a bundle server on a loopback port and stop its process group on exit."""
     if port is None:
         with socket.socket() as reserved:
             reserved.bind(("127.0.0.1", 0))
             port = reserved.getsockname()[1]
-    process = subprocess.Popen(command + [port_argument, str(port)], cwd=root,
+    process = subprocess.Popen(command + [port_argument, str(port), *extra_arguments], cwd=root,
                                stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                start_new_session=os.name == "posix",
                                env=environment)
@@ -394,25 +394,57 @@ def _local_server(command: list[str], port_argument: str, root: Path, environmen
         stop_process(process)
 
 
+# A feature's path in the company app, such as /claim-001.
+_MOUNT_PATH = re.compile(r"/[A-Za-z0-9][A-Za-z0-9._-]*")
+
+
 def validate_web_runtime(value: Any) -> dict[str, Any]:
+    """A web app declares its port argument and ready path; base_path_argument mounts it in the company app.
+
+    With base_path_argument, the app serves every page, asset, form action, request and redirect
+    under the base path it receives, and ready_path is relative to that base path.
+    """
+    required = {"transport", "port_argument", "ready_path"}
     if (not isinstance(value, dict)
-            or set(value) != {"transport", "port_argument", "ready_path"}
+            or not required <= set(value) <= required | {"base_path_argument"}
             or value.get("transport") != "web_app"
             or not isinstance(value.get("port_argument"), str)
             or not value["port_argument"].startswith("--")
             or not isinstance(value.get("ready_path"), str)
             or not value["ready_path"].startswith("/") or value["ready_path"].startswith("//")
-            or any(c in value["ready_path"] for c in "\r\n#")):
-        raise ValueError("web app runtime must be {transport: web_app, port_argument: --NAME, ready_path: /PATH}")
+            or any(c in value["ready_path"] for c in "\r\n#")
+            or ("base_path_argument" in value and (
+                not isinstance(value["base_path_argument"], str) or not value["base_path_argument"].startswith("--")
+                or value["base_path_argument"] == value["port_argument"]))):
+        raise ValueError("web app runtime must be {transport: web_app, port_argument: --NAME, ready_path: /PATH"
+                         "[, base_path_argument: --NAME]}")
     return value
+
+
+def mountable(runtime: dict[str, Any]) -> bool:
+    """Whether the app can be served under a path in the company app."""
+    return "base_path_argument" in runtime
 
 
 @contextmanager
 def web_app_session(manifest_path: Path, timeout: float, *, workspace: Path, path_prefix: Path | None = None,
-                    log=None, port: int | None = None):
-    """Start a published web app in a persistent workspace and yield its loopback base URL."""
+                    log=None, port: int | None = None, base_path: str | None = None):
+    """Start a published web app in a persistent workspace and yield its loopback base URL.
+
+    A mountable app is started under base_path (default /<claim_id>) and the yielded URL includes it.
+    """
     manifest = json.loads(manifest_path.read_bytes(), parse_constant=_reject_nonstandard_constant)
     runtime = validate_web_runtime(manifest.get("runtime"))
+    extra: tuple[str, ...] = ()
+    if mountable(runtime):
+        base_path = base_path or f"/{manifest.get('claim_id')}"
+        if not _MOUNT_PATH.fullmatch(base_path):
+            raise ValueError("base path must be one path segment such as /claim-001")
+        extra = (runtime["base_path_argument"], base_path)
+    elif base_path is not None:
+        raise ValueError("this web app declares no base_path_argument and cannot be mounted under a path")
+    else:
+        base_path = ""
     if timeout <= 0:
         raise TimeoutError("web app time budget exhausted before startup")
     root, manifest = _open_workspace(manifest_path, workspace, None)
@@ -428,8 +460,8 @@ def web_app_session(manifest_path: Path, timeout: float, *, workspace: Path, pat
         if log is None:
             log = stack.enter_context(tempfile.TemporaryFile())
         process, port = stack.enter_context(_local_server(
-            manifest["command"], runtime["port_argument"], root, environment, timeout, log, port))
-        base_url = f"http://127.0.0.1:{port}"
+            manifest["command"], runtime["port_argument"], root, environment, timeout, log, port, extra))
+        base_url = f"http://127.0.0.1:{port}{base_path}"
         opener = _loopback_opener()
         while True:
             if process.poll() is not None:
