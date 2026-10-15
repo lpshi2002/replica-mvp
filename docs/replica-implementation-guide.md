@@ -53,7 +53,8 @@ A company-app feature (`interface.mount_path` in the context) is started as
 `python3 app.py --port 51234 --base-path /claim-001` and must answer every page,
 asset, form action, request and redirect under `/claim-001/`; `ready_path` is
 relative to that base path. The shared shell serves the feature menu at `/` and
-adds a navigation bar to each HTML page. Omit `base_path_argument` only when the
+adds a sidebar and a shared stylesheet to each HTML page; the stylesheet styles
+plain HTML elements, so a feature needs little or no CSS of its own. Omit `base_path_argument` only when the
 context has no `mount_path`. To see the whole company app with every bound feature:
 
 ```sh

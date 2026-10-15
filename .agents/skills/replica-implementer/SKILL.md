@@ -44,7 +44,9 @@ feature menu at `/` and forwards `/claim-001/...` unchanged to your server, whic
 starts with the declared base path argument set to that mount path. Serve every
 page, asset, form action, `fetch`, and redirect under the base path you receive
 (the first page at `<base>/`); never link to a bare `/...`. The shell adds a
-navigation bar to each HTML page. Add `"runtime": {"transport": "web_app",
+sidebar and a shared stylesheet to each HTML page. The stylesheet already styles
+plain HTML elements (headings, `section`, `label`, `input`, `button`, `table`,
+`[role=status]`), so write semantic HTML and add little or no CSS of your own. Add `"runtime": {"transport": "web_app",
 "port_argument": "--<name>", "base_path_argument": "--<name>", "ready_path": "/<path>"}`
 to the manifest, with `ready_path` relative to the base path; the other manifest
 fields stay as above. Bind refuses a company-app feature without

@@ -12,7 +12,7 @@ from unittest.mock import patch
 from replica_mvp.agent_harness import finish_agent_harness, require_company_mount
 from replica_mvp.bundle_evaluation import evaluate_agent_bundle
 from replica_mvp.bundle_runtime import validate_web_runtime, web_app_session
-from replica_mvp.company_app import NAV_MARKER, company_app_session
+from replica_mvp.company_app import NAV_MARKER, SHELL_CSS_PATH, company_app_session
 from tests.test_web_demo import HAS_PLAYWRIGHT, _passing_judge, _scripted_tester, _write_app, _write_cli
 from tests.test_web_evaluation import APPROVE, WEB_RUNTIME, _bind_web_app, _passing_review
 
@@ -76,6 +76,13 @@ class CompanyShellTest(unittest.TestCase):
             page = _OPENER.open(shell + "/claim-001/").read().decode()
             self.assertIn(NAV_MARKER, page)
             self.assertIn("action=/claim-001/requests", page)
+            # The menu and every feature page share the shell's stylesheet.
+            link = f'<link rel="stylesheet" href="{SHELL_CSS_PATH}">'
+            self.assertIn(link, menu)
+            self.assertIn(link, page)
+            with _OPENER.open(shell + SHELL_CSS_PATH) as stylesheet:
+                self.assertTrue(stylesheet.headers["Content-Type"].startswith("text/css"))
+                self.assertIn(b"nav[data-company-shell]", stylesheet.read())
             # A form post goes through the shell; the redirect stays on the shell's address.
             data = urllib.parse.urlencode({"text": "의자"}).encode()
             with self.assertRaises(urllib.error.HTTPError) as redirect:

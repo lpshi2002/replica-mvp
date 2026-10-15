@@ -2,8 +2,9 @@
 
 Each bundle stays an independent implementation, started under the base path /<claim-id>. The shell
 owns one loopback address: / shows the feature menu, /<claim-id>/... is forwarded unchanged to that
-feature's server, and every HTML page a feature returns gets the shell's navigation bar so a person or
-the AI tester can move between features. Features do not share data or state through the shell.
+feature's server, and every HTML page a feature returns gets the shell's stylesheet and sidebar
+navigation so a person or the AI tester can move between features. Features do not share data or state
+through the shell.
 """
 from __future__ import annotations
 
@@ -27,28 +28,99 @@ _HOP = {"connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
         "transfer-encoding", "upgrade", "content-length", "accept-encoding"}
 _BODY_OPEN = re.compile(rb"<body\b[^>]*>", re.IGNORECASE)
 NAV_MARKER = "data-company-shell"
+SHELL_CSS_PATH = "/_company-shell.css"
+
+# The shell's sidebar and menu, plus plain defaults for a feature's HTML elements. The defaults sit in
+# :where() (zero specificity), so a feature's own CSS always wins over them; the sidebar rules do not.
+SHELL_CSS = b"""\
+:root { --shell-w: 232px; --shell-side: #1e2530; --shell-side-text: #c9d1db; --shell-accent: #0f8a6c;
+  --shell-accent-soft: #e2f4ef; --shell-bg: #eef0f3; --shell-surface: #fff; --shell-text: #1b1f24;
+  --shell-muted: #646d78; --shell-line: #e0e3e8; }
+html:has(> body > nav[data-company-shell]) { padding-left: var(--shell-w); }
+nav[data-company-shell] { position: fixed; inset: 0 auto 0 0; z-index: 2147483000; width: var(--shell-w);
+  box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 20px 12px;
+  background: var(--shell-side); font: 14px/1.4 system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif; }
+nav[data-company-shell] a { color: var(--shell-side-text); text-decoration: none; padding: 9px 12px;
+  border-radius: 8px; }
+nav[data-company-shell] a:hover { background: rgb(255 255 255 / .06); color: #fff; }
+nav[data-company-shell] a:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+nav[data-company-shell] a[aria-current="page"] { background: var(--shell-accent); color: #fff; font-weight: 600; }
+nav[data-company-shell] a.shell-home { color: #fff; font-size: 17px; font-weight: 700; padding-bottom: 16px;
+  margin-bottom: 8px; border-bottom: 1px solid rgb(255 255 255 / .1); border-radius: 0; }
+@media (max-width: 760px) {
+  html:has(> body > nav[data-company-shell]) { padding-left: 0; }
+  nav[data-company-shell] { position: sticky; inset: 0 auto auto 0; width: auto; flex-direction: row;
+    flex-wrap: wrap; padding: 10px 12px; }
+  nav[data-company-shell] a.shell-home { padding-bottom: 9px; margin: 0 8px 0 0; border: 0; }
+}
+.shell-lead { color: var(--shell-muted); margin-top: -8px; }
+.shell-features { list-style: none; padding: 0; display: grid; gap: 10px; }
+.shell-features a { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 16px;
+  padding: 16px 20px; background: var(--shell-surface); border-radius: 12px; color: inherit;
+  text-decoration: none; box-shadow: 0 1px 2px rgb(0 0 0 / .06); }
+.shell-features a::after { content: "Open \\2192"; grid-row: 1 / 3; grid-column: 2; color: var(--shell-accent);
+  font-weight: 600; font-size: 14px; }
+.shell-features a:hover, .shell-features a:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--shell-accent); }
+.shell-features strong { font-size: 16px; }
+.shell-features span { color: var(--shell-muted); font-size: 14px; }
+:where(html) { background: var(--shell-bg); color: var(--shell-text);
+  font: 15px/1.6 system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+:where(body) { margin: 0; }
+:where(main) { display: block; max-width: 960px; padding: 32px 36px 64px; }
+:where(h1) { font-size: 24px; line-height: 1.3; margin: 0 0 20px; }
+:where(h2) { font-size: 18px; line-height: 1.35; margin: 0 0 14px; }
+:where(main > section, main > article, main > form) { background: var(--shell-surface); border-radius: 12px;
+  padding: 22px 24px; margin: 0 0 16px; box-shadow: 0 1px 2px rgb(0 0 0 / .06); }
+:where(a) { color: var(--shell-accent); }
+:where(label) { display: block; font-size: 13px; font-weight: 600; color: #3b434d; margin: 14px 0 6px; }
+:where(label:has(> input[type=checkbox], > input[type=radio])) { display: flex; gap: 8px; align-items: center;
+  font-size: 14px; font-weight: 400; color: inherit; }
+:where(input:not([type=checkbox], [type=radio], [type=file], [type=hidden], [type=submit], [type=button]), textarea, select) {
+  box-sizing: border-box; width: 100%; padding: 10px 12px; font: inherit; color: inherit; background: #f7f8fa;
+  border: 1px solid var(--shell-line); border-radius: 8px; }
+:where(input, textarea, select):focus { outline: none; background: var(--shell-surface);
+  border-color: var(--shell-accent); box-shadow: 0 0 0 3px var(--shell-accent-soft); }
+:where(button, input[type=submit], input[type=button]) { font: inherit; font-weight: 600; padding: 10px 18px;
+  margin: 18px 8px 0 0; cursor: pointer; color: #fff; background: var(--shell-accent); border: 0; border-radius: 8px; }
+:where(button, input[type=submit], input[type=button]):hover { filter: brightness(1.1); }
+:where(button, input[type=submit], input[type=button]):focus-visible { outline: 3px solid var(--shell-accent-soft); }
+:where(button:disabled, input:disabled) { opacity: .5; cursor: not-allowed; }
+:where(button.secondary) { color: var(--shell-text); background: #eceff2; }
+:where(table) { width: 100%; border-collapse: collapse; }
+:where(th) { text-align: left; font-size: 13px; font-weight: 600; color: var(--shell-muted); background: #f7f8fa; }
+:where(th, td) { padding: 11px 12px; border-bottom: 1px solid var(--shell-line); vertical-align: top; }
+:where([role=status], [role=alert]) { padding: 12px 16px; border-radius: 10px; margin: 0 0 16px; font-weight: 500;
+  background: var(--shell-accent-soft); color: #0b5e4a; }
+:where([role=alert]) { background: #fdecec; color: #8a1f1f; }
+:where(mark) { background: #ffe9b0; padding: 2px 8px; border-radius: 999px; }
+:where(blockquote, pre) { margin: 12px 0; padding: 14px 16px; background: #f7f8fa; border-radius: 10px; }
+:where(pre) { overflow-x: auto; white-space: pre-wrap; }
+:where(img, video, audio) { max-width: 100%; }
+:where(small) { color: var(--shell-muted); }
+@media (max-width: 760px) {
+  :where(main) { padding: 20px 16px 48px; }
+  :where(main > section, main > article, main > form) { padding: 16px; }
+}
+"""
+_STYLESHEET = f'<link rel="stylesheet" href="{SHELL_CSS_PATH}">'
 
 
 def _nav(company: str, features: list[dict[str, Any]], current: str | None) -> str:
     links = "".join(
-        f'<a href="/{html.escape(f["id"])}/"{" aria-current=page" if f["id"] == current else ""} '
-        f'style="color:inherit;text-decoration:{"underline" if f["id"] == current else "none"};margin-right:16px">'
+        f'<a href="/{html.escape(f["id"])}/"{" aria-current=page" if f["id"] == current else ""}>'
         f'{html.escape(f["title"])}</a>' for f in features)
-    return (f'<nav {NAV_MARKER} aria-label="Company app" style="font:14px/1.4 system-ui,sans-serif;'
-            f'background:#20262b;color:#fff;padding:8px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:4px">'
-            f'<a href="/" style="color:inherit;font-weight:600;text-decoration:none;margin-right:20px">'
-            f'{html.escape(company)}</a>{links}</nav>')
+    return (f'<nav {NAV_MARKER} aria-label="Company app">'
+            f'<a class="shell-home" href="/">{html.escape(company)}</a>{links}</nav>')
 
 
 def _menu(company: str, features: list[dict[str, Any]]) -> bytes:
     items = "".join(
-        f'<li><a href="/{html.escape(f["id"])}/">{html.escape(f["title"])}</a>'
-        + (f'<p>{html.escape(f["summary"])}</p>' if f.get("summary") else "") + "</li>" for f in features)
+        f'<li><a href="/{html.escape(f["id"])}/"><strong>{html.escape(f["title"])}</strong>'
+        + (f'<span>{html.escape(f["summary"])}</span>' if f.get("summary") else "") + "</a></li>" for f in features)
     return (f"<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width'>"
-            f"<title>{html.escape(company)}</title><style>body{{margin:0;font:16px/1.5 system-ui,sans-serif}}"
-            f"main{{max-width:760px;margin:0 auto;padding:24px 16px}}li{{margin:0 0 16px}}li p{{margin:4px 0 0;color:#555}}"
-            f"</style></head><body>{_nav(company, features, None)}<main><h1>{html.escape(company)}</h1>"
-            f"<p>Choose a feature.</p><ul>{items}</ul></main></body></html>").encode()
+            f"<title>{html.escape(company)}</title>{_STYLESHEET}</head><body>{_nav(company, features, None)}"
+            f"<main><h1>{html.escape(company)}</h1><p class=shell-lead>Choose a feature.</p>"
+            f"<ul class=shell-features>{items}</ul></main></body></html>").encode()
 
 
 @contextlib.contextmanager
@@ -70,6 +142,8 @@ def company_shell(company: str, features: list[dict[str, Any]], *, port: int = 0
             path = urlsplit(self.path).path
             if path == "/":
                 return self.reply(200, [("Content-Type", "text/html; charset=utf-8")], menu)
+            if path == SHELL_CSS_PATH:
+                return self.reply(200, [("Content-Type", "text/css; charset=utf-8")], SHELL_CSS)
             first = path.split("/")[1]
             if first not in targets:
                 return self.reply(404, [("Content-Type", "text/plain; charset=utf-8")], b"not found")
@@ -94,7 +168,7 @@ def company_shell(company: str, features: list[dict[str, Any]], *, port: int = 0
             out = [(k, v.replace(origin, shell_origin) if k.lower() == "location" else v)
                    for k, v in response.getheaders() if k.lower() not in _HOP]
             if "text/html" in (response.getheader("Content-Type") or "") and self.command != "HEAD":
-                bar = _nav(company, features, first).encode()
+                bar = (_STYLESHEET + _nav(company, features, first)).encode()
                 match = _BODY_OPEN.search(data)
                 data = data[:match.end()] + bar + data[match.end():] if match else bar + data
             self.reply(response.status, out, data, response.reason)
