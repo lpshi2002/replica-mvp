@@ -14,6 +14,8 @@ def digest(path: Path) -> str:
 def evaluator_version() -> str:
     root = Path(__file__).parent
     files = ("web_demo.py", "web_checkpoint.py", "model_calls.py", "bundle_runtime.py")
+    if (root / "web_actions.py").exists():
+        files += ("web_actions.py",)
     return hashlib.sha256("".join(digest(root / name) for name in files).encode()).hexdigest()
 
 
@@ -57,3 +59,23 @@ def load_checkpoint(directory: Path, identity: dict[str, Any]) -> tuple[dict[str
     # An unverified checkpoint cannot supply reusable judgments.
     same = same and isinstance(value.get("evidence_sha256"), dict)
     return {**value, "source_sha256": digest(source)}, same
+
+
+def load_input_cases(directory: Path, identity: dict[str, Any], cases: list[dict[str, Any]]) -> dict[str, Any]:
+    """Share only drawn inputs in a controlled comparison, never completed evidence.
+
+    The source must describe the same plan and candidate and pass the usual
+    artifact integrity checks. Missing inputs are an error, not an invitation
+    to silently generate a different comparison case.
+    """
+    source, _ = load_checkpoint(directory, identity)
+    instances = dict(source.get("instances", {}))
+    for case in source.get("cases", []):
+        if case.get("instance"):
+            instances.setdefault(case["case_id"], case["instance"])
+    required = {c["id"] for c in cases if c.get("variation") and c["id"] in identity["selected_cases"]}
+    available = {cid for cid, value in instances.items()
+                 if isinstance(value, dict) and isinstance(value.get("steps"), list) and value["steps"]}
+    if required - available:
+        raise ValueError("comparison source lacks drawn inputs: " + ", ".join(sorted(required - available)))
+    return {"instances": instances, "source_sha256": source["source_sha256"]}

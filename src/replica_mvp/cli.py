@@ -481,8 +481,17 @@ def _parser() -> argparse.ArgumentParser:
     web_demo.add_argument("--resume-from", type=Path, help="Previous demo directory; writes a new result, preserving old evidence.")
     web_demo.add_argument("--clear-usage-limit", action="store_true")
     for command in (web_demo, bundle_evaluate, web_recover):
+        command.add_argument("--tester-mode", choices=("single", "plan"), default="plan",
+                             help="Choose single actions or guarded plans of observed UI actions.")
+        command.add_argument("--cache-ttl", choices=("5m", "1h", "inherit"), default="5m",
+                             help="Claude evaluation calls only; never changes global CLI settings.")
+        command.add_argument("--stable-model-prefix", action="store_true",
+                             help="Opt in to excluding machine-specific Claude system-prompt sections.")
         for role in ("tester", "judge", "instance", "code-review"):
             command.add_argument(f"--{role}-model", help=f"Override the {role} model; otherwise keep the default.")
+    for command in (web_demo, bundle_evaluate):
+        command.add_argument("--input-cases-from", type=Path,
+                             help="Use verified drawn inputs from the same plan and candidate; always gather fresh evidence.")
     bundle_evaluate.add_argument("--clear-usage-limit", action="store_true")
     return parser
 
@@ -564,7 +573,8 @@ def _serve_company(registry_path: Path, state_dir: Path | None, port: int | None
 
 def _evaluate_bundle_cli(registry_path: Path, claim_id: str, *, judge_command: list[str] | None = None,
                          judge_identity: str | None = None, judge_mode: str = "same_session",
-                         phase_models: dict | None = None, clear_limit: bool = False) -> dict:
+                         phase_models: dict | None = None, clear_limit: bool = False,
+                         web_options: dict | None = None) -> dict:
     if judge_command is None:
         registry = _read_registry(registry_path)
         provider = registry.get("model_runtime", {}).get("provider")
@@ -576,6 +586,7 @@ def _evaluate_bundle_cli(registry_path: Path, claim_id: str, *, judge_command: l
             registry_path, claim_id, semantic_judge=lambda request: native_model_judge(provider, request),
             judge_identity=judge_identity or f"{provider}-cli-final-evaluator", judge_mode="same_session",
             phase_models=phase_models, clear_limit=clear_limit,
+            **(web_options or {}),
         )
     if not judge_identity:
         raise ValueError("a custom evaluator requires --judge-identity")
@@ -592,6 +603,11 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     phase_models = {role: getattr(args, f"{role}_model", None) for role in ("tester", "judge", "instance", "code_review")}
     phase_models = {role: model for role, model in phase_models.items() if model}
+    web_options = ({"tester_mode": args.tester_mode,
+                    "cache_ttl": None if args.cache_ttl == "inherit" else args.cache_ttl,
+                    "stable_prefix": args.stable_model_prefix,
+                    "input_cases_from": getattr(args, "input_cases_from", None)}
+                   if hasattr(args, "tester_mode") else {})
     try:
         if args.command == "intake":
             result = receive_second_pass(args.source, args.workspace)
@@ -763,7 +779,8 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "agent-web-recover":
             result = evaluate_agent_bundle(args.registry, args.claim_id, recovery_reason=args.reason,
-                                           clear_limit=args.clear_usage_limit, model=args.model, phase_models=phase_models)
+                                           clear_limit=args.clear_usage_limit, model=args.model, phase_models=phase_models,
+                                           **web_options)
             print(json.dumps(next(c["final_result"] for c in result["claims"] if c["claim_id"] == args.claim_id), ensure_ascii=False, indent=2))
         elif args.command == "agent-bundle-check":
             from .agent_harness import REGISTRY_NAME, _claim_record, _validate_implementation_bundle, require_company_mount
@@ -782,7 +799,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "agent-bundle-evaluate":
             result = _evaluate_bundle_cli(args.registry, args.claim_id, judge_command=args.judge_command,
                                          judge_identity=args.judge_identity, judge_mode=args.judge_mode,
-                                         phase_models=phase_models, clear_limit=args.clear_usage_limit)
+                                         phase_models=phase_models, clear_limit=args.clear_usage_limit, web_options=web_options)
             # Per-case outputs and diagnostic reasons stay in the evaluator vault.
             print(json.dumps(next(c["final_result"] for c in result["claims"] if c["claim_id"] == args.claim_id),
                              ensure_ascii=False, indent=2, sort_keys=True))
@@ -901,7 +918,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "web-demo":
             result = run_web_demo(args.plan, args.output, manifest_path=args.manifest,
                                   provider=args.provider, model=args.model, case_ids=args.case_ids, phase_models=phase_models,
-                                  resume_from=args.resume_from, clear_limit=args.clear_usage_limit)
+                                  resume_from=args.resume_from, clear_limit=args.clear_usage_limit, **web_options)
             print(json.dumps({"output": str(args.output), "outcome": result["outcome"],
                               "costs": result["costs"]["phases"],
                               "cases": {c["case_id"]: c["execution_status"] for c in result["cases"]}},

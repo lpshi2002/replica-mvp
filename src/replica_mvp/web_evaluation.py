@@ -172,7 +172,9 @@ def evaluate_web_bundle(registry_path: Path, claim_id: str, *, provider: str | N
                         tester: Callable | None = None, judge: Callable | None = None,
                         browser_factory: Callable | None = None, instance_generator: Callable | None = None,
                         reviewer: Callable | None = None, recovery_reason: str | None = None,
-                        clear_limit: bool = False, phase_models: dict[str, str] | None = None) -> dict[str, Any]:
+                        clear_limit: bool = False, phase_models: dict[str, str] | None = None,
+                        tester_mode: str = "plan", cache_ttl: str | None = "5m",
+                        stable_prefix: bool = False, input_cases_from: Path | None = None) -> dict[str, Any]:
     from .agent_harness import (
         PUBLIC_RESULTS_ROOT, _claim_record, _read_registry, _relative_path, _replace_registry,
         _validate_implementation_result,
@@ -186,6 +188,8 @@ def evaluate_web_bundle(registry_path: Path, claim_id: str, *, provider: str | N
         raise ValueError("this claim has no frozen demo plan")
     attempts = claim.setdefault("bundle_submissions", [])
     recovering = bool(recovery_reason) or claim.get("status") == "EVALUATION_INTERRUPTED"
+    if input_cases_from is not None and recovering:
+        raise ValueError("comparison inputs cannot replace a recovery checkpoint")
     if claim.get("status") != "IMPLEMENTATION_READY" and not recovering:
         raise ValueError("final web evaluation requires IMPLEMENTATION_READY or explicit recovery")
     if any(a["status"] == "RUNNING" for a in attempts):
@@ -239,6 +243,8 @@ def evaluate_web_bundle(registry_path: Path, claim_id: str, *, provider: str | N
                               instance_generator=instance_generator, reviewer=reviewer,
                               review_context=review_context(root, claim), scope=web["scope"],
                               phase_models=phase_models, resume_from=resume_from,
+                              tester_mode=tester_mode, cache_ttl=cache_ttl, stable_prefix=stable_prefix,
+                              input_cases_from=input_cases_from,
                               gate=root / f"{provider or registry['model_runtime']['provider']}-usage-limit.json",
                               clear_limit=clear_limit, company=(registry.get("company") or {}).get("name"))
     except BaseException:

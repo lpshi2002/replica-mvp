@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Replica MVP · 현재 아키텍처",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1200,
+      730
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [
+      40,
+      65
+    ],
+    "cols": 4,
+    "cellW": 210,
+    "cellH": 92,
+    "gapX": 90,
+    "gapY": 140
+  },
+  "components": [
+    {
+      "id": "session",
+      "type": "frontend",
+      "label": "Codex·Claude 세션",
+      "sublabel": "Skill 기반 조사·조율",
+      "row": 1,
+      "col": 0,
+      "size": [
+        210,
+        84
+      ]
+    },
+    {
+      "id": "research",
+      "type": "database",
+      "label": "조사 원본",
+      "sublabel": "research.json · 1·2차 근거",
+      "row": 0,
+      "col": 0,
+      "size": [
+        210,
+        84
+      ]
+    },
+    {
+      "id": "coordinator",
+      "type": "backend",
+      "label": "Replica Agent",
+      "sublabel": "기능별 쌍 생성·제어",
+      "row": 0,
+      "col": 1,
+      "size": [
+        210,
+        84
+      ]
+    },
+    {
+      "id": "harness",
+      "type": "backend",
+      "label": "Python CLI · 하네스",
+      "sublabel": "계약·신원·실행 상태 검증",
+      "row": 1,
+      "col": 1,
+      "size": [
+        210,
+        84
+      ]
+    },
+    {
+      "id": "pairs",
+      "type": "backend",
+      "label": "Operator ↔ Builder",
+      "sublabel": "N개 기능 → N쌍 동시 실행",
+      "tag": "직접 지시·피드백",
+      "row": 2,
+      "col": 1,
+      "size": [
+        210,
+        84
+      ]
+    },
+    {
+      "id": "evaluator",
+      "type": "backend",
+      "label": "봉인 번들 평가기",
+      "sublabel": "새 입력·반복·구현 충실도",
+      "row": 1,
+      "col": 2,
+      "size": [
+        210,
+        84
+      ]
+    },
+    {
+      "id": "vault",
+      "type": "database",
+      "label": "평가 전용 파일",
+      "sublabel": "evaluator-vault/",
+      "tag": "테스트·정답·실행 증거",
+      "row": 0,
+      "col": 2,
+      "size": [
+        210,
+        84
+      ]
+    },
+    {
+      "id": "runtime",
+      "type": "backend",
+      "label": "번들 실행 · Judge",
+      "sublabel": "stdio_json / http_json",
+      "tag": "로컬 모델 CLI",
+      "row": 2,
+      "col": 2,
+      "size": [
+        210,
+        84
+      ]
+    },
+    {
+      "id": "published",
+      "type": "database",
+      "label": "공개 산출물",
+      "sublabel": "final-results/",
+      "tag": "코드·판정·회사 결과",
+      "row": 1,
+      "col": 3,
+      "size": [
+        210,
+        84
+      ]
+    },
+    {
+      "id": "experience",
+      "type": "frontend",
+      "label": "사용자 직접 체험",
+      "sublabel": "run-replica · experience",
+      "tag": "새 입력 · --state-dir",
+      "row": 2,
+      "col": 3,
+      "size": [
+        210,
+        84
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "session-cli",
+      "from": "session",
+      "to": "harness",
+      "label": "CLI 호출",
+      "variant": "emphasis"
+    },
+    {
+      "id": "session-research",
+      "from": "session",
+      "to": "research",
+      "label": "조사·저장"
+    },
+    {
+      "id": "research-coordinator",
+      "from": "research",
+      "to": "coordinator",
+      "label": "경로 전달"
+    },
+    {
+      "id": "coordinator-harness",
+      "from": "coordinator",
+      "to": "harness",
+      "label": "등록·상태",
+      "labelAt": [
+        445,
+        220
+      ]
+    },
+    {
+      "id": "harness-pairs",
+      "from": "harness",
+      "to": "pairs",
+      "label": "공개 계약",
+      "labelAt": [
+        445,
+        455
+      ]
+    },
+    {
+      "id": "harness-evaluator",
+      "from": "harness",
+      "to": "evaluator",
+      "label": "준비·최종화",
+      "variant": "emphasis"
+    },
+    {
+      "id": "evaluator-vault",
+      "from": "evaluator",
+      "to": "vault",
+      "label": "봉인·증거"
+    },
+    {
+      "id": "evaluator-runtime",
+      "from": "evaluator",
+      "to": "runtime",
+      "label": "실행·채점",
+      "labelAt": [
+        745,
+        455
+      ]
+    },
+    {
+      "id": "evaluator-published",
+      "from": "evaluator",
+      "to": "published",
+      "label": "해시 결속",
+      "variant": "emphasis"
+    },
+    {
+      "id": "published-experience",
+      "from": "published",
+      "to": "experience",
+      "label": "새 입력",
+      "labelAt": [
+        1045,
+        455
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "세션과 코드의 역할",
+      "items": [
+        "조사는 세션의 웹 도구와 Skill이 수행한다.",
+        "Python CLI는 Agent 생성 대신 계약·상태·결과를 검증한다."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "평가와 구현의 경계",
+      "items": [
+        "봉인 테스트는 구현 Agent에게 전달하지 않는다.",
+        "기본 Judge는 same_session이며 파일 분리는 OS 격리가 아니다."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "별도 경로와 남은 범위",
+      "items": [
+        "JSON 전용 부품·구형 프롬프트 경로 및 개별 보고서는 별도로 존재한다.",
+        "회사 전체 서술형 보고서 생성은 미구현이다."
+      ]
+    }
+  ]
+}

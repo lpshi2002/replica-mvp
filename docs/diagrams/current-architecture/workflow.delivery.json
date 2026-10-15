@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "workflow",
+  "input": "/Users/cho/replica-mvp/docs/diagrams/current-architecture/workflow.json",
+  "output": "/Users/cho/replica-mvp/docs/diagrams/current-architecture/workflow.html",
+  "specification": {
+    "sha256": "de91568deac7ea9ed8b25e214f4fc0b922cbb9a6aae9d837a90ca4be1dfde4cb",
+    "bytes": 5467
+  },
+  "artifact": {
+    "sha256": "1001f9a0b0354f336d3d7864b458b43fc342a36ac6817d06843082af08cfe2b8",
+    "bytes": 813598
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}

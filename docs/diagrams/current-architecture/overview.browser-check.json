@@ -1,0 +1,214 @@
+{
+  "status": "pass",
+  "artifact": {
+    "path": "/Users/cho/replica-mvp/docs/diagrams/current-architecture/overview.html",
+    "sha256": "a72cadea13080bf035ae284131d3eb0441f957d9cc67a7d26791da394e1d7a74",
+    "bytes": 2173976
+  },
+  "evidenceKind": "supplementary-combined-viewer-browser",
+  "offline": true,
+  "embedded_originals_unchanged": true,
+  "keyboard_tabs": true,
+  "errors": [],
+  "viewports": [
+    {
+      "name": "architecture",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "outer": {
+        "width": 1440,
+        "height": 900,
+        "scrollWidth": 1440,
+        "scrollHeight": 900,
+        "svgCount": 0
+      },
+      "inner": {
+        "width": 1440,
+        "height": 838,
+        "scrollWidth": 1440,
+        "scrollHeight": 838,
+        "svgCount": 2
+      },
+      "ok": true
+    },
+    {
+      "name": "workflow",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "outer": {
+        "width": 1440,
+        "height": 900,
+        "scrollWidth": 1440,
+        "scrollHeight": 900,
+        "svgCount": 0
+      },
+      "inner": {
+        "width": 1440,
+        "height": 838,
+        "scrollWidth": 1440,
+        "scrollHeight": 838,
+        "svgCount": 2
+      },
+      "ok": true
+    },
+    {
+      "name": "architecture",
+      "viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "outer": {
+        "width": 1600,
+        "height": 1000,
+        "scrollWidth": 1600,
+        "scrollHeight": 1000,
+        "svgCount": 0
+      },
+      "inner": {
+        "width": 1600,
+        "height": 938,
+        "scrollWidth": 1600,
+        "scrollHeight": 938,
+        "svgCount": 2
+      },
+      "ok": true
+    },
+    {
+      "name": "workflow",
+      "viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "outer": {
+        "width": 1600,
+        "height": 1000,
+        "scrollWidth": 1600,
+        "scrollHeight": 1000,
+        "svgCount": 0
+      },
+      "inner": {
+        "width": 1600,
+        "height": 938,
+        "scrollWidth": 1600,
+        "scrollHeight": 938,
+        "svgCount": 2
+      },
+      "ok": true
+    },
+    {
+      "name": "architecture",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "outer": {
+        "width": 1920,
+        "height": 1080,
+        "scrollWidth": 1920,
+        "scrollHeight": 1080,
+        "svgCount": 0
+      },
+      "inner": {
+        "width": 1920,
+        "height": 1018,
+        "scrollWidth": 1920,
+        "scrollHeight": 1018,
+        "svgCount": 2
+      },
+      "ok": true
+    },
+    {
+      "name": "workflow",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "outer": {
+        "width": 1920,
+        "height": 1080,
+        "scrollWidth": 1920,
+        "scrollHeight": 1080,
+        "svgCount": 0
+      },
+      "inner": {
+        "width": 1920,
+        "height": 1018,
+        "scrollWidth": 1920,
+        "scrollHeight": 1018,
+        "svgCount": 2
+      },
+      "ok": true
+    },
+    {
+      "name": "architecture",
+      "viewport": {
+        "width": 2048,
+        "height": 1320
+      },
+      "outer": {
+        "width": 2048,
+        "height": 1320,
+        "scrollWidth": 2048,
+        "scrollHeight": 1320,
+        "svgCount": 0
+      },
+      "inner": {
+        "width": 2048,
+        "height": 1258,
+        "scrollWidth": 2048,
+        "scrollHeight": 1258,
+        "svgCount": 2
+      },
+      "ok": true
+    },
+    {
+      "name": "workflow",
+      "viewport": {
+        "width": 2048,
+        "height": 1320
+      },
+      "outer": {
+        "width": 2048,
+        "height": 1320,
+        "scrollWidth": 2048,
+        "scrollHeight": 1320,
+        "svgCount": 0
+      },
+      "inner": {
+        "width": 2048,
+        "height": 1258,
+        "scrollWidth": 2048,
+        "scrollHeight": 1258,
+        "svgCount": 2
+      },
+      "ok": true
+    }
+  ],
+  "visualReview": "passed",
+  "note": "Original Archify deliver receipts apply to the byte-identical embedded viewers. This combined wrapper is separately browser-checked; it is not a single-diagram Archify delivery.",
+  "controls": [
+    {
+      "name": "architecture",
+      "themeToggled": true,
+      "outerThemeSynchronized": true,
+      "zoomChanged": true,
+      "search": true,
+      "svgDownload": true,
+      "filename": "replica-mvp.svg"
+    },
+    {
+      "name": "workflow",
+      "themeToggled": true,
+      "outerThemeSynchronized": true,
+      "zoomChanged": true,
+      "search": true,
+      "svgDownload": true,
+      "filename": "replica-mvp.svg"
+    }
+  ],
+  "visualReviewScope": "Default unzoomed views reviewed from both tab screenshots in light and dark, including large-desktop light capture; interaction checks recorded separately."
+}

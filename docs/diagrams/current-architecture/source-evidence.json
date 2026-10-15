@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "basis": "local-working-tree",
+  "branch": "codex/sol-terra-implementation-bundle",
+  "head": "fece800d20292f30ce526ed16f96e7457e0816b6",
+  "includes_uncommitted_changes": true,
+  "date": "2026-09-26",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "c42588feb5bbcc7702ae62d06c79af9953dc6adb33511356fdbdef6e67a5a194",
+      "bytes": 4726
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "50627489f19f936c2720f678ebd4de8a546d4d6e00086854d2c72613183875f8",
+      "bytes": 7378
+    },
+    {
+      "path": "README.md",
+      "sha256": "98352988e12b5f55db30f50901449efe2bb96e3956a33ae06e5fc634cdd8355e",
+      "bytes": 50631
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "97538b8d44310d4d3d95841e77584c840a584153e0bed211f9a9e4e640234d13",
+      "bytes": 294
+    },
+    {
+      "path": "skills/replica-research/SKILL.md",
+      "sha256": "481b5810a82c14afa3d60bf6cbbe27befc903a3fab025bca0bebdc78df6d03b7",
+      "bytes": 33749
+    },
+    {
+      "path": ".agents/skills/orchestrate-replica-agents/SKILL.md",
+      "sha256": "a295ad4fd6da1851215a75f53b1d5272bd508d4075b1e2ab07a0568ff0440213",
+      "bytes": 8754
+    },
+    {
+      "path": ".agents/skills/run-replica-agent-protocol/SKILL.md",
+      "sha256": "d7f6a3a087b0dc08c7c2196a3199b8bfea893626c9d5282f1361277ba1bf3159",
+      "bytes": 15919
+    },
+    {
+      "path": "src/replica_mvp/cli.py",
+      "sha256": "703cea8684eae6469ec19e836ff9576654a6b4cc7f72385a554a134ac71ba9fa",
+      "bytes": 31318
+    },
+    {
+      "path": "src/replica_mvp/project.py",
+      "sha256": "e7b9f2470761bc0f1bc8162f0d758bbb4934129d4611f4ce0109ed2aed02108e",
+      "bytes": 34524
+    },
+    {
+      "path": "src/replica_mvp/second_pass.py",
+      "sha256": "b3a087d9ea4a97a23cb8fde4cbe16bbc4966f42fb872b61c8941a909daa2a777",
+      "bytes": 34013
+    },
+    {
+      "path": "src/replica_mvp/agent_harness.py",
+      "sha256": "ab72bc6d2b0d1d6e2f327e51df185f4e8bfe0e200b8e04f22283ab428e58da4a",
+      "bytes": 72580
+    },
+    {
+      "path": "src/replica_mvp/agent_execution.py",
+      "sha256": "6b81c6e57253122c9f4439bfa679c9250bab74feb0541bbebf7922269b046178",
+      "bytes": 25016
+    },
+    {
+      "path": "src/replica_mvp/agent_protocol.py",
+      "sha256": "d7979d94c9217eebc54fe39dbbf566eb15688e61f83040eb142f230c5af3cdda",
+      "bytes": 15464
+    },
+    {
+      "path": "src/replica_mvp/bundle_evaluation.py",
+      "sha256": "7fd50e8ddb34eb2b99d7ddee9cfaf292dc2445c8374f59801feb52169c278159",
+      "bytes": 68518
+    },
+    {
+      "path": "src/replica_mvp/bundle_runtime.py",
+      "sha256": "75e8e00c0adefca3e93df0dbc636b7369c3faccbb845d913e5a8f37ee159708c",
+      "bytes": 19747
+    },
+    {
+      "path": "src/replica_mvp/completion.py",
+      "sha256": "7d25cc990834c3eb0fd203427fe772c94b13cbd6dd2b9026b3d353bfc8fbbea6",
+      "bytes": 19660
+    },
+    {
+      "path": "src/replica_mvp/builder.py",
+      "sha256": "935448d1c79b1e8a2837ab24707321fff67883cfc0d05cb4336cdd05e63b9df5",
+      "bytes": 29872
+    },
+    {
+      "path": "src/replica_mvp/experience.py",
+      "sha256": "b3173d0808ded836a0e6e89f2f429040f52c5d5d9702e7074446d4a15b4c1247",
+      "bytes": 14721
+    },
+    {
+      "path": "src/replica_mvp/reporting.py",
+      "sha256": "1da4c6ba0c026165c6ab4cd2f2386eeef1faef5bc784333c81a1db2a9cbc9a51",
+      "bytes": 17567
+    },
+    {
+      "path": "docs/replica-bundle-execution.md",
+      "sha256": "3476110c475cc75193309659d6594233f3c5a03d733bc2ed14a25b7a7d4e0191",
+      "bytes": 26827
+    }
+  ],
+  "note": "Archify commit-pinned source verification is not used: these diagrams describe uncommitted working-tree changes. File hashes identify the inspected versions."
+}

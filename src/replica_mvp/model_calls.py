@@ -7,6 +7,7 @@ wrappers) share this format, so one summary covers both without double counting.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -185,7 +186,8 @@ def _model_command(provider: str, schema: dict[str, Any], workdir: Path, model: 
 
 def run_model_cli(provider: str, prompt: str, schema: dict[str, Any], *, receipts: Path, phase: str,
                   timeout: float, model: str | None = None, label: str | None = None,
-                  gate: Path | None = None) -> tuple[dict[str, Any], str]:
+                  gate: Path | None = None, cache_ttl: str | None = None,
+                  stable_prefix: bool = False) -> tuple[dict[str, Any], str]:
     """Run one structured-output model call, record its receipt, and return (result, call_id).
 
     With a gate, a call after the run has hit the account's usage limit is not sent; it leaves a
@@ -193,13 +195,29 @@ def run_model_cli(provider: str, prompt: str, schema: dict[str, Any], *, receipt
     """
     if timeout <= 0:
         raise TimeoutError(f"{phase} model call has no time left")
+    if cache_ttl not in {None, "5m", "1h"}:
+        raise ValueError("cache_ttl must be 5m, 1h, or None (inherit)")
+    if provider != "claude" and (cache_ttl is not None or stable_prefix):
+        raise ValueError("cache TTL and stable prefix options require the Claude CLI")
+    environment = os.environ.copy()
+    if cache_ttl is not None:
+        # Scope the override to this child; do not change the user's CLI settings.
+        environment["CLAUDE_CODE_PROMPT_CACHE_TTL"] = cache_ttl
+        environment.pop("FORCE_PROMPT_CACHING_5M", None)
     with tempfile.TemporaryDirectory(prefix="replica-model-call-") as temporary:
         workdir = Path(temporary)
         command, output_path = _model_command(provider, schema, workdir, model)
+        if stable_prefix:
+            command.append("--exclude-dynamic-system-prompt-sections")
         directory = new_call_dir(receipts)
         _write_json(directory / "start.json", {
             "phase": phase, "tool": provider, "label": label, "requested_model": model,
             "argv": command[1:], "started_at": time.time(),
+            "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+            "prompt_bytes": len(prompt.encode()),
+            "cache_configuration": {"ttl": cache_ttl, "stable_prefix": stable_prefix,
+                                    "inherited_ttl": environment.get("CLAUDE_CODE_PROMPT_CACHE_TTL")
+                                    if cache_ttl is None and provider == "claude" else None},
         })
         blocked = read_limit_gate(gate)
         if blocked is not None:
@@ -209,7 +227,7 @@ def run_model_cli(provider: str, prompt: str, schema: dict[str, Any], *, receipt
         timed_out = False
         try:
             completed = subprocess.run(command, input=prompt.encode(), capture_output=True, cwd=workdir,
-                                       timeout=timeout, check=False)
+                                       timeout=timeout, check=False, env=environment)
             stdout, stderr, exit_code = completed.stdout, completed.stderr, completed.returncode
         except subprocess.TimeoutExpired as error:
             stdout, stderr, exit_code, timed_out = error.stdout or b"", error.stderr or b"", None, True

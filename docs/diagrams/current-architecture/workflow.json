@@ -1,0 +1,232 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Replica MVP · 조사에서 체험까지",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "research",
+      "label": "조사·계약·개발"
+    },
+    {
+      "id": "execution",
+      "label": "중단·최종 평가"
+    },
+    {
+      "id": "result",
+      "label": "결과 · 체험"
+    }
+  ],
+  "mainPath": [
+    "firstpass",
+    "secondpass",
+    "admission",
+    "development",
+    "sealed",
+    "play"
+  ],
+  "nodes": [
+    {
+      "id": "firstpass",
+      "lane": "research",
+      "col": 0,
+      "type": "backend",
+      "label": "기업 입력·1차 조사",
+      "sublabel": "5개 범위 · 근거·병합",
+      "width": 190,
+      "height": 84
+    },
+    {
+      "id": "secondpass",
+      "lane": "research",
+      "col": 1,
+      "type": "backend",
+      "label": "2차 기능별 검증",
+      "sublabel": "전체 단계·재현 계약",
+      "width": 190,
+      "height": 84
+    },
+    {
+      "id": "admission",
+      "lane": "research",
+      "col": 2,
+      "type": "security",
+      "label": "검증·평가 동결",
+      "sublabel": "ready + build · 근거 검사",
+      "tag": "agent-harness-init",
+      "width": 190,
+      "height": 84
+    },
+    {
+      "id": "development",
+      "lane": "research",
+      "col": 3,
+      "type": "backend",
+      "label": "N쌍 병렬 구현",
+      "sublabel": "직접 통신·개발 검사",
+      "width": 190,
+      "tag": "쌍 준비 → 수정 ≤3",
+      "height": 84
+    },
+    {
+      "id": "sealed",
+      "lane": "execution",
+      "col": 3,
+      "type": "backend",
+      "label": "최종화·봉인 평가",
+      "sublabel": "새 사례·반복·Judge",
+      "width": 190,
+      "height": 84
+    },
+    {
+      "id": "stopped",
+      "lane": "execution",
+      "col": 1,
+      "type": "database",
+      "label": "미실행·중단 기록",
+      "sublabel": "기능 없음·조사 부족·차단",
+      "width": 190,
+      "height": 84
+    },
+    {
+      "id": "company",
+      "lane": "result",
+      "col": 2,
+      "type": "database",
+      "label": "회사 전체 결과",
+      "sublabel": "company-claims.json",
+      "tag": "전체 기능·사유·결과 경로",
+      "width": 190,
+      "height": 84
+    },
+    {
+      "id": "play",
+      "lane": "result",
+      "col": 3,
+      "type": "frontend",
+      "label": "공개 번들·직접 체험",
+      "sublabel": "run-replica / experience",
+      "tag": "새 입력·파일·저장 상태",
+      "width": 190,
+      "height": 84
+    }
+  ],
+  "edges": [
+    {
+      "id": "handoff-pass2",
+      "from": "firstpass",
+      "to": "secondpass",
+      "label": "전체 claim",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "freeze-contract",
+      "from": "secondpass",
+      "to": "admission",
+      "label": "조사 완료",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "parallel-build",
+      "from": "admission",
+      "to": "development",
+      "label": "실행 가능",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "seal-candidate",
+      "from": "development",
+      "to": "sealed",
+      "label": "개발 통과",
+      "role": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "publish-bundle",
+      "from": "sealed",
+      "to": "play",
+      "label": "코드·판정",
+      "role": "main",
+      "variant": "emphasis",
+      "channelX": 1130
+    },
+    {
+      "id": "no-claims",
+      "from": "firstpass",
+      "to": "stopped",
+      "label": "기능 0개",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "no-execution",
+      "from": "admission",
+      "to": "stopped",
+      "label": "미선정·불충분",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "stops-to-company",
+      "from": "stopped",
+      "to": "company",
+      "label": "사유 보존",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "development-stop",
+      "from": "development",
+      "to": "company",
+      "label": "실패·차단",
+      "role": "error",
+      "variant": "security"
+    },
+    {
+      "id": "evaluated-company",
+      "from": "sealed",
+      "to": "company",
+      "label": "재현 판정",
+      "role": "branch"
+    },
+    {
+      "id": "sealed-retry",
+      "from": "sealed",
+      "to": "development",
+      "label": "같은 쌍 · 총 제출≤3",
+      "role": "return",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "공개 계약을 바꾸지 않는 구현",
+      "items": [
+        "쌍 등록·연결 후 모두 활성화하고 지시·피드백은 쌍 내부에서 교환한다.",
+        "개발 수정 3회와 봉인 제출 최대 3회는 별도로 집계한다."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "실패도 회사 결과에 포함",
+      "items": [
+        "재현·부분 재현·미재현과 실험 차단·미평가를 구분한다.",
+        "사례별 시간 초과가 부분 재현을 전체 차단으로 바꾸지 않는다."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "현재 산출물의 범위",
+      "items": [
+        "회사 결과 JSON과 실행 가능한 번들까지 구현되어 있다.",
+        "회사 서술형 보고서는 후속 단계이며 대화 이력 자동 주입은 없다."
+      ]
+    }
+  ]
+}

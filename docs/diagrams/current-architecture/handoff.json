@@ -1,0 +1,69 @@
+{
+  "skill": "archify",
+  "skill_version": "2.17",
+  "source_basis": "source-evidence.json",
+  "diagrams": [
+    {
+      "diagram_type": "architecture",
+      "output": "/Users/cho/replica-mvp/docs/diagrams/current-architecture/architecture.html",
+      "specification_sha256": "ae5cfd415eb515006a87624943de17a7c5215f792ccf178a23fa434089e5b5ea",
+      "specification_bytes": 5316,
+      "artifact_sha256": "a8b085103250800d9aa746e5420079f259eaa56cfc9bc67df257c17e9bd871dd",
+      "artifact_bytes": 812869,
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browser_evidence": "passed",
+      "visual_review": "passed",
+      "correction_rounds": 0,
+      "visual_review_evidence": {
+        "reviewer": "image-capable assistant",
+        "images": [
+          "architecture.visual-check.2048x1320.light.png",
+          "architecture.visual-check.1440x900.dark.png"
+        ],
+        "observations": [
+          "Main path and exception routes are legible without node or label overlap.",
+          "Light and dark themes preserve contrast; large-desktop composition uses the page height."
+        ],
+        "scope": "Rendered default READ view; browser measurements cover all four desktop sizes. Interactive exports were not manually exercised."
+      }
+    },
+    {
+      "diagram_type": "workflow",
+      "output": "/Users/cho/replica-mvp/docs/diagrams/current-architecture/workflow.html",
+      "specification_sha256": "de91568deac7ea9ed8b25e214f4fc0b922cbb9a6aae9d837a90ca4be1dfde4cb",
+      "specification_bytes": 5467,
+      "artifact_sha256": "1001f9a0b0354f336d3d7864b458b43fc342a36ac6817d06843082af08cfe2b8",
+      "artifact_bytes": 813598,
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "showcase",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      },
+      "browser_evidence": "passed",
+      "visual_review": "passed",
+      "correction_rounds": 1,
+      "visual_review_evidence": {
+        "reviewer": "image-capable assistant",
+        "images": [
+          "workflow.visual-check.2048x1320.light.png",
+          "workflow.visual-check.1440x900.dark.png"
+        ],
+        "observations": [
+          "Main path and exception routes are legible without node or label overlap.",
+          "Light and dark themes preserve contrast; large-desktop composition uses the page height."
+        ],
+        "scope": "Rendered default READ view; browser measurements cover all four desktop sizes. Interactive exports were not manually exercised."
+      }
+    }
+  ]
+}

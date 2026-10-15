@@ -993,7 +993,8 @@ def _evaluate_agent_bundle(registry_path: Path, claim_id: str, *, semantic_judge
     return registry
 
 
-_WEB_OPTIONS = {"provider", "model", "tester", "judge", "browser_factory", "instance_generator", "reviewer", "recovery_reason", "clear_limit", "phase_models"}
+_WEB_OPTIONS = {"provider", "model", "tester", "judge", "browser_factory", "instance_generator", "reviewer", "recovery_reason", "clear_limit", "phase_models",
+                "tester_mode", "cache_ttl", "stable_prefix", "input_cases_from"}
 
 
 def evaluate_agent_bundle(registry_path: Path, claim_id: str, **kwargs) -> dict[str, Any]:

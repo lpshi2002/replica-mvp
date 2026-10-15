@@ -96,8 +96,8 @@ class BrowserEfficiencyTest(unittest.TestCase):
                 after = page.evaluate(_OBSERVE_SCRIPT)
                 evidence = _screen_evidence({"observations": [{"event_id": "1", "page": before},
                                                                {"event_id": "2", "page": after}]})
-                self.assertIn("처리 중", evidence[0]["new_text"])
-                self.assertIn("완료", evidence[1]["new_text"])
+                self.assertIn("처리 중", evidence[0]["page_changes"]["text"])
+                self.assertIn("완료", evidence[1]["page_changes"]["text"])
                 waited = _wait_on_screen(page, {"action": "wait", "value": "120"}, time.monotonic() + .05, None)
                 self.assertLess(waited["seconds"], 1)
             finally:

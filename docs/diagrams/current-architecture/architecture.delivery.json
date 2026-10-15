@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/cho/replica-mvp/docs/diagrams/current-architecture/architecture.json",
+  "output": "/Users/cho/replica-mvp/docs/diagrams/current-architecture/architecture.html",
+  "specification": {
+    "sha256": "ae5cfd415eb515006a87624943de17a7c5215f792ccf178a23fa434089e5b5ea",
+    "bytes": 5316
+  },
+  "artifact": {
+    "sha256": "a8b085103250800d9aa746e5420079f259eaa56cfc9bc67df257c17e9bd871dd",
+    "bytes": 812869
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  }
+}
