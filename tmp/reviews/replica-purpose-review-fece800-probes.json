@@ -1,0 +1,77 @@
+[
+  {
+    "probe": "second_pass_step_not_mapped",
+    "first_pass_step_count": 2,
+    "second_pass_step_count": 3,
+    "mapped_step_count": 2,
+    "explicit_out_of_scope": [
+      "Persisting or retrieving completed answers"
+    ],
+    "coverage": {
+      "scope": "whole_workflow",
+      "excluded_steps": [],
+      "external_dependencies": []
+    },
+    "status": "PENDING",
+    "evaluation_gaps": []
+  },
+  {
+    "probe": "all_features_explicitly_blocked",
+    "result": "company research has no ready build claims",
+    "run_directory_created": false
+  },
+  {
+    "probe": "mixed_readiness_result_index",
+    "research_claims": [
+      [
+        "claim-001",
+        "ready"
+      ],
+      [
+        "claim-002",
+        "partial"
+      ]
+    ],
+    "registry_claim_count": 1,
+    "registry_claims": [
+      "claim-001"
+    ],
+    "registry_root_keys": [
+      "claim_collection_schema",
+      "claim_count",
+      "claims",
+      "filesystem",
+      "model_runtime",
+      "replica_agent",
+      "require_final_bundle_evaluation",
+      "scheduling",
+      "schema_version",
+      "status"
+    ]
+  },
+  {
+    "probe": "same_input_twice_in_shared_session",
+    "same_input": true,
+    "same_session": true,
+    "status": "RESEARCH_INCOMPLETE",
+    "research_gaps": [
+      "test case inputs must be unique"
+    ]
+  },
+  {
+    "probe": "experience_question_turns_share_no_history",
+    "runtime_calls": [
+      {
+        "question": "My field is robotics.",
+        "history": [],
+        "state_directory_provided": false
+      },
+      {
+        "question": "Ask me a follow-up about what I just said.",
+        "history": [],
+        "state_directory_provided": false
+      }
+    ],
+    "scope": "input assembly unit probe, no model or generated runtime invoked"
+  }
+]

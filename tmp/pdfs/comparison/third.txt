@@ -1,0 +1,625 @@
+REPLICA    PROGRAM      /   TECHNICAL   REPORT
+
+공개 기술 기반 복제 가능성 분석
+
+
+
+
+사람을 복제하는 회사,
+Delphi AI 기술 보고서
+Delphi AI의 공개 기술만으로 제품의 핵심 동작을 재구현하고, 재현 가능
+범위와 한계를 근거와 함께 기록한 보고서.
+
+
+
+
+대상 기업                                            조사 · 실행 기준일
+Delphi AI · delphi.ai                            2026-08-11
+분석 기능                                            복제 실행
+3건 — 가능 2 · 불가 1                                 1건 · 고정 시험 3/3 통과
+목차
+1~3장이 본문. 4장은 판단의 원자료이며 본문 이해에 필수는 아님.
+
+
+01         보고서의 목적 및 방법론                           04
+
+
+           1.1     보고서의 목적                         05
+
+           1.2     세 단계 진행 구조                      05
+
+           1.3     기능 인정의 네 조건                     06
+
+           1.4     시험 격리와 실행 제약                    06
+
+
+
+
+02         기업 개요                                   07
+
+
+           2.1     사업 개요                           08
+
+           2.2     핵심 기술 — 네 개의 층                  09
+
+           2.3     기술력의 소재                         10
+
+
+
+
+03         복제 결과                                   11
+
+
+           3.1     세 기능의 판정 요약                     12
+
+           3.2     ① 근거 기반 디지털 마인드 대화 — 가능         13
+
+           3.3     ② Delphi Actions — 불가           14
+
+           3.4     ③ Delphi Interviewer — 가능·미실행   14
+
+           3.5     세 결과를 관통하는 한 가지                 15
+
+
+
+
+04         부록                                      16
+
+
+           A       1차 조사 결과 — 후보 22건에서 3건까지        17
+
+           B       층별 상세 근거                        18
+
+           C       출처                              19
+
+
+
+
+Delphi AI 기술 보고서                                   02
+보고서의 목적
+SECTION   01
+
+
+
+
+및 방법론
+무엇을 조사 대상으로 삼았고, 어떤 규칙으로 판정했는지. 결과보다 먼저
+확인해야 할 판정 기준.
+
+1.1   보고서의 목적
+1.2   세 단계 진행 구조
+1.3   기능 인정의 네 조건
+1.4   시험 격리와 실행 제약
+01 · 목적 및 방법론                                              Delphi AI 기술 보고서
+
+
+1.1 보고서의 목적
+기업 평가나 투자 판단이 아닌, 공개 자료만으로 제품 동작을 실제로 재구현해 보는 실험의 기록.
+소개 자료를 읽고 요약하는 것과 그 설명대로 프로그램을 만들어 실행해 보는 것은 다른 작업. 후자를 거치면
+어떤 설명이 구현 가능할 만큼 구체적이고 어떤 설명이 홍보 문구에 가까운지가 드러남. 이 차이의 발견이
+보고서의 목적.
+
+1.2 세 단계 진행 구조
+앞 단계 통과분만 다음 단계로 이행. 1차에서 기능 미인정 시 2차 조사 미실시, 2차에서 구현 계약 미확정 시
+프로그램 미제작.
+
+1차 조사              Delphi가 외부 사용자에게 실제로 제공하는 AI 기능인가           후보 3건 확정
+
+2차 조사              공개 자료만으로 동작과 한계를 계약서 수준으로 확정 가능한가         가능 2 · 부분 1
+
+복제 실행              안전한 프로그램으로 구현해 비공개 고정 시험을 통과하는가        대표 1건 빌드·통과
+
+
+
+    추정 금지 원칙
+    비공개 모델·프롬프트·고객 데이터·내부 시스템은 사실로 미가정.
+    근거 부족 기능은 ‘부분 확인’으로 유보.
+
+
+
+
+Delphi AI · 목적 및 방법론                                                    05
+01 · 목적 및 방법론                                                   Delphi AI 기술 보고서
+
+
+1.3 기능 인정의 네 조건
+후보 하나가 조사 대상이 되기 위한 필수 통과 조건. 네 항목 전부 충족 필요.
+
+C1   회사의 작업인가                          C2   외부 사용자 수령분인가
+출처가 Delphi, 그 제품, 또는 실제 고객 배포를 명시적으로   공개 제품 또는 고객 배포로 전달되는 기능. 사내 개발·영업·
+지목. 블로그 게재만으로는 불충분.                    운영 업무는 제외.
+
+C3   시작과 끝이 있는가                        C4   AI 귀속이 직접 서술되는가
+“AI 플랫폼”은 작업이 아님. “질문 수령 → 근거 부착 답변    “AI 회사”라는 문장과 후속 기능 설명의 접합 금지. 동일 문장
+반환”이 작업.                               내 확인 필요.
+매출·이용자 수·처리 속도 등 성과 수치는 워크플로가 아니므로 후보에서 제외. 가격·투자·홍보 문구와 사내
+업무도 동일 처리.
+
+1.4 시험 격리와 실행 제약
+     시험 문제 비공개 구현 담당 프로그램(Operator)에는 공개 기능 계약과 제약 조건만 전달. 채점용 문제와 정답 미전달.
+     공간 분리 시험은 구현 전 별도 비공개 공간에 고정. 공개 실행 폴더에는 실행 프로그램과 통과 개수만 존치.
+     권한 제한 Operator에 네트워크 접속·파일 접근·외부 프로세스·임의 코드 실행 권한 미부여.
+  입력 한정 완성된 프로그램은 실행 시점 전달 입력만 사용. 외부 조회 없음.
+스스로 낸 문제를 스스로 채점하는 상황의 차단이 목적.
+
+
+
+
+Delphi AI · 목적 및 방법론                                                         06
+기업 개요
+SECTION   02
+
+
+
+
+Delphi AI의 사업 내용과 기술 구조. 이 장의 층 구분이 다음 장 복제 가능
+·불가 판정의 기준.
+
+2.1    사업 개요
+2.2    핵심 기술 — 네 개의 층
+2.3    기술력의 소재
+02 · 기업 개요                                                                 Delphi AI 기술 보고서
+
+
+사업 개요
+한 사람의 글·강연·팟캐스트·인터뷰를 학습해 디지털 마인드(Digital Mind)를 생성하고, 그 사람
+대신 24시간 응답하게 하는 플랫폼.
+
+판매 대상               지식을 파는 사람 — 코치, 교수, 창업자, 투자자, 강연자. 자기                            창작자
+                    콘텐츠를 연결해 디지털 마인드를 생성
+
+이용 대상               링크를 열어 문자·음성 통화·영상 통화로 그 마인드와 대화하는 청중                       외부 사용자
+
+수익 구조               창작자 대상 요금제 — Free / Builder / Scaler / Immortal. API               구독
+                    접근은 Immortal 등급
+
+
+출발점과 현황
+창업자 Dara Ladjevardian이 작고한 조부의 책으로 대화 가능한 디지털 버전을 제작한 경험이 회사의 출발점.
+현재 Karamo Brown(웰니스 코칭), Matthew Hussey, Eckhart Tolle, NBA 선수 Moses Moody 등의
+디지털 마인드가 운영 중. 2025년 Sequoia Capital로부터 1,600만 달러 시리즈 A 유치.
+공개된 이용 방식은 텍스트 대화, 음성 통화, 실시간 영상 통화의 세 채널. 대화 기록이 유지되어 이전 대화
+내용의 참조가 가능하다는 점도 공식 문서에 기재.
+
+
+
+
+Delphi AI · 기업 개요                                                                       08
+02 · 기업 개요                                                         Delphi AI 기술 보고서
+
+
+핵심 기술 — 네 개의 층
+사용자 경험 순서에 따른 네 개 층. 우측은 각 층의 공개 수준이며, 이 경계가 다음 장 복제 가능·
+불가를 가르는 기준.
+
+L1     기억의 정리                                                          자체 · 비공개
+       자료를 개념 관계로 엮고 시점을 부착. 색인이 달린 서재.
+
+L2     근거의 검색                                                          자체 · 비공개
+       단발 고정밀 회수. 실시간 대화 제품이므로 속도가 곧 품질.
+
+L3     답변 생성과 통제                                                          문서 공개
+       근거 강도 3단계, 무응답 안내문, 강제 지시, 출처 표시.
+
+L4     음성·영상 전달                                                           외부 기술
+       음성 ElevenLabs, 영상 Tavus. 자체 개발이 아닌 조합의 결과.
+
+
+L3의 통제 항목 — 유일하게 문서로 공개된 층
+     근거 강도 3단계 Strict 내 자료에만 근거, 없으면 거절 / Adaptive 내 자료로 추론 / Creative 외부 지식
+     사용 가능
+     무응답 안내문 근거 확보 실패 시 창작이 아닌 사전 작성 안내문 출력
+     커스텀 지시 특정 주제 응답 금지, 전문가 연결 등 항상 적용되는 강제 규칙
+  출처 표시·말투·길이 근거 자료 링크 부착 및 창작자 어조 유지
+상세 근거와 원문 인용은 부록 B에 수록.
+
+
+
+
+Delphi AI · 기업 개요                                                               09
+02 · 기업 개요                                                    Delphi AI 기술 보고서
+
+
+기술력의 소재
+공개 범위에 한정한 판단.
+
+    판단
+    차별점은 더 똑똑한 모델이 아니라,
+    말을 지어내지 않게 만드는 통제 장치의 제품화.
+
+판단의 근거
+실존 인물을 대신해 말하는 서비스의 최대 위험은 성능이 아니라 그 사람이 하지 않은 말의 발화. Delphi는 이
+문제를 근거 강도 3단계, 무응답 안내문, 강제 지시, 출처 표시, 민감 주제의 전문가 연결이라는 창작자가 직접
+조작하는 스위치로 전환.
+실제 웰니스 고객 배포 사례(Karamo Brown)에도 응답 경계·콘텐츠 검수·전문가 연결이 함께 공개되어,
+문서상의 기능이 아닌 운영 중 기능임이 확인됨.
+
+반대편 — 외부 의존과 비공개
+    기반 모델·음성·영상은 외부 의존 사용자가 가장 놀라워하는 얼굴과 목소리는 ElevenLabs·Tavus 기술의 통합 결과
+    자체 기술은 이름만 공개 지식 그래프와 에이전트 메시는 목적과 명칭만 공개, 구조·기준값·모델 선택은 비공개
+    독립 검증 자료의 한계 Fast Company 취재는 제품을 확인하는 동시에 반복 표현과 오래된 자료로 인한 부정확
+    응답도 함께 보고
+
+
+    다음 장의 예고
+    복제 가능·불가의 경계선은 위 네 개 층의 공개 수준과 정확히 일치.
+
+
+
+Delphi AI · 기업 개요                                                          10
+복제 결과
+SECTION   03
+
+
+
+
+셋 중 둘은 재현, 하나는 차단. 그 경계를 가른 기준과 근거.
+
+3.1   세 기능의 판정 요약
+3.2   ① 디지털 마인드 대화 — 가능
+3.3   ② Delphi Actions — 불가
+3.4   ③ Delphi Interviewer — 가능·미실행
+3.5   세 결과를 관통하는 한 가지
+03 · 복제 결과                                                  Delphi AI 기술 보고서
+
+
+셋 중 둘은 재현, 하나는 차단
+판정을 가른 기준은 기능의 난이도가 아닌 공개 수준.
+
+   01                    02                      03
+
+   근거 기반                 Delphi                  Delphi
+   디지털 마인드 대화            Actions                 Interviewer
+          복제 가능 · 실행          복제 불가 · 부분              복제 가능 · 미실행
+   실패 시 처리 방식까지          핵심 변환 규칙만 비공개.          전 과정이 단계별로 공개됨.
+   문서에 명시됨.
+                         트리거·액션 목록은 공개           질문→답변→주제→저장
+   근거 부재 시 안내문           자연어→규칙 스키마 비공개          진행률 계산식은 비공개
+   위험 질문은 전문가 연결         불완전 지시 처리 비공개           오픈소스 구현 경로 확보
+   답변에 출처 부착
+                         추정 없이 계약 확정 불가          우선순위에 따라 이번 제외
+   고정 시험 3/3 통과
+
+
+판정 등급의 정의
+가능 ready                            부분 partial
+입력·출력·안전 범위·정보 부족 처리·평가 방법을 모두 공개   일부 핵심 규칙 미공개. 계약 완성에 추정이 필요하므로 복제
+근거로 확정 가능. 추정 불필요.                  대상에서 제외.
+비슷한 프로그램의 제작 가능성과, 그 회사가 공개한 대로의 제작 가능성은 별개. 본 보고서는 후자만 ‘가능’으로
+인정.
+
+
+
+
+Delphi AI · 복제 결과                                                        12
+03 · 복제 결과                                                             Delphi AI 기술 보고서
+
+
+① 근거 기반 디지털 마인드 대화
+등록 인물의 자료에서 근거를 검색해, 지정된 말투와 규칙을 적용한 답변을 반환하는 기능.
+
+입력                  창작자 자료 · 말투 규칙 · 안전 규칙 · 대화 기록 · 사용자 질문                      JSON
+
+출력                  답변 상태 · 답변 · 근거 자료 번호 · 적용 규칙                                JSON
+
+상태 분기               정상 응답 / 안전 안내 / 정보 부족                                        3분기
+
+
+복제 가능 판정의 근거
+구현에는 “잘 되는 경우”만으로 불충분. 실패 시 처리의 확정이 계약 성립의 조건. Delphi는 해당 부분을 공식
+문서에 기재.
+    근거 확보 실패 시 창작 없이 사전 지정 안내문 출력 (Message on No Answer)
+    민감·위험 질문 시 진단 없이 전문가·응급 기관 안내 (Custom Instructions · Karamo Brown 배포)
+    정상 응답 시 근거 자료의 출처 부착 (공식 문서 · Fast Company 교차 확인)
+
+
+실행 결과
+비공개 고정 시험 3개를 첫 시도에 전부 통과(상태 BUILT_AND_PASSED ). 이후 공개 실행본에 별도 입력을
+전달해 정상 JSON 반환도 확인.
+
+
+
+
+Delphi AI · 복제 결과                                                                   13
+03 · 복제 결과                                                      Delphi AI 기술 보고서
+
+
+3.3 ② Delphi Actions — 복제 불가
+“조용한 사용자에게 이틀 뒤 팔로업 발송” 같은 평범한 문장을 그대로 자동화 규칙으로 변환·실행하는 기능.
+
+공개 부품 목록                                 비공개 변환 규칙
+방아쇠 종류 — 키워드·문맥 알림, 대화 종료, 비활성, 결제,      자연어 지시 → 규칙 변환 스키마. 애매·불완전 지시의 처리
+일정. 실행 종류 — 메시지 발송, 태그 부여, 속성 변경, 외부     방식. 규칙 충돌, 낮은 확신도, 승인 대기 상태의 전이.
+시스템 호출. 즉시 실행 또는 창작자 승인 후 실행의 선택.
+계약 완성에 추정에 의한 빈칸 채움이 필요하며, 그 시점에 결과물은 Delphi의 복제가 아닌 창작으로 전환.
+트리거·액션 조합의 수동 축소판은 제작 가능하나 전체 워크플로는 복제 불가로 판정, 미구현.
+
+3.4 ③ Delphi Interviewer — 복제 가능 · 미실행
+AI가 창작자에게 질문하고, 답변을 근거로 새 주제와 짧은 요약을 생성해 학습 자료로 저장하는 기능. 작성할
+콘텐츠가 없는 창작자의 초기 학습 자료 확보 경로.
+    공개된 전 과정 질문 제시 → 타이핑 또는 음성 답변 → 후속 주제 생성 → 통찰 요약 → 편집 가능한 조각으로 저장
+    공개된 경계 조건 “모르겠다” 등 짧은 답변은 진행률 미반영, 중도 이탈 시 진행분 보존
+    비공개 항목 진행률 계산식, 후속 질문 선택 방식, 요약 형식
+  구현 경로 MIT 라이선스 오픈소스 인터뷰 도구로 확보
+동작 재현은 가능하되 내부 점수 방식은 복제 범위 밖. 이번 실행에서는 대표성이 높은 대화 기능을 우선해 빌드
+대상에서 제외.
+
+
+
+
+Delphi AI · 복제 결과                                                            14
+03 · 복제 결과                                                     Delphi AI 기술 보고서
+
+
+세 결과를 관통하는 한 가지
+복제 가능 여부를 가른 변수의 확인.
+
+    관통하는 한 가지
+    기술 문서의 완성도를 결정하는 것은 기능 목록이 아니라
+    실패 조건의 밀도.
+대화 기능과 Interviewer는 답변 불가 시·부실 답변 수령 시의 처리가 명시되어 계약 성립. Actions는 화려한
+기능 목록에도 불구하고 애매한 지시의 처리 방식이 부재하여 중단. Delphi에 대한 평가인 동시에 방법론에
+대한 관찰.
+
+    과대 해석 금지
+       언어 모델 아님             시험은 3개                  뼈대만 재현
+       규칙 기반 3분기 판정의 결정적    정의된 세 경로의 설계대로의         지식 그래프·에이전트 메시·
+       프로그램. 동일 입력에 동일      작동 확인일 뿐 품질 검증 아님       검색 기준값·프롬프트·모델
+       출력이며 자유 질문 전반의                               선택은 범위 밖. 원본과 답변
+       처리는 불가                                       품질을 비교할 근거 없음
+
+
+복제 범위에서 제외된 항목
+Delphi의 비공개 모델·프롬프트·시간 기반 지식 그래프·에이전트 구조·검색 기준값·실제 고객 자료는 미사용.
+음성 복제, 음성 합성, 영상 아바타, 실시간 통화, 다국어 성능, 대규모 운영, 외부 서비스 연동도 구현 범위에서
+제외.
+따라서 본 복제본은 원본 서비스의 복제품이 아닌, 공개 근거로 검증 가능한 핵심 동작의 협소한 시제품.
+
+
+
+
+Delphi AI · 복제 결과                                                           15
+부록
+SECTION   04
+
+
+
+
+본문 이해에 필수는 아닌 원자료. 판단의 근거 확인이 필요할 때의 참조용.
+
+A     1차 조사 결과 — 후보 22건에서 3건까지
+B     층별 상세 근거
+C     출처
+04 · 부록                                                                            Delphi AI 기술 보고서
+
+
+A. 1차 조사 결과
+다섯 갈래를 개별 조사 후 통합. 후보 22건 중 3건 존치.
+조사 갈래                                                       확정          제외              보류
+공식 제품 표면 (docs·사이트)                                         3           8               1
+
+
+기술 블로그 48편                                                  2           2               1
+
+
+공개 기능 이름                                                    2           3               1
+
+
+관계자·파트너 자료                                                  2           1               0
+
+
+보충 언론 자료                                                    1           1               0
+
+
+통합 후                                                        3           16              3
+
+
+
+
+제외 사유별 사례
+    AI 근거 없음 · 11건 Access Groups(청중별 접근 제어), Instances, Products 카드, Playbooks 등. 기능은
+    실재하나 “그 일을 AI가 수행”이라는 직접 서술의 부재
+    성과 수치 · 2건 “영상 응답 2초 이내”, “고객의 수백만 건 대화 처리”. 결과 숫자는 워크플로가 아님
+    비기술 정보 · 2건 투자 유치, Immortal 요금제의 라이선스·지원 조건
+    보류 후 제외 · 1건 Delphi Insights(대화 분석). 분석 작업으로만 기재되고 AI 귀속 문장 부재
+    보류 후 흡수 · 2건 창업자의 조부 사례, 그리고 Clone Brain·지식 그래프·에이전트 메시. 후자는 독립 기능이 아닌
+    대화 기능 내부의 구현 메커니즘이므로 ①번 기능에 병합
+
+
+조사 중 수집된 공개 기능 이름
+   Digital Mind · Clone Brain · Mind Settings · Strict / Adaptive / Creative · Custom
+
+   Instructions · Message on No Answer · Citations · Recency Bias · Purpose Editor · Delphi
+
+   Interviewer / Interview Mode · Delphi Actions · Broadcasts · Access Groups · Instances ·
+
+   Products · Delphi Insights · Library of Minds · Delphi Immortal · Video Clone · Voice
+
+   Playground · Conversation API v3 · Mind Score
+
+
+Delphi AI · 부록                                                                                  17
+04 · 부록                                                                            Delphi AI 기술 보고서
+
+
+B. 층별 상세 근거
+본문 2.2에서 축약한 네 개 층의 원 근거와 공개 문구.
+
+L1 · 기억의 정리           자체 · 비공개
+창작자의 자료를 축적이 아닌 개념 간 관계로 연결하고, 발언 시점이라는 시간 정보를 부착해 정리. 회사
+표현으로는 “self-updating Digital Mind”, “adaptive temporal knowledge graph”. 새 콘텐츠 유입 시
+자동 갱신.
+근거 — Series A 공개 기술 블로그, Fast Company 취재 / 내부 구조·알고리즘 비공개
+
+
+L2 · 근거의 검색           자체 · 비공개
+질문 유입 시 정리된 자료에서 답변의 근거가 될 대목을 회수. 회사 설명으로는 지식 그래프를 감싼 서버리스 AI
+검색 엔진과 다수 에이전트가 분담하는 분산 에이전트 메시가 담당. 목표는 “single-shot, high-precision
+retrieval” — 반복 탐색 없는 단발 정확 회수. 실시간 음성·영상 대화 제품이므로 속도가 곧 제품 품질.
+근거 — Series A 공개 기술 블로그 / 검색 기준값·모델 선택 비공개
+
+
+L3 · 답변 생성과 통제             문서 공개
+회수된 근거로 답변을 작성하되 창작자가 사전 설정한 규칙을 적용. 도움말 문서에 항목 단위로 공개된 유일한
+층이며, 본 보고서의 복제가 성립한 근거.
+근거 — 공식 도움말 Mind Settings, Creativity, Message on No Answer, Custom Instructions
+
+
+L4 · 음성·영상 전달            외부 기술
+완성된 답변을 텍스트 발송, 복제된 목소리로 낭독, 또는 실시간 영상 통화로 전달. 목소리 복제는 ElevenLabs,
+실시간 영상 아바타는 Tavus의 기술을 사용. 사용자가 가장 놀라워하는 “얼굴과 목소리”는 자체 기술이 아닌
+조합·통합의 결과.
+근거 — Tavus 고객 사례, Businesswire 보도자료, 공식 Voice 도움말
+
+
+원자료 파일
+   research.json 1차·2차 조사 통합 결과 — 기능 3건의 전체 근거
+   first_pass/ 다섯 갈래 조사 원본과 제외·보류 기록
+    second_pass/ 기능별 구현 계약, 판정 사유, 제외 범위
+Delphi AI · 부록                                                                                  18
+04 · 부록                                                                           Delphi AI 기술 보고서
+
+
+C. 출처
+조사에 사용된 49건 중 본문 판단에 직접 사용된 항목. 전체 목록은 research.json 에 수록.
+공식 제품 문서 · docs.delphi.ai
+Chat with a Delphi — 디지털 마인드 정의와 대화 방식
+docs.delphi.ai/chat-with-a-delphi
+
+
+Mind Settings 개요 — 목적·규칙·말투·출처 설정
+docs.delphi.ai/build/mind-settings/overview
+
+
+Creativity — Strict / Adaptive / Creative 근거 강도
+docs.delphi.ai/build/mind-settings/overview/creativity
+
+
+Message on No Answer — 근거 확보 실패 시 처리
+docs.delphi.ai/build/mind-settings/overview/message-on-no-answer
+
+
+Custom Instructions — 강제 규칙과 에스컬레이션
+docs.delphi.ai/build/mind-settings/overview/custom-instructions
+
+
+The Delphi Interview — 진행·진행률·저장 규칙
+docs.delphi.ai/build/delphi-interview/the-delphi-interview
+
+
+Interview Sprint — 인터뷰 입력 주제 레시피
+docs.delphi.ai/playbooks/build-your-delphi/interview-sprint-zero-to-one-content
+
+
+Actions · Triggers Guide — 방아쇠 종류
+docs.delphi.ai/operate/actions/overview/triggers-guide
+
+
+Actions · Actions Guide — 실행 종류·타이밍·외부 호출
+docs.delphi.ai/operate/actions/overview/actions-guide
+
+
+Actions · Testing Actions — 실행 증적 검증 방식
+docs.delphi.ai/operate/actions/overview/testing-actions
+
+
+Actions · Alerts — 키워드·문맥 기반 알림
+docs.delphi.ai/operate/actions/overview/alerts
+
+
+API v3 — 대화 생성·스트리밍·태그·사용량
+docs.delphi.ai/launch/integrations/overview/api
+
+
+Voice — 생성형 음성 합성 동작
+docs.delphi.ai/identity/voice
+
+
+
+공식 블로그 · 회사 표면 · delphi.ai
+시리즈 A 발표 — 지식 그래프·AI 검색 엔진·에이전트 메시 구조 공개
+delphi.ai/blog/delphi-raises-16m-series-a-from-sequoia
+
+
+Delphi Actions 발표 — 트리거·실행·승인 옵션
+delphi.ai/blog/delphi-actions
+
+
+Delphi in Sync — 자연어 지시 기반 자동화 생성
+delphi.ai/blog/delphi-in-sync
+
+
+
+Delphi AI · 부록                                                                                 19
+04 · 부록                                                                                     Delphi AI 기술 보고서
+
+
+공식 블로그 · 회사 표면 (계속)
+Interview Mode 발표 — 질문 기반 학습 자료 생성
+delphi.ai/blog/interview-mode
+
+
+Karamo Brown 배포 사례 — 응답 경계·콘텐츠 검수·전문가 연결
+delphi.ai/blog/karamo-brown
+
+
+Jaden Bales 사례 — 팟캐스트·뉴스레터·상담 기록의 학습 투입
+delphi.ai/blog/how-jaden-bales-authentically-answered-600-client-questions-without-picking-up-his-phone
+
+
+Why Choose Delphi — Actions의 AI 귀속 서술
+delphi.ai/blog/why-choose-delphi-over-building-your-own-digital-mind
+
+
+About — 창업 배경(조부의 책)
+delphi.ai/about
+
+
+Pricing — Free / Builder / Scaler / Immortal 구성
+delphi.ai/pricing
+
+
+Creator Terms — 창작자 콘텐츠 책임 범위
+delphi.ai/terms-creator
+
+
+
+독립 보도 · 파트너 자료
+Fast Company — 디지털 마인드 취재. 출처 표시 및 오래된 자료로 인한 한계 보고
+fastcompany.com/91356476/delphi-ai-digital-mind
+
+
+Axios — 경영진의 AI 클론 활용과 신뢰 격차
+axios.com/2025/06/10/ai-ceo-clones-trust-gap
+
+
+Tavus 고객 사례 — 실시간 영상 아바타 통합 및 음성 엔진 연동
+tavus.io/customers/delphi-spotlight
+
+
+Businesswire — Tavus CVI 기반 Video Clone 발표
+businesswire.com/news/home/20240815610245/en/
+
+
+
+구현·평가에 사용한 공개 기술 자료
+Haystack — 색인·검색·생성·조건 분기 파이프라인 구현 경로
+docs.haystack.deepset.ai/docs/pipelines
+
+
+IBM MT-RAG Benchmark — 답변 가능/불가/부분 질문 시험 분류 체계
+github.com/IBM/mt-rag-benchmark
+
+
+Ragas Faithfulness — 답변의 근거 부착 여부 측정 지표
+docs.ragas.io/en/v0.1.21/concepts/metrics/faithfulness.html
+
+
+Aural (MIT) — 인터뷰 진행·후속 질문·요약·저장 오픈소스 구현체
+github.com/1146345502/aural-oss
+
+
+
+
+Delphi AI · 부록                                                                                            20
+

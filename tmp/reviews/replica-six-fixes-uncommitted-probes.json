@@ -1,0 +1,109 @@
+{
+  "base_commit": "fece800d20292f30ce526ed16f96e7457e0816b6",
+  "working_diff_sha256": "6bac9d62bb42143bfac0161eced340bc9dc03b9086b0989734dfc7848179b757",
+  "tests": {
+    "count": 303,
+    "elapsed_seconds": 47.083,
+    "status": "passed"
+  },
+  "team_ai_guard": "passed (included 303 tests in 46.277s)",
+  "probes": [
+    {
+      "probe": "zero_researched_claims",
+      "error": "invalid company research contract",
+      "run_created": false
+    },
+    {
+      "probe": "research_gap_reason_in_company",
+      "registry_status": "RESEARCH_INCOMPLETE",
+      "registry_reason": [
+        "research_gap: novel input differences are not prepared"
+      ],
+      "company_claim": {
+        "claim_id": "claim-001",
+        "failure_category": null,
+        "handoff": "build",
+        "harness_status": "RESEARCH_INCOMPLETE",
+        "merged_into": null,
+        "not_executed_reason": null,
+        "outcome": "experiment_incomplete",
+        "readiness": "ready",
+        "readiness_reasons": null,
+        "reproduction_status": null,
+        "research_status": "confirmed",
+        "result_path": null,
+        "result_sha256": null,
+        "scenario_id": null,
+        "selected_for_execution": true,
+        "stop_reason": null
+      }
+    },
+    {
+      "probe": "creation_failure_reason_in_company",
+      "registry_reason": {
+        "reason": "Fixture only: requested model unavailable in execution environment.",
+        "role": "operator"
+      },
+      "company_claim": {
+        "claim_id": "claim-001",
+        "failure_category": null,
+        "handoff": "build",
+        "harness_status": "CREATION_FAILED",
+        "merged_into": null,
+        "not_executed_reason": null,
+        "outcome": "experiment_incomplete",
+        "readiness": "ready",
+        "readiness_reasons": null,
+        "reproduction_status": null,
+        "research_status": "confirmed",
+        "result_path": null,
+        "result_sha256": null,
+        "scenario_id": null,
+        "selected_for_execution": true,
+        "stop_reason": null
+      }
+    },
+    {
+      "probe": "finalized_zero_claims_cli_path",
+      "first_pass_status": "pass_1_complete",
+      "first_pass_next_step": "no_ai_claims",
+      "claim_count": 0,
+      "all_candidates_accounted": true,
+      "after_marking_pass2_complete": "invalid company research contract"
+    },
+    {
+      "probe": "cumulative_corrections",
+      "development_attempts": [
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "recorded_corrections": {
+        "correction_count": 0,
+        "development_attempts": 3,
+        "sealed_submission": 2
+      },
+      "actual_total_correction_rounds": 1,
+      "judge": "controlled test fixture only"
+    },
+    {
+      "probe": "single_slow_case_company_outcome",
+      "passed": 5,
+      "total": 6,
+      "failure_category": "case_timeout",
+      "bundle_reproduction_status": "partially_reproduced",
+      "company_outcome": "experiment_blocked",
+      "stop_reason": "quality_or_evaluation_gap",
+      "judge": "controlled fixture only"
+    }
+  ]
+}

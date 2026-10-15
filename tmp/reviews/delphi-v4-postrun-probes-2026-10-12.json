@@ -1,0 +1,16 @@
+[
+  {
+    "probe": "passed_without_valid_evidence",
+    "actual_status": "passed",
+    "evidence_event_ids": []
+  },
+  {
+    "probe": "uncovered_step_does_not_cap_verdict",
+    "actual_status": "reproduced"
+  },
+  {
+    "probe": "actions_restart_stuck_approval",
+    "status_after_start": "deciding",
+    "retry_result": "This draft was already decided."
+  }
+]

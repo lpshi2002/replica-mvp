@@ -1,0 +1,636 @@
+A I C A PA B I L I T Y R E P L I C AT I O N R E P O R T
+
+
+
+
+AI Replica
+복제 결과 보고서
+공개 근거만으로 이 회사를 어디까지 복제할 수 있는가
+
+    기업이 외부 사용자에게 실제로 전달하는 AI 기능을 식별하고, 공개된 1차 근거
+    만으로 독립 구현이 성립하는지 판정한 뒤, 실제 복제를 실행해 그 결과와 한계
+    를 기록한 보고서다. 복제되지 않는 지점이 곧 그 회사의 방어선이라는 관점에
+    서 작성했다.
+
+
+
+
+DELPHI                       delphi.ai · 미국 비상장 (Private, U.S.)
+                             San Francisco, CA · AI 디지털 마인드 플랫폼
+
+
+
+
+평가 대상                  Delphi (delphi.ai) · 미국 캘리포니아주 샌프란시스코 소재 비상장 법인
+
+보고서 작성일                2026-08-28
+
+조사 기준일                 2026-08-11 (1차·2차 레플리카 조사) / 2026-08-28 (공개 출처 전량 재검증)
+
+근거 범위                  공개 1차 출처 22건 (공식 문서·발표문·파트너 사례연구·독립 보도·법률 자료) + 저장소 내부 복제 실행 기록 5
+                       건
+
+복제 실행 결과               대상 기능 3건 중 복제 가능 2건 · 복제 불가 1건 / 실행 1건 (BUILT_AND_PASSED, 고정 테스트 3/3)
+
+작성 주체                  제3자 분석. 대상 회사가 검토하거나 승인한 문서가 아니다.
+
+
+
+
+    이 보고서를 읽기 전 반드시 확인할 것. 확인된 사실만 기재한다. 확인되지 않은 항목은 값을 쓰지 않고 쓸 수 없는 사유를 대신 적
+    었으며, 추정치를 사실로 제시하지 않는다. 특히 제5장의 “고정 테스트 3/3 통과”는 계약 준수 측정값이지 복제 충실도가 아니다.
+    이 숫자를 복제 성공률이나 기술 성능으로 인용하면 사실관계 오도가 된다(5-4 참조).
+ 02    목차
+Contents
+
+
+
+
+03      보고서의 목적 및 방법론                                                                        p. 3
+        복제로 기업을 분석한다는 것 · 3단계 파이프라인 · 판정 기호와 ‘확인 불가’ 5종 · 작성 원칙
+
+
+
+04      기업 개요                                                                            p. 4–5
+        한 줄 정의 · 기본 정보와 조달 · 요금 구조 · 기술력 상세 (아키텍처 / 공개 동작 명세 / 외부 스택 / 조직 신호)
+
+
+
+05      복제 결과                                                                            p. 6–8
+        총괄 판정 · 복제 가능 항목 2건 · 복제 불가 항목 1건 · 실제 복제 실행 결과와 반증 · 복제를 막은 방어선 4곳
+
+
+
+06      부록 — 궁금하면 참고                                                                    p. 9–10
+        A. 1차 조사 결과 전문(관측 19건의 채택·제외 내역) / B. 근거 출처 목록(APA · 하이퍼링크)
+
+
+
+  이 보고서의 결론을 세 문장으로
+
+
+              3 / 19                           2/3                           4곳
+            1차 조사 관측 19건 중                   공개 근거만으로                     복제가 실제로 막힌
+           복제 대상으로 확정된 기능                  구현 계약이 성립한 기능                  방어선(해자)의 개수
+
+
+
+   ① 방어선은 소프트웨어 층에 없다. 근거 사용 강도 3단계, 인용 표시, 답변 불가 시 대체 문구, 커스텀 지시문까지 회사가 동작 규칙
+   을 전부 공식 문서에 공개해 두었다. 3개 기능 중 2개는 오픈소스만으로 구현 계약이 성립했다.
+
+
+   ② 그러나 우리가 만든 산출물은 ‘복제’가 아니다. 실제 생성된 코드는 키워드를 보고 미리 적어 둔 문장을 되돌려 주는 if-else 스텁이
+   며 검색·임베딩·언어모델이 하나도 들어 있지 않다. 이 사실을 5-4에 반증으로 기재했다.
+
+
+   ③ 가치의 위치는 확인했지만 크기는 확인할 수 없다. 가치는 비공개 크리에이터 코퍼스 · 인물 권리 계약 · 안전 운영에 있고, 그 셋
+   은 모두 미국 비상장사의 비공시 영역이라 공개 자료로는 도달할 수 없다.
+
+
+
+  한눈에 보는 복제 판정
+
+ 복제 대상 기능                       복제 가능   막힌 지점 · 또는 가능했던 이유                              상세
+
+ Grounded Digital Mind 대화       가능      근거 모드·대체 문구·인용·안전 handoff가 전부 공식 문서에 규정돼 있어 오   5-2 ①
+                                        픈소스로 계약 성립
+
+ Delphi Interviewer             가능      인터뷰 전 단계가 공식 문서에 공개 + MIT 라이선스 오픈소스 런타임 존재      5-2 ②
+
+
+ Delphi Actions                 불가      자연어 → 자동화 컴파일러의 스키마·파서·승인 상태 계약이 비공개 — 코드       5-3 ③
+                                        가 방어선인 유일한 곳
+
+복제 실행까지 마친 것은 claim-001 1건이며, 그 산출물은 제품 동등성과 거리가 멀다(5-4 반증). 방어선 4곳의 목록과 시간 경과에 따른 침식/축적 판
+정은 5-5에 있다.
+
+
+
+
+AI Replica 복제 결과 보고서 · DELPHI                                                             2 / 10
+ 03    보고서의 목적 및 방법론
+Purpose & Methodology — 왜 ‘복제해 보는 방식’으로 기업을 분석하는가
+
+
+
+  3-1. 목적
+기업 실사의 기술 항목은 보통 회사가 제출한 설명 자료를 읽고 평가한다. 이 방식은 “무엇을 잘한다고 말하는가”는 알려주지만
+“그것이 실제로 따라 하기 어려운가”는 알려주지 않는다. 본 보고서는 순서를 뒤집는다. 공개된 근거만으로 그 회사의 기능을 실제
+로 다시 만들어 보고, 만들어지지 않은 지점을 방어선으로 기록한다.
+
+   복제된 항목 → 그 기능에는 독점성이 없다. 경쟁사도 같은 문서를 읽고 구현할 수 있다.
+   복제되지 않은 항목 → 그곳이 해자다. 왜 막혔는지(비공개 규칙 / 비공개 데이터 / 계약 / 운영)가 곧 투자 판단의 근거가 된다.
+   판정조차 불가능한 항목 → 정보 부족이 아니라, 그 회사의 가치가 공시되지 않는 영역에 있다는 구조적 신호다.
+
+
+  3-2. 방법론 — 3단계 파이프라인
+
+ STEP 1                              STEP 2                         STEP 3
+
+ 1차 레플리카                             2차 레플리카                        복제 실행
+ 기능 식별                               구현 계약 판정                       및 반증
+ 공식 문서·발표문·파트너 자료·독립 보도를 훑           확정된 기능마다 입력·출력·경계·평가 기준을       ready 계약을 실제로 구현·실행하고 고정 테
+ 어 “외부 사용자에게 실제로 전달되는 AI 워           공개 근거에 묶어 계약으로 얼릴 수 있는지        스트로 평가한다. 산출물이 원제품과 같지 않
+ 크플로”만 남긴다. 성과 수치·비기술 진술·AI          본다. 추정으로 빈칸을 채워야 하면 ready가     으면 같지 않다는 사실 자체를 근거와 함께
+ 귀속 근거 없는 기능·내부 업무는 규칙으로             아니라 partial이다. 재현이 아니라 창작이 되   기록한다. 자사 산출물도 반증 대상이다.
+ 제외한다.                               기 때문이다.
+
+
+
+  3-3. 판정 기호
+
+ 기호               뜻                                                          인용 가능 여부
+
+  확인              공개 1차 출처로 직접 확인됨                                           그대로 인용 가능
+
+
+  부분확인            일부만 확인됨. 확인 범위와 미확인 범위를 나눠 표기                              확인 범위 안에서만 인용
+
+
+  확인불가            근거 없음. 아래 사유 유형을 반드시 함께 표기                                 인용 불가 · 값을 쓰지 않음
+
+
+  반증              통념·기대 또는 자사 기록과 반대되는 증거가 확인됨                               반증 근거와 함께 인용
+
+
+
+  3-4. ‘확인 불가’의 5가지 종류 — 없는 것과 못 찾은 것은 다르다
+
+ 사유 유형            뜻                                                     실사 대응
+
+ 공개 부존재           공개된 적이 없다. 공시 의무가 없거나 영업비밀이다.                         회사 제출 없이는 영원히 확인 불가
+
+ 미확인              존재할 수 있으나 본 조사 경로로 확인하지 못했다. 없다는 뜻이 아니다.              조사 경로 확장으로 해소 가능
+
+ 설계상 제외           조사 파이프라인이 설계상 수집 대상에서 제외했다.                           별도 조사 트랙 필요
+
+ 출처 충돌            출처끼리 값이 충돌해 어느 쪽도 인용할 수 없다.                           1차 출처 확보 전까지 사용 금지
+
+ 계약 영역            계약·내부 문서 영역이라 회사에 직접 요구해야 한다.                         실사 요구자료로 처리
+
+
+
+   작성 원칙 3가지. ① 추정치를 사실로 제시하지 않는다 — 제3자 시장규모 추정이나 유료 DB 밸류에이션은 인용하지 않는다. ② 출
+   처가 충돌하면 둘 중 하나를 고르지 않고 둘 다 쓰지 않는다. ③ 자사 산출물이라도 반증 근거가 나오면 그대로 기재한다.
+
+
+
+AI Replica 복제 결과 보고서 · DELPHI                                                                   3 / 10
+ 04       기업 개요
+Company Overview — 무엇을 파는 회사이고, 기술력은 어디에 있는가
+
+
+
+   한 줄 정의. Delphi는 크리에이터·창업자·코치·전문가가 자기 지식과 말투로 학습된 “디지털 마인드(Digital Mind)”를 만들어, 외부 사
+   용자가 텍스트·음성·영상으로 그 사람과 대화할 수 있게 하는 SaaS 플랫폼이다. 회사는 스스로를 “챗봇이 아니라 디지털 마인드”로 규
+   정한다.
+
+
+
+  4-1. 기본 정보             부분확인
+
+
+ 소재지·형태                   미국 캘리포니아주 샌프란시스코 소재 비상장 스타트업
+
+ 창업자                      공동창업자 겸 CEO Dara Ladjevardian, 공동창업자 Sam Spelsberg
+
+ 제품 출시                    베타 출시 2023년 12월
+
+ 조달                       Seed $2.7M (Founders Fund · Keith Rabois) → Series A $16M (2025-06-24, 리드 Sequoia Capital / 참여 Menlo &
+                          Anthropic Anthology Fund, Abstract Ventures, Crossbeam 등) · 누적 약 $19M
+
+ 설립연도                       확인불가 · 출처 충돌          채용 플랫폼은 2016년·52명, 스타트업 DB는 2022년 11월로 표기해 6년 차이가 난다. 채용
+                          페이지 값은 회사 자기기입값이므로 어느 쪽도 인용하지 않는다.
+
+ 재무·밸류에이션·                  확인불가 · 공개 부존재            미국 비상장 사기업은 공시 의무가 없다. ‘못 찾은’ 것이 아니라 ‘공개된 적이 없는’ 것이다.
+ 지분구조
+
+근거 [s07] Series A 발표문 · [s14] Fast Company · [s16] Tracxn / Startup Intros · [s17] Built In SF
+
+
+  4-2. 요금 구조             확인    2026-08-28 공식 가격 페이지 직접 확인
+
+                                  Training
+ 플랜               월 정가                                핵심 포함 기능
+                                  Words
+
+ Free             $0              1M                  Voice Calling + Chat, 40+ Languages
+
+ Builder          $79             5M                  Product Recommendations, Custom Alerts, Slack 연동, 임베딩 위치 2곳
+
+ Scaler           $299            12M                 Pro Voice Calling, Contact Import, Custom Workflows, Custom Branding, 임베딩 위치
+                                                      10곳
+
+ Immortal         커스텀             Unlimited           유명인·공인 대상. White-Glove 셋업, 전담 매니저, SMS/WhatsApp, API Access, SSO
+
+가격이 3.78배 오르는 동안 용량은 2.4배만 오른다($1당 단어 수 Builder 63,291 → Scaler 40,134). 상위 플랜의 가격 근거는 용량이 아니라 운영 기능이
+며, Immortal의 설계(화이트글러브·전담 매니저·SSO)는 셀프서브 SaaS가 아니라 고터치 구축형 계약임을 정가표가 스스로 드러낸다.
+
+근거 [s10] delphi.ai/pricing (2026-08-28 직접 확인) · [s03] API 문서
+
+
+  4-3. 기술력 ① — 회사가 공개한 자체 아키텍처                                     명칭만 확인
+
+
+  Adaptive Temporal Knowledge                         Serverless AI-first Search Engine          Distributed Agent Mesh
+  Graph                                               위 지식그래프를 감싼 서버리스 검색 엔                      단발 고정밀 검색용 컨텍스트 프로토콜
+  ‘적응형 시계열 지식그래프’. 크리에이터                              진. ‘단발(single-shot) 고정밀 검색’ 표현             을 구현한 분산 에이전트 메시. 발표문
+  지식을 시간축과 함께 구조화한다는 자                                은 비용 지향 아키텍처로 읽힌다.                         표현 그대로이며 내부 구현은 공개되지
+  체 표현으로, Recency Bias 설정과 함께                                                                    않았다.
+  지식 최신성 처리의 축을 이룬다.
+
+
+중요한 비대칭. 공개된 문서는 전부 “무엇을 하는가”이고 “어떻게 하는가”는 하나도 없다. 기반 LLM 벤더·모델명, 검색 임계값, 프롬프트, 랭킹·평가 파
+이프라인은 공개된 적이 없다                확인불가 · 공개 부존재 . Anthology Fund가 투자자라는 사실은 모델 벤더의 증거가 아니다.
+
+근거 [s07] Series A 발표문
+
+
+AI Replica 복제 결과 보고서 · DELPHI                                                                                                    4 / 10
+  4-4. 기술력 ② — 공개된 동작 명세                          확인
+
+Delphi는 제품의 동작 규칙을 이례적으로 많이 공개해 두었다. 본 조사에서 판정 가능 범위가 넓었던 이유이자, 제5장에서 “소프트
+웨어 층에 방어선이 없다”는 결론이 나온 이유다.
+
+ 공개된 동작 규칙                      내용
+
+ 근거 사용 강도 3단계                   Strict 출처 기반만 사용하며 답변을 거부할 수 있음 / Adaptive 크리에이터 데이터로 추론하되 오류 가능 /
+                                Creative 외부 지식 사용 가능, 추측 혼입 가능
+
+ Message on No Answer           학습 데이터가 부족해 근거를 댈 수 없을 때 표시되는 짧은 대체 문구. Strict·Adaptive 모드에서 작동하는 별
+                                도 기능으로 규정돼 있다.
+
+ Custom Instructions            크리에이터가 하드 강제 규칙·면책 문구·에스컬레이션 규칙을 설정. 2026-08-28 문서에 ‘최대 3개 권장’ 문구
+                                가 추가됐다.
+
+ 인용 표시                          답변에 사용한 출처를 표시하는 설정이 공개돼 있다.
+
+ 안전 설계                          공개 배포 사례에 구조화된 응답 경계, 콘텐츠 모더레이션, 민감 주제의 전문가 연결(handoff)이 상품 설계로
+                                포함돼 있다.
+
+ Mind Score                     2026-08-28 신규 확인. “디지털 마인드가 얼마나 알고, 얼마나 잘 아는가”를 폭·깊이로 나타내는 지표. 산식·구
+                                성요소·임계값은 미공개.
+
+근거 [s01][s02][s09] · 2026-08-28 재검증에서 문서 트리 전면 개편으로 다수 URL 이전 확인(부록 B 표기)
+
+
+  4-5. 기술력 ③ — 외부 의존 스택과 데이터 경로                                  확인
+
+
+ 구성                       확인된 내용
+
+ 음성                       ElevenLabs. 파트너 사례연구에 “Delphi’s 11 Labs engine”으로 명시. 공식 문서도 Playground·Read Aloud가
+                          generative TTS임을 밝힌다.
+
+ 실시간 영상 아바타               Tavus CVI. 양사 공동 보도자료로 확인되며 Delphi의 Video Clone 기능을 구동한다. sub-1초 응답 명시.
+
+ 텍스트 생성                   외부 LLM API.     벤더 미공개
+
+
+ 제품 API                   api.delphi.ai v3. 2026-08-28 기준 엔드포인트 8종(audience / conversations / clone / questions / tags / usage /
+                          voice / search)으로 확장 확인. Immortal 전용이며 키는 클론 1개 범위로 제한.
+
+ 데이터 인입 13종               File, Snippet, Website, YouTube, Podcast, Notion, Evernote, Slack, X, TikTok, Facebook, Instagram, LinkedIn
+
+근거 [s03][s04][s06][s12][s13]
+
+
+  4-6. 기술력 ④ — 조직 신호가 말하는 것                             부분확인
+
+
+있는 직군 — 기술 서사와 일치한다                                                      없는 직군 — 이쪽이 더 많은 것을 말한다
+   AI Engineer — 지식그래프 아키텍처 설계, RAG 개선, 확장 인프라                               사전학습(pre-training) 리서치
+   Prompt Engineer — LLM 프롬프트 설계·최적화                                         GPU 클러스터 운영
+   Forward Deployed Engineer — 고객별 맞춤 API·워크플로 구축                            대규모 리서치 사이언티스트
+   Backend / Infrastructure — Python·FastAPI·PostgreSQL, DW,
+                                                                         자체 파운데이션 모델을 만들지 않는다는 뜻이다. 응답 품질은 외부 모델
+   CI/CD                                                                 발전에 연동되므로 ‘모델 해자’는 약함으로 판정된다. 반면 Prompt
+발표문의 지식그래프·검색 서사가 채용 요건에 그대로 반복된다. 마케팅                                   Engineer + Forward Deployed Engineer의 존재는 사람 손이 들어가는 구
+수사가 아니라 실제 엔지니어링 축일 가능성이 높다.                                             축형임을 뜻하며 매출총이익률과 확장 속도에 직접 영향을 준다.
+
+근거 [s17] Built In SF · [s18] Glassdoor 공고 요약 (자사 채용 페이지는 JS 렌더링이라 원본 미열람 → 방향성 신호로만 사용)
+
+
+   기술력 종합. 이 회사는 “기술이 얼마나 뛰어난가”로 평가하면 대상을 잘못 잡는 사례다. ① 모델 축은 약하다(자체 학습 없음). ② 데
+   이터 축은 축적형이 아니라 계약형이다 — 고객 데이터를 모델 학습에 쓰지 않는다고 공표했으므로 데이터 플라이휠이 성립하지 않
+   고, 축적되는 것은 모델이 아니라 크리에이터 계약 자산이다. ③ 특허·R&D 인력·컴퓨팅 자원은 모두 확인불가이며, 특허는 ‘없음’이
+   아니라 ‘본 조사 경로에서 확인되지 않음’이다.
+
+
+
+AI Replica 복제 결과 보고서 · DELPHI                                                                                                           5 / 10
+ 05     복제 결과
+Replication Result — 무엇이 복제되었고, 무엇이 왜 복제되지 않았는가
+
+
+
+  5-1. 총괄 판정
+1차 조사에서 관측 19건 중 16건을 규칙으로 제외하고 외부 사용자에게 실제로 전달되는 AI 워크플로 3건을 확정했다. 2차 조사
+에서 각각 공개 근거만으로 구현 계약이 성립하는지 판정한 결과는 다음과 같다.
+
+ 기능                       입력 → 출력                              2차 판정          복제 가능    한 줄 근거
+
+ Grounded Digital         크리에이터 자료 + 사용자 질문                      ready        가능       근거 모드·대체 문구·인용·안전 handoff가 전부 공
+ Mind 대화                  → 근거 기반 답변(인용·말투·안전                                          식 문서에 규정 → 오픈소스(Haystack) 경로로 계
+ claim-001                규칙 적용)                                                       약 성립
+
+ Delphi Actions           평문 지시 + 트리거 신호 → 자동                    partial      불가       “평문 지시를 자동화로 컴파일”하는 핵심 단계의
+ claim-002                화 워크플로 실행(메시지·태그·외                                           스키마·파서·승인 상태 계약이 비공개
+                          부 POST)
+
+ Delphi Interviewer       크리에이터의 타이핑·음성 답변                       ready        가능       전 단계가 공식 문서에 공개 + MIT 라이선스 오
+ claim-003                → 후속 주제 + 인사이트 요약, 학                 ※                       픈소스(Aural)로 구현 경로 성립
+                          습 스니펫 저장
+
+※ 2026-08-28 재검증 시 1차 출처 소실. claim-003의 ready 판정 근거였던 공식 도움말 페이지가 현행 사이트맵 30개 페이지에서 사라졌다(404 · 대
+체 페이지 없음). 제품 폐지 여부는 확인되지 않았으므로 ‘ready(1차 출처 소실 · 재검증 필요)’로 표기한다. 같은 재검증에서 /build/… /launch/…
+/operate/… 경로 트리 전체가 개편돼 다수 URL이 404가 되었다.
+
+
+  5-2. 복제 가능 항목 — 왜 가능했는가
+
+① Grounded Digital Mind 대화 복제 가능
+
+가능한 이유. 이 기능이 지켜야 할 규칙이 전부 공개돼 있다. 답변을 출처에만 묶을지(Strict), 추론을 허용할지(Adaptive), 근거가 없
+을 때 무엇을 출력할지(Message on No Answer), 인용을 어떻게 표시할지, 민감 주제에서 어디로 넘길지(전문가 handoff)까지 공
+식 도움말이 규정한다. 따라서 합성 크리에이터 코퍼스 + 명시적 스타일·안전 규칙 + 오픈소스 검색 오케스트레이션 + 근거 기반
+생성기로 입력→출력 계약을 그대로 얼릴 수 있었다.
+
+복제되지 않은 범위(명시). Delphi의 독점 Digital Mind 아키텍처, 비공개 크리에이터 데이터, 음성·영상 충실도, 프로덕션 성능은
+동등하지 않다. 계약이 성립한다는 것은 “같은 규칙을 따르는 독립 구현이 가능하다”는 뜻이지 “제품이 같다”는 뜻이 아니다.
+근거 [s01][s02][s09] · 내부 second_pass/grounded-digital-mind-conversation.json
+
+② Delphi Interviewer 복제 가능
+
+가능한 이유. 고객이 겪는 경로 전체가 공개돼 있다 — 크리에이터가 구조화된 질문에 타이핑 또는 음성으로 답하면 의미 있는 답
+변이 주제 진행도를 올리고, 주제가 100%에 도달하면 새 주제와 함께 “그 사람의 관점·방식을 해석한 짧은 인사이트”가 생성되어
+편집 가능한 Mind 학습 콘텐츠로 저장된다. 실패·수명주기 경계도 문서에 있다. 여기에 MIT 라이선스 오픈소스 인터뷰 런타임
+(Aural)이 적응형 후속질문·요약·영속화·테스트를 이미 제공한다.
+
+복제되지 않은 범위(명시). Delphi의 주제 진행도 점수 산식, 프롬프트, 모델 선택, Mind 내부 구조는 비공개이므로 제외했다. 얼린
+계약은 “답변 1건 → 후속 주제 + 인사이트 1건 + 로컬 스니펫 저장” 한 트랜잭션으로 좁혔다.
+근거 [s05](2026-08-28 기준 404) · 내부 second_pass/creator-interview-to-mind-snippets.json
+
+
+  5-2-1. ‘복제 가능’이 뜻하는 것과 뜻하지 않는 것
+
+  뜻하는 것 — 실사에서 이렇게 읽어야 한다                                                  뜻하지 않는 것 — 이렇게 읽으면 틀린다
+  이 두 기능의 동작 규칙에는 독점성이 없다. 경쟁사도 같은 공식                                      “계약이 성립했다”는 제품이 같아졌다는 뜻이 아니다. 두 항목 모
+  문서를 읽고 같은 계약을 구현할 수 있으며, 실제로 본 조사는 상                                     두 비공개 코퍼스, 비공개 산식·프롬프트, 음성·영상 파이프라인,
+  용 라이선스 없이 오픈소스(Haystack · Aural)만으로 구현 경로를                               프로덕션 성능을 명시적으로 제외한 채 얼렸다. 실제로 실행까지
+  성립시켰다. 따라서 3건 중 2건에 해당하는 제품 표면은 가격·기                                     마친 claim-001의 산출물은 5-4에서 보듯 제품 동등성과 거리가
+  능 경쟁에 그대로 노출돼 있다고 보아야 한다.                                                멀다.
+
+
+AI Replica 복제 결과 보고서 · DELPHI                                                                                       6 / 10
+  5-3. 복제 불가 항목 — 왜 막혔는가
+
+③ Delphi Actions 복제 불가 · partial
+
+이 기능의 핵심 주장은 “평어로 지시하면 자동화를 만들어 준다”이다. 공식 자료는 “Just tell Delphi what to do, in plain language,
+and it builds the automation for you”라고 적는다. 즉 자연어 → 자동화 컴파일러가 이 기능의 실체다.
+
+ 공개돼 있는 것 — 그래서 부분 재현은 가능                                                 공개돼 있지 않은 것 — 그래서 복제 불가
+
+ · 트리거 종류 카탈로그                                                            · 기계 판독 가능한 플로우 저작 스키마
+ · 액션 범주(메시지·태그·추천·외부 POST)                                               · 파서 동작과 실패 처리
+ · 외부 Custom API 필드                                                       · 승인 상태 기계(confirmation-state) 계약
+ · 타이밍 제어와 승인(approval) 제품 옵션                                             · 모델·프롬프트 동작
+ · 로그 기반 테스트 화면                                                           · 불완전한 지시가 들어왔을 때의 처리
+ · 접근 조건 — Builder·Scaler·Immortal 전용(Free 제외)                            · 충돌·재시도 정책, 원본 정답 플로우(gold flow)
+
+
+
+   여기서 ‘불가’ 판정을 내린 논리. 수동으로 설정한 트리거–액션 부분집합은 재현할 수 있다. 그러나 이 기능의 주장은 ‘평문 지시로부
+   터 자동으로 컴파일된다’는 데 있다. 그 컴파일러의 정상·경계·정보부족 기대값을 공개 근거 없이 얼리면 그것은 재현이 아니라 창작
+   이다. 따라서 의도적으로 구현하지 않았고 복제 가능 판정을 false로 남겼다. 이 지점이 본 조사에서 코드 자체가 방어선인 유일한 곳
+   이다.
+
+
+근거 [s08] Delphi Actions · 공식 문서 /advanced/actions (2026-08-28 확인) · 내부 second_pass/context-aware-actions.json
+
+
+  5-4. 실제 복제 실행 결과 — 그리고 자사 산출물에 대한 반증
+ready로 판정된 claim-001(Grounded Digital Mind 대화)에 대해 실제 빌드와 평가를 실행했다. 기록된 수치는 다음과 같다.
+
+
+
+           BUILT                                 3/3                                  4/4                       SAFE
+                                          비공개 고정 테스트 통과                      acceptance criterion 커버리지   안전성 검사 · 네트워크/파일 접
+           & PASSED
+                                                                                                               근 차단
+   빌드 상태 · 1회 시도에 통과
+
+
+
+   ⚠ 반증 — 이 숫자를 ‘복제 성공률’로 인용하면 안 된다.
+   ① 통과한 코드의 실체는 if-else 스텁이다. 생성된 generated-component.py 는 전체가 분기 3개다. 질문에 chest pain 과 trouble
+   breathing 이 함께 있으면 미리 적힌 응급 안내를, study 가 있고 코퍼스에 특정 문구가 있으면 미리 적힌 답변을, 나머지 전부는
+   fallback을 반환한다. 검색도, 임베딩도, 언어모델도 들어 있지 않다.
+
+
+   ② 시험이 자기충족적이었다. 빌더에게 전달된 입력 파일( builder_input )의 구현 지시문 안에 기대 출력 문자열이 원문 그대로 적
+   혀 있었다. 빌더는 정답을 받아 적었고, 평가기는 그 문자열의 일치를 확인했다. 따라서 “3/3 통과”가 측정한 것은 계약 준수 여부이
+   지 복제 충실도가 아니다.
+
+
+   ③ 완성도는 애초에 측정 자체가 불가능하다. 2차 조사에서도 “공개된 Delphi 정답 출력 세트를 찾지 못했다”고 기록됐다. 비교 기준
+   (gold set)이 없으면 “얼마나 닮았는가”는 어느 방향으로도 판정할 수 없다.
+
+
+실행 기록이 스스로 밝힌 지원 범위: “3개 합성 예제에 대한 결정적 텍스트 라우팅, 출처 식별자·명시적 스타일 규칙·응급 증상 handoff·설정된 fallback”.
+미지원 범위: “Delphi의 비공개 모델·프롬프트·지식그래프·에이전트 메시·검색 임계값·고객 데이터”, “음성 복제, TTS, 영상 아바타, 프로덕션 연동, 제품
+동등성”.
+
+근거 내부 evaluation-summary.json · buildability.json · replica-result.json · generated-component.py
+
+
+
+
+AI Replica 복제 결과 보고서 · DELPHI                                                                                            7 / 10
+  5-5. 복제를 막은 지점 = 방어선 4곳
+복제가 막힌 지점이 곧 해자다. 네 곳 중 세 곳은 시간이 지나면 좁아지고, 한 곳만 두꺼워진다. 투자 판단의 무게를 실어야 할 곳
+은 마지막 하나다.
+
+ #     방어선                             내용과 근거                                                               시간 경과
+
+ 1     Actions의 자연어 →                  컴파일 결과 표현, 파서 실패 처리, 승인 상태 기계, 충돌·재시도 정책이 비공개. 5-3에                  침식
+       자동화 컴파일러                        서 복제 불가 판정의 직접 원인이다.
+       유일하게 코드가 방어선인 곳
+
+ 2     비공개 코퍼스 +                       학습 소재가 전량 크리에이터의 사유 자산이고, “얼마나 닮았는가”를 잴 공개 기준도                       침식
+       정답지 부재                          존재하지 않는다. 양방향으로 작동한다 — 경쟁사는 따라잡았다고 주장할 수단이 없
+                                       고, Delphi도 우위를 수치로 증명할 수단이 없다.
+
+ 3     지식의 최신성 처리                      adaptive temporal knowledge graph와 Recency Bias는 이름만 공개돼 있다. 독립 보    침식
+                                       도가 낡은 소스 → 낡은 답변 문제를 지적한 만큼 실질 품질 변수임이 역으로 증명된
+                                       다. 단순 RAG 복제로는 따라오지 않는 축이다.
+
+ 4     인물 권리와 안전 운영                    유명인이 자기 이름·목소리·얼굴을 맡기는 결정은 기술로 복제되지 않는다. Karamo                      축적
+       유일하게 두꺼워지는 곳                    Brown, Eckhart Tolle, Moses Moody, Matthew Hussey 등의 참여는 코드가 아니라 계
+                                       약과 BD의 결과물이며, 안전 설계(응답 경계·모더레이션·전문가 연결)가 그 신뢰를 유
+                                       지하는 장치다.
+
+근거 [s07][s08][s09][s11][s14] · 내부 second_pass 3종
+
+
+  5-6. 복제 결과가 드러낸 것 — 가치의 위치
+
+  가치가 없는 곳 — 코드                                                   가치가 있는 곳 — 데이터·권리·운영
+  동작 규칙이 전량 공개돼 경쟁사가 읽고 그대로 구현할 수 있다.                             ① 비공개 크리에이터 코퍼스 — 재현이 원천적으로 불가능한 층.
+  실제로 오픈소스 기반 구현 경로로 계약화까지 성립했다(3건 중 2                            ② 인물 권리와 유통 — 실제 수요를 만드는 것은 인물의 참여이
+  건 ready). 기능 명세가 전부 공개돼 있다는 사실은 곧 가격 하방                         며 이는 계약의 결과다. ③ 신뢰 운영 — 응답 경계·모더레이션·전
+  압력으로 이어진다 — 월 $79 / $299 구간은 방어가 어렵고, 회사                        문가 연결이 상품 설계에 포함돼 있다. 그런데 이 셋의 계약 조건
+  스스로 “Why Choose Delphi Over a Custom GPT” 같은 방어 콘               은 전부 비공개이므로 가치의 위치는 확인되지만 크기는 확인되
+  텐츠를 쓰고 있다는 점이 그 압력의 증거다.                                        지 않는다.
+
+
+
+     복제 조사로는 도달할 수 없어 회사에 직접 요구해야 하는 자료 5건. 아래는 ‘찾지 못한’ 것이 아니라 ‘공개될 수 없는’ 종류다.
+     R1 ARR · 유지율 · 플랜별 매출 구성비 | R2 크리에이터 계약 표준안(독점 · 기간 · 수익 배분) | R3 매출원가 명세 및 벤더 계약 조
+     건 | R4 안전 사고 · 분쟁 · 규제 문의 이력 | R5 페르소나 충실도 내부 평가 지표와 결과
+
+
+참고 — 복제 가능성 밖의 리스크. 캘리포니아 AB 2602(포괄적 디지털 복제 권리 양도 조항 무효화)와 AB 1836(고인 퍼포머 디지털 복제 금지, 위반당
+최대 $10,000)은 이 회사의 사업 구조 및 최상위 플랜 ‘Immortal’과 정면으로 겹친다. 연방 NO FAKES Act(S.4591)는 2026-06-18 상원 법사위를 만장일
+치로 통과해 본회의로 이송됐다. 규제 리스크는 아직 확정되지 않았으나 확정되는 방향으로 움직이고 있다.
+
+
+
+
+AI Replica 복제 결과 보고서 · DELPHI                                                                                    8 / 10
+ 06     부록 — 궁금하면 참고
+Appendix A. 1차 조사 결과 전문 — 무엇을 보았고, 무엇을 왜 버렸는가
+
+
+1차 레플리카 조사는 5개 조사면(공식 표면 / 엔지니어링 블로그 / 발견된 제품명 / 인물·조직 / 보조 출처)에서 관측 19건을 수집
+한 뒤, 사전에 고정된 규칙으로 걸러 3건을 복제 대상으로 확정했다. 순위는 매기지 않는다(1차는 자격 판정만 한다).
+
+
+  A-1. 채택 규칙 — 이 4가지를 모두 만족해야 남는다
+
+ 코드         조건
+
+ c0         공개 출처가 그 작업을 Delphi 또는 그 제품·문서화된 배포에 직접 귀속시킬 것
+
+ c1         외부 사용자가 공개 제품이나 고객 배포를 통해 그 기능을 실제로 전달받을 것
+
+ a1         주장이 입력과 출력(또는 시스템이 내리는 결정)을 식별할 것
+
+ a2         공개 출처가 그 작업을 AI 기계장치에 직접 귀속시킬 것
+
+단위 규칙: 하나의 주장 = 입력에서 최종 산출물까지의 완결된 외부 사용자 워크플로 하나. 같은 목표·같은 산출물을 공유하는 변형과 내부 단계는 병
+합한다.
+
+
+  A-2. 제외 16건 — 사유별 분포
+
+ 제외 사유                    건수       정의와 실제 제외 사례
+
+ no_ai_attribution        11       기능은 설명돼 있으나 그 작업을 AI가 한다는 직접 귀속이 없다. — Access Groups, Delphi Insights,
+ AI 귀속 근거 없음                       Products 카드, Playbooks, Instances, Mind Settings 조합, 컴플라이언스 문구 탐지·태깅, 전화·WhatsApp
+                                   리드 선별, 채용 후보 스크리닝 등
+
+ outcome_metric           2        워크플로가 아니라 성과·성능 숫자다. — “수백만 건의 대화 처리, 리드·매출 증가”, “영상 응답 지연 2초
+ 성과 수치                             이하”
+
+ non_technical            2        사업·조달·가격·포지셔닝 진술이다. — “Immortal은 라이선싱·API·지원을 포함한 프리미엄 플랜”, “벤처 투
+ 비기술 진술                            자를 유치했고 경영진들이 쓴다”
+
+ internal_workflow        1        AI 작업이 사내에서만 쓰이고 외부 사용자에게 전달되지 않는다.
+ 내부 업무
+
+
+
+  A-3. 보류 3건의 최종 처리
+
+ 보류 항목                                   결정                    사유
+
+ 창업자의 조부(祖父) 디지털 마인드                      claim-001에 병합        별개 기능이 아니라 동일한 Digital Mind 대화 워크플로의 초기 사례다.
+ 사례
+
+ Clone Brain · AI-first 검색 엔진 · 에         claim-001에 병합        독립 워크플로가 아니라 Digital Mind 대화 내부의 문서화된 구현 메커니즘
+ 이전트 메시                                                        이다.
+
+ Delphi Insights                          제외                   분석 업무로 서술돼 있으나 검토한 출처가 그 작업을 AI 기계장치에 직접
+                                                               귀속시키지 않는다.
+
+
+
+  A-4. 최종 집계
+1차 확정 3 (Grounded Digital Mind 대화 / Delphi Actions / Delphi Interviewer) · 1차 제외 16 (A-2 분포) · 보류 3 → 3 해소 (병합 2 · 제외 1) · 2
+차 판정 ready 2 · partial 1 · blocked 0 · 다음 단계 build_ready_claims
+근거 내부 research.json · first_pass/ 5개 체크포인트 파일 (official-surfaces, engineering-blog, discovered-names, people-and-organizations,
+supplementary-sources)
+
+
+
+AI Replica 복제 결과 보고서 · DELPHI                                                                                                     9 / 10
+Appendix B. 근거 출처 목록 — 제5장 판정의 근거 (APA 형식 · 하이퍼링크)
+
+
+모든 주장은 아래 출처 또는 저장소 내부 파일에 연결된다. URL은 2026-08-28 기준으로 재확인했으며, 그 사이 이전·소멸된 항목은 별도 표기했다.
+
+
+  B-1. 공식 출처 (회사 자체 공개 자료) 11건
+s01 Delphi. (n.d.). Chat with a Delphi. Delphi Docs. https://docs.delphi.ai/chat-with-a-delphi — 제품 정의, 실시간 대화
+s02 Delphi. (n.d.). Mind settings: Overview. Delphi Docs. https://docs.delphi.ai/build/mind-settings/overview — 근거 사용 강도 3단계·대체 문구·강제 지시
+     문 [404 → /advanced/response-settings 이전]
+s03 Delphi. (n.d.). Delphi API v3. Delphi Docs. https://docs.delphi.ai/launch/integrations/overview/api — Immortal 전용, 클론 범위 키
+     [ /advanced/actions/api-immortal-only/ 이전, 엔드포인트 8종]
+s04 Delphi. (n.d.). Manage content table. Delphi Docs. docs.delphi.ai/build/content/mind/manage-content-table — 콘텐츠 소스 유형 13종
+s05 Delphi. (n.d.). The Delphi Interview. Delphi Docs. docs.delphi.ai/build/delphi-interview/the-delphi-interview — claim-003 ready 판정의 1차 근거. [404 ·
+       대체 페이지 없음 → 5-1 각주]
+s06 Delphi. (n.d.). Voice. Delphi Docs. https://docs.delphi.ai/identity/voice — generative TTS 명시
+s07 Delphi. (2025, June 24). Delphi raises $16M Series A from Sequoia. Delphi Blog. delphi.ai/blog/delphi-raises-16m-series-a-from-sequoia — 지식그래프
+     ·에이전트 메시·데이터 정책·조달
+s08 Delphi. (n.d.). Delphi Actions. Delphi Blog. https://www.delphi.ai/blog/delphi-actions — 트리거 · 액션 카탈로그, 평문 지시 주장
+s09 Delphi. (n.d.). Karamo Brown [Customer deployment]. Delphi Blog. https://www.delphi.ai/blog/karamo-brown — 안전 설계(응답 경계 · 모더레이션 · 전
+     문가 연결)
+s10 Delphi. (2026). Pricing. https://www.delphi.ai/pricing — 4단계 요금표 (2026-08-28 직접 확인)
+s11 Delphi. (n.d.). Creator terms. https://www.delphi.ai/terms-creator — 콘텐츠 책임 귀속, 고객 데이터 비학습 정책
+
+
+  B-2. 외부 출처 (파트너 · 독립 보도 · 시장 · 규제) 11건
+s12 Tavus. (n.d.). Delphi spotlight [Customer story]. https://www.tavus.io/customers/delphi-spotlight — “Delphi’s 11 Labs engine” 명시
+s13 Tavus. (2024, August 15). Tavus CVI powers Delphi Video Clone [Press release]. Business Wire. https://www.businesswire.com
+s14 Fast Company. (2025). Delphi AI digital mind. fastcompany.com/91356476/delphi-ai-digital-mind — 낡은 소스·반복 어투 지적
+s15 Axios. (2025, June 10). AI CEO clones trust gap. https://www.axios.com/2025/06/10/ai-ceo-clones-trust-gap
+s16 Tracxn; Startup Intros. (n.d.). Delphi — company profile. https://tracxn.com · https://startupintros.com/orgs/delphi — 조달 이력
+s17 Built In SF. (n.d.). Delphi. https://www.builtinsf.com/company/delphi — 채용 직군. 설립연도 · 인원 수치는 출처 충돌로 인용 불가
+s18 Glassdoor. (n.d.). Delphi — AI Engineer job posting summary. https://www.glassdoor.com
+s19 Product Hunt. (n.d.). Delphi digital clone studio — Alternatives. producthunt.com/products/delphi-digital-clone-studio/alternatives — 경쟁·저가 대안
+     목록
+s20 Fenwick & West. (2024). California’s new AI laws limit uses of digital likeness (AB 1836 / AB 2602). fenwick.com/insights/publications/californias-new-a
+     i-laws-limit-uses-of-digital-likeness
+s21 Wikipedia. (2026). NO FAKES Act. https://en.wikipedia.org/wiki/No_Fakes_Act — S.4591이 2026-06-18 상원 법사위 만장일치 통과, 본회의 이송
+s22 Avius AI. (2026). California AI laws — January 2026 (SB 243 외). https://aviusai.com/california-ai-laws-january-2026/
+
+
+  B-3. 저장소 내부 근거 (1·2차 레플리카 및 복제 실행 기록) 5건
+
+ ID        경로                                                확인 내용
+
+ i01        work/delphi-ai/research.json                     1·2차 통합 결과 (candidate 3 / excluded 16 / ready 2 / partial 1 / blocked 0)
+
+ i02        work/delphi-ai/second_pass/ 3종                   기능별 구현 계약 · readiness · 복제 가능 판정과 사유
+
+ i03        builder_input/grounded-digital-mind-             기대 출력 문자열이 구현 지시문에 포함됨 → 5-4 반증의 직접 근거
+           conversation.json
+
+ i04        operator-workspace/…/generated-                  실제 생성된 코드가 분기 3개짜리 if-else 스텁임을 확인
+           component.py
+
+ i05        …/evaluation-summary.json ·                      PASSED 3/3, coverage 4/4, SAFE_TO_EXECUTE, 지원·미지원 범위 선언
+            buildability.json · replica-
+           result.json
+
+
+
+    인용 시 주의. ① “3/3 통과”는 계약 준수 측정값이며 복제 성공률·기술 성능이 아니다(5-4). ② Built In의 설립연도·직원 수는 출처 충
+    돌로 인용 불가(4-1). ③ “thousands of digital minds”, “2.5M+ 개인화 대화”는 자릿수·마케팅 수치이므로 시장 규모 근거로 쓰지 않았
+    다. ④ 밸류에이션·ARR·유지율·계약 단가는 확인되지 않아 기재하지 않았다.
+
+
+AI Replica 복제 결과 보고서 · DELPHI · 판정 기준일 2026-08-28                                                                                                    10 / 10
+

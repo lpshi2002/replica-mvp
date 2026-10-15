@@ -1,0 +1,396 @@
+{
+  "runs": [
+    {
+      "claim": "claim-001",
+      "attempt": 1,
+      "candidate": "96aea02f84ef",
+      "outcome": {
+        "cases_completed": 0,
+        "cases_total": 10,
+        "failed": 0,
+        "not_evaluated": 35,
+        "passed": 0
+      },
+      "cost": 0.327946,
+      "calls": 22,
+      "phase_costs": {
+        "code_review": 0,
+        "instance": 0.029293,
+        "judge": 0.05405,
+        "tester": 0.244603
+      },
+      "phases": {
+        "code_review": 1,
+        "instance": 9,
+        "judge": 2,
+        "tester": 10
+      },
+      "actions": {
+        "click": 3,
+        "upload": 2,
+        "wait": 1,
+        "fill": 2
+      },
+      "ui_errors": {},
+      "active_seconds": null,
+      "wall_seconds": 93.235
+    },
+    {
+      "claim": "claim-001",
+      "attempt": 2,
+      "candidate": "fb54a7a38843",
+      "outcome": {
+        "cases_completed": 9,
+        "cases_total": 10,
+        "failed": 3,
+        "not_evaluated": 1,
+        "passed": 31
+      },
+      "cost": 7.044275,
+      "calls": 202,
+      "phase_costs": {
+        "code_review": 0.511129,
+        "instance": 0.227895,
+        "judge": 0.871438,
+        "replica_runtime": 0.219315,
+        "tester": 5.214498
+      },
+      "phases": {
+        "code_review": 1,
+        "instance": 9,
+        "judge": 10,
+        "replica_runtime": 18,
+        "tester": 164
+      },
+      "actions": {
+        "click": 74,
+        "upload": 17,
+        "wait": 41,
+        "fill": 22,
+        "give_up": 1,
+        "done": 9
+      },
+      "ui_errors": {},
+      "active_seconds": null,
+      "wall_seconds": 1355.387
+    },
+    {
+      "claim": "claim-001",
+      "attempt": 3,
+      "candidate": "5fa1c5939ec3",
+      "outcome": {
+        "cases_completed": 5,
+        "cases_total": 10,
+        "failed": 0,
+        "not_evaluated": 16,
+        "passed": 19
+      },
+      "cost": 3.749944,
+      "calls": 122,
+      "phase_costs": {
+        "code_review": 0,
+        "instance": 0.154953,
+        "judge": 0.446563,
+        "replica_runtime": 0.115492,
+        "tester": 3.032936
+      },
+      "phases": {
+        "code_review": 1,
+        "instance": 9,
+        "judge": 7,
+        "replica_runtime": 9,
+        "tester": 96
+      },
+      "actions": {
+        "click": 47,
+        "upload": 8,
+        "wait": 19,
+        "fill": 15,
+        "done": 5
+      },
+      "ui_errors": {},
+      "active_seconds": null,
+      "wall_seconds": 729.704
+    },
+    {
+      "claim": "claim-001",
+      "attempt": 4,
+      "candidate": "5fa1c5939ec3",
+      "outcome": {
+        "cases_completed": 10,
+        "cases_total": 10,
+        "failed": 1,
+        "not_evaluated": 0,
+        "passed": 34
+      },
+      "cost": 4.511579,
+      "calls": 169,
+      "phase_costs": {
+        "code_review": 0.576976,
+        "instance": 0.036004,
+        "judge": 1.218196,
+        "replica_runtime": 0.218704,
+        "tester": 2.461699
+      },
+      "phases": {
+        "code_review": 1,
+        "instance": 3,
+        "judge": 10,
+        "replica_runtime": 17,
+        "tester": 138
+      },
+      "actions": {
+        "click": 57,
+        "upload": 15,
+        "wait_for": 30,
+        "fill": 22,
+        "check": 4,
+        "done": 10
+      },
+      "ui_errors": {},
+      "active_seconds": 1093.515,
+      "wall_seconds": 1093.513
+    },
+    {
+      "claim": "claim-002",
+      "attempt": 1,
+      "candidate": "31975ba1bb37",
+      "outcome": {
+        "cases_completed": 6,
+        "cases_total": 7,
+        "failed": 0,
+        "not_evaluated": 2,
+        "passed": 27
+      },
+      "cost": 8.798612,
+      "calls": 245,
+      "phase_costs": {
+        "code_review": 0.562917,
+        "instance": 0.295814,
+        "judge": 0.819983,
+        "replica_runtime": 0.318697,
+        "tester": 6.801201
+      },
+      "phases": {
+        "code_review": 1,
+        "instance": 7,
+        "judge": 7,
+        "replica_runtime": 32,
+        "tester": 198
+      },
+      "actions": {
+        "click": 107,
+        "fill": 47,
+        "wait": 35,
+        "done": 6,
+        "select": 2,
+        "give_up": 1
+      },
+      "ui_errors": {},
+      "active_seconds": null,
+      "wall_seconds": 1569.693
+    },
+    {
+      "claim": "claim-002",
+      "attempt": 2,
+      "candidate": "31975ba1bb37",
+      "outcome": {
+        "cases_completed": 6,
+        "cases_total": 7,
+        "failed": 0,
+        "not_evaluated": 0,
+        "passed": 29
+      },
+      "cost": 5.570822,
+      "calls": 225,
+      "phase_costs": {
+        "code_review": 0.573665,
+        "judge": 1.28529,
+        "replica_runtime": 0.30756,
+        "tester": 3.404307
+      },
+      "phases": {
+        "code_review": 1,
+        "judge": 7,
+        "replica_runtime": 32,
+        "tester": 185
+      },
+      "actions": {
+        "click": 103,
+        "fill": 47,
+        "check": 7,
+        "wait_for": 18,
+        "done": 6,
+        "select": 2,
+        "read": 1,
+        "wait": 1
+      },
+      "ui_errors": {
+        "TimeoutError": 1
+      },
+      "active_seconds": 1250.99,
+      "wall_seconds": 1250.99
+    },
+    {
+      "claim": "claim-003",
+      "attempt": 1,
+      "candidate": "dd59a916cfc9",
+      "outcome": {
+        "cases_completed": 4,
+        "cases_total": 5,
+        "failed": 0,
+        "not_evaluated": 9,
+        "passed": 12
+      },
+      "cost": 3.266139,
+      "calls": 96,
+      "phase_costs": {
+        "code_review": 0.325012,
+        "instance": 0.106222,
+        "judge": 0.326667,
+        "replica_runtime": 0.344472,
+        "tester": 2.163766
+      },
+      "phases": {
+        "code_review": 1,
+        "instance": 4,
+        "judge": 4,
+        "replica_runtime": 16,
+        "tester": 71
+      },
+      "actions": {
+        "click": 35,
+        "wait": 19,
+        "fill": 12,
+        "done": 4,
+        "upload": 1
+      },
+      "ui_errors": {},
+      "active_seconds": null,
+      "wall_seconds": 5372.02
+    },
+    {
+      "claim": "claim-003",
+      "attempt": 2,
+      "candidate": "a80003d5034d",
+      "outcome": {
+        "cases_completed": 5,
+        "cases_total": 5,
+        "failed": 0,
+        "not_evaluated": 0,
+        "passed": 21
+      },
+      "cost": 3.619675,
+      "calls": 108,
+      "phase_costs": {
+        "code_review": 0.319004,
+        "instance": 0.15189,
+        "judge": 0.436601,
+        "replica_runtime": 0.369582,
+        "tester": 2.342598
+      },
+      "phases": {
+        "code_review": 1,
+        "instance": 4,
+        "judge": 5,
+        "replica_runtime": 20,
+        "tester": 78
+      },
+      "actions": {
+        "click": 37,
+        "wait": 22,
+        "fill": 13,
+        "done": 5,
+        "upload": 1
+      },
+      "ui_errors": {},
+      "active_seconds": null,
+      "wall_seconds": 665.046
+    }
+  ],
+  "registered_costs": {
+    "code_review": {
+      "calls": 8,
+      "usd": 2.868703,
+      "failed": 2,
+      "timeout": 0,
+      "incomplete": 0,
+      "usage_limited": 2
+    },
+    "instance": {
+      "calls": 62,
+      "usd": 1.301093,
+      "failed": 19,
+      "timeout": 1,
+      "incomplete": 0,
+      "usage_limited": 19
+    },
+    "judge": {
+      "calls": 63,
+      "usd": 6.333429,
+      "failed": 6,
+      "timeout": 0,
+      "incomplete": 0,
+      "usage_limited": 6
+    },
+    "replica_runtime": {
+      "calls": 186,
+      "usd": 2.639774,
+      "failed": 0,
+      "timeout": 0,
+      "incomplete": 1,
+      "usage_limited": 0
+    },
+    "tester": {
+      "calls": 1111,
+      "usd": 31.142093,
+      "failed": 6,
+      "timeout": 0,
+      "incomplete": 0,
+      "usage_limited": 6
+    }
+  },
+  "total_usd": 44.285092,
+  "total_calls": 1430,
+  "implementation_sessions": [
+    {
+      "claim": "claim-001",
+      "role": "implementer",
+      "messages": 115,
+      "peak_context": 271354,
+      "mean_context": 182531,
+      "usage": {
+        "cache_creation_input_tokens": 1356039,
+        "cache_read_input_tokens": 19634781,
+        "input_tokens": 234,
+        "output_tokens": 124476
+      }
+    },
+    {
+      "claim": "claim-002",
+      "role": "implementer",
+      "messages": 51,
+      "peak_context": 205328,
+      "mean_context": 144763,
+      "usage": {
+        "cache_creation_input_tokens": 516281,
+        "cache_read_input_tokens": 6866506,
+        "input_tokens": 102,
+        "output_tokens": 70340
+      }
+    },
+    {
+      "claim": "claim-003",
+      "role": "implementer",
+      "messages": 70,
+      "peak_context": 199338,
+      "mean_context": 139594,
+      "usage": {
+        "cache_creation_input_tokens": 688308,
+        "cache_read_input_tokens": 9083158,
+        "input_tokens": 140,
+        "output_tokens": 75074
+      }
+    }
+  ]
+}

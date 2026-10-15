@@ -1,0 +1,78 @@
+{
+  "cases": 10,
+  "observations": 169,
+  "all_observations_round_trip_exactly": true,
+  "largest_prompt_bytes": 132643,
+  "details": [
+    {
+      "case_id": "grounded-multiturn-citation",
+      "observations": 21,
+      "prompt_bytes": 132643,
+      "complete_text_files": 4,
+      "unavailable_files": 4
+    },
+    {
+      "case_id": "audio-and-qa-ingestion",
+      "observations": 18,
+      "prompt_bytes": 109962,
+      "complete_text_files": 7,
+      "unavailable_files": 5
+    },
+    {
+      "case_id": "unsupported-personal-fact-fallback",
+      "observations": 22,
+      "prompt_bytes": 111974,
+      "complete_text_files": 3,
+      "unavailable_files": 2
+    },
+    {
+      "case_id": "creativity-mode-boundary",
+      "observations": 21,
+      "prompt_bytes": 104851,
+      "complete_text_files": 4,
+      "unavailable_files": 2
+    },
+    {
+      "case_id": "recency-conflict",
+      "observations": 14,
+      "prompt_bytes": 84273,
+      "complete_text_files": 3,
+      "unavailable_files": 3
+    },
+    {
+      "case_id": "sensitive-handoff",
+      "observations": 13,
+      "prompt_bytes": 71599,
+      "complete_text_files": 3,
+      "unavailable_files": 2
+    },
+    {
+      "case_id": "visitor-image-attachment-typo",
+      "observations": 11,
+      "prompt_bytes": 61593,
+      "complete_text_files": 2,
+      "unavailable_files": 3
+    },
+    {
+      "case_id": "korean-question",
+      "observations": 14,
+      "prompt_bytes": 73775,
+      "complete_text_files": 2,
+      "unavailable_files": 2
+    },
+    {
+      "case_id": "voice-question-read-aloud",
+      "observations": 16,
+      "prompt_bytes": 76134,
+      "complete_text_files": 3,
+      "unavailable_files": 7
+    },
+    {
+      "case_id": "creator-correction-training",
+      "observations": 19,
+      "prompt_bytes": 107582,
+      "complete_text_files": 8,
+      "unavailable_files": 4
+    }
+  ]
+}
