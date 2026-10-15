@@ -1,3 +1,4 @@
+from tests.web_fixtures import criteria_plan
 import hashlib
 import importlib.util
 import json
@@ -88,6 +89,7 @@ def _write_plan(root: Path, page: str, expectations=None) -> Path:
             "expectations": expectations or [SUBMITTED],
         }],
     }
+    plan = criteria_plan(plan)
     path = root / "plan.json"
     path.write_text(json.dumps(plan, ensure_ascii=False))
     return path

@@ -14,6 +14,7 @@ from .second_pass import MODEL_RUNTIMES, parse_second_pass
 from .resources import budget_stop, unknown_resources, utc_now
 from .session_usage import sessions_usage
 from .web_demo import freeze_demo_plan
+from .web_contract import validate_verification_parts
 
 
 HARNESS_SCHEMA = "replica-agent-harness/v1"
@@ -1017,9 +1018,21 @@ def _demo_scope(payload: dict[str, Any], selected: dict[str, Any], plan: dict[st
     if any(index > len(texts) for index in covered):
         raise ValueError(f"covers_steps must name steps 1..{len(texts)} of the confirmed workflow")
     steps = [{"step_index": entry["step_index"], "step": texts[entry["step_index"] - 1],
-              "disposition": entry["disposition"]}
+              "disposition": entry["disposition"], "verification_parts": deepcopy(entry.get("verification_parts", []))}
              for entry in selected.get("step_coverage", []) if entry.get("claim_id", payload["claim_id"]) == payload["claim_id"]]
-    return {"steps": steps,
+    declared = set()
+    for step in steps:
+        validate_verification_parts(step["verification_parts"])
+        declared.update((step["step_index"], part["id"]) for part in step["verification_parts"])
+    for case in plan["cases"]:
+        for expectation in case["expectations"]:
+            for part in expectation.get("covers_parts", []):
+                if (part["step_index"], part["part_id"]) not in declared:
+                    raise ValueError("expectation references an undeclared verification part")
+    outside = selected.get("out_of_scope", [])
+    if not isinstance(outside, list) or not all(isinstance(x, str) and x.strip() for x in outside):
+        raise ValueError("out_of_scope must preserve the scenario's explicit limits")
+    return {"steps": steps, "out_of_scope": deepcopy(outside),
             "uncovered_steps": [step for step in steps
                                 if step["disposition"] != "excluded" and step["step_index"] not in covered],
             # Every excluded step or excluded part of a step in the selected scenario, merged claims included,
@@ -1779,15 +1792,15 @@ def _pre_evaluation_outcome(root: Path, claim: dict[str, Any]) -> dict[str, Any]
     return result
 
 
-_PLAN_KEYS = ("disposition", "component", "route", "reason", "excluded_parts", "alternatives", "needs")
+_PLAN_KEYS = ("disposition", "component", "route", "reason", "excluded_parts", "alternatives", "needs", "verification_parts")
 
 
 def _claim_architecture(root: Path, claim: dict[str, Any], demo: dict[str, Any] | None) -> dict[str, Any] | None:
     """The researched workflow step by step: what research planned for it, and what the demo observed.
 
-    The plan comes from the frozen scenario's step_coverage. Observations are case-level: a step lists
-    the demo cases planned to pass through it and how those cases ended. No case result is turned into
-    a per-step pass or fail, because the demo does not record which step an expectation checks.
+    The plan comes from the frozen scenario's step_coverage. Case summaries remain case-level;
+    new results additionally carry verification from explicitly mapped expectations. Legacy
+    planned routes are never upgraded to measured per-step success.
     """
     payload = json.loads((root / claim["claim_payload_path"]).read_text(encoding="utf-8"))
     selected = _selected_scenario(payload)
@@ -1824,6 +1837,8 @@ def _claim_architecture(root: Path, claim: dict[str, Any], demo: dict[str, Any] 
             "plan": {key: deepcopy(entry[key]) for key in _PLAN_KEYS if key in entry},
             "observation": {
                 "cases": [case_result(case_id) for case_id in case_ids] if demo is not None else [],
+                "verification": next((s.get("verification") for s in ((demo or {}).get("scope") or {}).get("steps", [])
+                                      if owner == payload["claim_id"] and s["step_index"] == index), None),
                 "evidence": ("case_level" if case_ids and demo is not None else
                              "none: no demo case is planned through this step" if demo is not None else
                              "none: no web demo result"),
@@ -1832,6 +1847,7 @@ def _claim_architecture(root: Path, claim: dict[str, Any], demo: dict[str, Any] 
     final = claim.get("final_result") or {}
     return {
         "scenario_id": selected["id"],
+        "out_of_scope": deepcopy(selected.get("out_of_scope", [])),
         "steps": steps,
         "observation": {
             "implementation_submitted": bool(claim.get("implementation_result") or final),
@@ -1942,6 +1958,7 @@ def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
                 "cases": {case["case_id"]: case["execution_status"] for case in demo["cases"]},
                 "code_review": {key: demo["code_review"].get(key) for key in ("status", "reason", "findings")},
                 "uncovered_steps": demo["scope"].get("uncovered_steps"),
+                "scope": deepcopy(demo["scope"]),
                 "costs": {name: {key: phase[key] for key in (
                     "calls", "completed", "failed", "timeout", "incomplete", "call_seconds", "usage", "models",
                     "cli_list_estimate_usd", "estimate_complete")} for name, phase in demo["costs"]["phases"].items()},
@@ -1952,6 +1969,7 @@ def _company_results(root: Path, registry: dict[str, Any]) -> dict[str, Any]:
         architecture = _claim_architecture(root, claim, demo if web else None)
         if architecture is not None:
             entry["architecture"] = architecture
+            entry["out_of_scope"] = deepcopy(architecture["out_of_scope"])
         if claim.get("development_log"):
             entry["development_log"] = claim["development_log"]
         entry["development_usage"] = sessions_usage(

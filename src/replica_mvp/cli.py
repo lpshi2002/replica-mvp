@@ -35,7 +35,7 @@ from .agent_protocol import validate_agent_protocol_message_from_path
 from .builder import run_built_replica
 from .bundle_evaluation import evaluate_agent_bundle, prepare_bundle_evaluation, retry_agent_bundle
 from .bundle_runtime import mountable, native_model_judge, run_json_command, web_app_session
-from .company_app import company_app_session
+from .company_app import company_app_session, company_features
 from .codex_operator import finalize_codex_operator, prepare_codex_operator
 from .experience import experience_input_once, experience_once, is_bundle_run
 from .intake import receive_second_pass
@@ -543,21 +543,9 @@ def _serve_company(registry_path: Path, state_dir: Path | None, port: int | None
     root = registry_path.parent.resolve()
     company = (registry.get("company") or {}).get("name") or "Company app"
     state = (state_dir or root / "company-app-state").resolve()
-    features, skipped = [], []
-    for claim in registry["claims"]:
-        bound = claim.get("implementation_result")
-        if not bound or not claim.get("web_demo"):
-            skipped.append((claim["claim_id"], "no bound web-app implementation"))
-            continue
-        manifest = root / bound["candidate_path"]
-        if not mountable(json.loads(manifest.read_text(encoding="utf-8")).get("runtime") or {}):
-            skipped.append((claim["claim_id"], "bundle declares no base_path_argument (built before the company app)"))
-            continue
-        plan = json.loads((root / claim["web_demo"]["plan_path"]).read_text(encoding="utf-8"))
-        features.append({"id": claim["claim_id"], "title": plan["title"], "manifest": manifest,
-                         "workspace": state / claim["claim_id"]})
-    for claim_id, reason in skipped:
-        print(f"제외: {claim_id} ({reason})", flush=True)
+    features, skipped = company_features(registry, root, state)
+    for item in skipped:
+        print(f"제외: {item['claim_id']} ({item['reason']})", flush=True)
     if not features:
         raise ValueError("no bound feature of this run can be mounted in the company app")
     with company_app_session(company, features, 120, port=port or 0) as (shell, roots):

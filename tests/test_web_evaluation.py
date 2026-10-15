@@ -1,3 +1,4 @@
+from tests.web_fixtures import criteria_plan
 import hashlib
 import json
 import os
@@ -27,7 +28,7 @@ DEMO_PLAN = {
         "id": "approve", "goal": "요청을 등록하고 승인한다",
         "steps": ["요청 내용에 '노트북 구매'를 입력하고 등록한다", "등록된 요청을 승인한다"],
         "facts": ["요청 내용은 '노트북 구매'"], "targeted_barrier": None, "barrier_note": "공개 장벽 주장 미확인",
-        "covers_steps": [1], "variation": None, "variation_note": "fixture",
+        "covers_steps": [1, 2], "variation": None, "variation_note": "fixture",
         "expectations": [
             {"id": "outbox", "description": "승인하면 outbox에 기록된다",
              "basis": {"type": "public_rule", "source": "https://example.com/docs"},
@@ -37,6 +38,7 @@ DEMO_PLAN = {
         ],
     }],
 }
+DEMO_PLAN = criteria_plan(DEMO_PLAN)
 # The tester starts at the company app menu and opens the feature by its plan title.
 APPROVE = [("click", "승인 워크플로", None), ("fill", "요청 내용", "노트북 구매"), ("click", "등록", None),
            ("click", "승인", None), ("done", None, None)]
@@ -158,12 +160,16 @@ class WebHarnessTest(unittest.TestCase):
         research = _web_research(sessions=[{"role": "pass_2_worker", "agent_id": "research-worker-1", "runtime": "claude",
                                             "claim_id": "claim-001"},
                                            {"role": "pass_1_worker", "agent_id": "never-logged"}])
+        demo = research["claims"][0]["second_pass"]["replication_contract"][1]["demo_plan"]
+        demo["cases"][0]["covers_steps"] = [1]
+        for expectation in demo["cases"][0]["expectations"]:
+            expectation["covers_steps"] = [1]
         registry = _bind_web_app(self.root / "run", research)
         evaluated = evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(APPROVE), judge=_passing_judge,
                                           reviewer=_passing_review,
                                           semantic_judge=lambda request: {"pass": False, "reason": "unused"})
         claim = evaluated["claims"][0]
-        self.assertEqual(("RESULT_SUCCESS", "reproduced"), (claim["status"], claim["final_result"]["reproduction_status"]))
+        self.assertEqual(("RESULT_FAILED", "partially_reproduced"), (claim["status"], claim["final_result"]["reproduction_status"]))
         self.assertEqual("web_demo", claim["bundle_submissions"][0]["mode"])
         public = self.root / "run" / claim["final_result"]["public_run_dir"]
         self.assertTrue(public.is_relative_to(self.root / "run" / "final-results" / "runs"))
@@ -172,7 +178,7 @@ class WebHarnessTest(unittest.TestCase):
         finished = finish_agent_harness(registry)
         company = json.loads((self.root / "run" / finished["company_result"]["path"]).read_text())
         entry = company["claims"][0]
-        self.assertEqual(("reproduced", "s-oss"), (entry["outcome"], entry["scenario_id"]))
+        self.assertEqual(("partially_reproduced", "s-oss"), (entry["outcome"], entry["scenario_id"]))
         self.assertEqual({"passed": 2, "failed": 0, "not_evaluated": 0, "cases_completed": 1, "cases_total": 1},
                          entry["web_demo"]["outcome"])
         self.assertEqual(1, entry["web_demo"]["costs"]["replica_runtime"]["calls"])
@@ -291,9 +297,8 @@ class WebHarnessTest(unittest.TestCase):
                          (first["plan"]["disposition"], first["plan"]["component"]["origin"], first["plan"]["route"]))
         self.assertEqual([{"case_id": "approve", "execution_status": "completed", "passed": 2, "failed": 0,
                            "not_evaluated": 0}], first["observation"]["cases"])
-        # No case is planned through step 2, so nothing is claimed about it.
-        self.assertEqual(([], "none: no demo case is planned through this step"),
-                         (second["observation"]["cases"], second["observation"]["evidence"]))
+        self.assertEqual("passed", second["observation"]["verification"]["status"])
+        self.assertEqual("case_level", second["observation"]["evidence"])
         self.assertEqual("partially_reproduced", architecture["observation"]["reproduction_status"])
         report = (self.root / "run" / finished["company_result"]["architecture_path"]).read_text()
         self.assertIn("rank_bm25 in the web app", report)
@@ -308,7 +313,7 @@ class WebHarnessTest(unittest.TestCase):
         def judge_quoting_the_page(prompt):
             request = json.loads(prompt)
             return {"verdicts": [{"id": e["id"], "status": "failed", "reason": "화면에 '의자 구매' 요약이 없다",
-                                  "evidence_event_ids": []} for e in request["expectations"]]}, None
+                                  "evidence_event_ids": [request["events"][-1]["event_id"]]} for e in request["expectations"]]}, None
         evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(chair), judge=judge_quoting_the_page,
                               reviewer=_passing_review, instance_generator=self._chair)
         retry_agent_bundle(registry, "claim-001")

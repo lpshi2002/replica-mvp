@@ -19,6 +19,7 @@ import shutil
 import tempfile
 import time
 from collections.abc import Callable
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,9 @@ from .company_app import company_app_session
 from .model_calls import (install_meter, run_model_cli, summarize_receipts, ModelUsageLimitError,
                           read_limit_gate, trip_limit_gate)
 from .web_checkpoint import evaluator_version, load_checkpoint, load_input_cases, write_checkpoint
+from .web_contract import BASIS_TYPES, CRITERIA_VERSION, expectation_identity, validate_criteria, verification_scope
+from .web_inputs import (validate_uploads, seal_inputs, restore_inputs, sealed_uploads, input_context, InputVariationError,
+                         variation_sources, upload_instance, render_uploads, file_bytes)
 from .web_actions import (FIELD_ACTIONS, PLAN_INSTRUCTION, REGISTER_SCRIPT, SIGNAL_SCRIPT, PageSignals,
                           change_stop, identity_stop, observation_stop, peek, plan_stats, postcondition, read_plan,
                           target_state)
@@ -35,7 +39,6 @@ from .web_actions import (FIELD_ACTIONS, PLAN_INSTRUCTION, REGISTER_SCRIPT, SIGN
 PLAN_SCHEMA = "replica-web-demo-plan/v1"
 RESULT_SCHEMA = "replica-web-demo-result/v1"
 ACTIONS = ("click", "fill", "select", "upload", "press", "wait", "wait_for", "read", "check", "uncheck", "done", "give_up")
-BASIS_TYPES = {"public_rule", "original_observation", "separate_verification", "our_condition"}
 CHECK_TYPES = {"file_exists", "file_absent", "file_contains", "files_unchanged", "page_contains"}
 EXPECTATION_STATUSES = ("passed", "failed", "not_evaluated")
 _PAGE_TEXT_LIMIT = 8000
@@ -59,12 +62,14 @@ JUDGE_SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["verdicts"],
     "properties": {"verdicts": {"type": "array", "items": {
         "type": "object", "additionalProperties": False,
-        "required": ["id", "status", "reason", "evidence_event_ids"],
+        "required": ["id", "status", "reason", "evidence_event_ids", "evidence_file_paths", "precondition_met"],
         "properties": {
             "id": {"type": "string"},
             "status": {"type": "string", "enum": list(EXPECTATION_STATUSES)},
             "reason": {"type": "string"},
             "evidence_event_ids": {"type": "array", "items": {"type": "string"}},
+            "evidence_file_paths": {"type": "array", "items": {"type": "string"}},
+            "precondition_met": {"type": ["boolean", "null"]},
         },
     }}},
 }
@@ -152,7 +157,8 @@ def _plan_manifest(plan: dict[str, Any], plan_dir: Path, manifest_path: Path | N
     return None
 
 
-def validate_demo_plan(plan: Any, plan_dir: Path, manifest_path: Path | None = None) -> dict[str, Any]:
+def validate_demo_plan(plan: Any, plan_dir: Path, manifest_path: Path | None = None, *,
+                       for_execution: bool = False) -> dict[str, Any]:
     """Reject a plan that cannot be run or whose expected results lack a basis.
 
     A plan frozen before implementation has no manifest yet; the candidate's
@@ -232,6 +238,9 @@ def validate_demo_plan(plan: Any, plan_dir: Path, manifest_path: Path | None = N
                     raise ValueError(f"expectation {expectation['id']} file check needs a relative glob")
                 elif check["type"] == "file_contains" and not _nonempty(check.get("text")):
                     raise ValueError(f"expectation {expectation['id']} file_contains needs text")
+    for case in cases:
+        validate_uploads(case, plan_dir, for_execution=for_execution)
+    validate_criteria(plan, for_execution=for_execution)
     return plan
 
 
@@ -315,7 +324,8 @@ def _tester_prompt(case: dict[str, Any], uploads: list[str], page: dict[str, Any
                else "Choose exactly one next action on the current page, referring to an element by its ref. ") +
             "Do not invent names, IDs, data or results that are not on the page or in the facts. "
             "Return done only after all steps are performed and the final result is visible on the page. "
-            "Return give_up with the reason if the screens make a step impossible. "
+            "Return give_up with the reason if the screens make a step impossible or an execution_limit is reached. "
+            "Execution limits bound this trial and do not establish a product failure. "
             "A truncated value is an observation limit, not evidence that the app lost text; use read to inspect it. "
             "Use check/uncheck to set a checkbox explicitly; observe checked before changing it. "
             "You are not told the expected results and must not assume success."
@@ -333,6 +343,7 @@ def _tester_prompt(case: dict[str, Any], uploads: list[str], page: dict[str, Any
         },
         "case": {"goal": case["goal"], "steps": case["steps"], "facts": case.get("facts", [])},
         "upload_files": uploads, "remaining_actions": remaining,
+        "execution_limits": case.get("execution_limits", []),
     }
     if plan is not None:
         prompt.update({"remaining_model_calls": plan["remaining_model_calls"], "last_plan": plan["last_plan"]})
@@ -379,12 +390,17 @@ def _judge_prompt(case: dict[str, Any], expectations: list[dict[str, Any]], reco
             "file_changes with content_status complete contain the full UTF-8 text, not an excerpt. "
             "An unavailable file was not inspected: do not treat it as empty or infer its contents. If a verdict "
             "requires those contents and no other evidence establishes the result, return not_evaluated. "
-            "Return passed or failed with the event ids that show it. Return not_evaluated when the evidence "
+            "Reference event/observation ids in evidence_event_ids and recorded output changes in evidence_file_paths. "
+            "Input files describe the task; they never establish that the app produced an output. "
+            "For an expectation with a precondition, set precondition_met true only if the trigger was observed, "
+            "false if it was not reached, or null if unknown. Without an observed trigger the result is not_evaluated. "
+            "An execution limit is a trial budget, not a product failure. Return not_evaluated when the evidence "
             "cannot show the result either way (for example the case stopped early or the needed output is not observable). "
             "Do not infer equivalence with the original product."
         ),
         "case": {"goal": case["goal"], "steps": case["steps"], "facts": case.get("facts", [])},
-        "expectations": [{"id": e["id"], "description": e["description"]} for e in expectations],
+        "expectations": [expectation_identity(e) for e in expectations],
+        "execution_limits": case.get("execution_limits", []),
         "execution_status": record["execution_status"], "stop_reason": record["stop_reason"],
         "events": [{**{k: e.get(k) for k in ("event_id", "action", "element", "value", "reason", "error", "url_after")},
                     **{k: e[k] for k in ("effect", "signals", "plan_stop") if e.get(k)}}
@@ -393,6 +409,7 @@ def _judge_prompt(case: dict[str, Any], expectations: list[dict[str, Any]], reco
         "plan_stops": [{"plan_id": p["plan_id"], "performed": p["performed"], "stop": p["stop"]}
                        for p in record.get("plans", []) if p.get("stop")],
         "final_page": record["final_page"], "file_changes": files, "deterministic_checks": deterministic,
+        "input_files": record.get("input_files", []),
     }, ensure_ascii=False)
 
 
@@ -672,18 +689,19 @@ def _tester_loop(case: dict[str, Any], record: dict[str, Any], events: list[dict
 
 def _run_case(case: dict[str, Any], plan: dict[str, Any], plan_dir: Path, manifest_path: Path, case_dir: Path,
               meter_bin: Path, tester: Callable, deadline: float, browser, events_log, gate: Path | None = None,
-              company: str | None = None, tester_mode: str = "plan") -> dict[str, Any]:
+              company: str | None = None, tester_mode: str = "plan",
+              input_files: list[dict] | None = None) -> dict[str, Any]:
     if tester_mode not in TESTER_MODES:
         raise ValueError(f"tester_mode must be one of {', '.join(TESTER_MODES)}")
     budget = plan["budget"]
-    uploads = {u["path"]: (plan_dir / u["path"]).resolve() for u in case.get("uploads", [])}
+    uploads = sealed_uploads(case, case_dir.parent.parent, input_files or [])
     screens = case_dir / "screens"
     screens.mkdir(parents=True)
     events: list[dict[str, Any]] = []
     history: list[dict[str, Any]] = []
     record = {"case_id": case["id"], "started_at": time.time(), "execution_status": "blocked", "stop_reason": None,
               "events": [], "file_changes": [], "final_page": None, "workspace": None, "observations": [],
-              "tester_mode": tester_mode,
+              "tester_mode": tester_mode, "input_files": input_context(case, case_dir.parent.parent, input_files or []),
               "budgets": {"max_model_calls": budget["max_actions_per_case"], "max_actions": budget["max_actions_per_case"],
                           "model_calls": 0, "actions": 0}}
     if tester_mode == "plan":
@@ -739,28 +757,66 @@ def _run_case(case: dict[str, Any], plan: dict[str, Any], plan_dir: Path, manife
     return record
 
 
+def _check_evidence(check: dict, record: dict, before: dict, after: dict, root: Path) -> dict:
+    """Point to the case's existing snapshots instead of copying full trees per check."""
+    if check["type"] == "page_contains":
+        page = record.get("final_page") or {}
+        return {"snapshot": "final_page", "sha256": hashlib.sha256(
+            json.dumps(page, sort_keys=True, ensure_ascii=False).encode()).hexdigest()}
+    paths = sorted(p for p in before.keys() | after.keys() if fnmatch.fnmatchcase(p, check["path"]))
+    evidence = {"snapshots": ["tree_before", "tree_after"],
+                "snapshot_sha256": {name: hashlib.sha256(json.dumps(tree, sort_keys=True).encode()).hexdigest()
+                                    for name, tree in (("tree_before", before), ("tree_after", after))},
+                "files": [{"path": p, "before_sha256": before.get(p), "after_sha256": after.get(p)} for p in paths]}
+    if check["type"] == "file_contains":
+        evidence["text_matches"] = [p for p in paths if p in after and check["text"] in (root / p).read_text(errors="replace")]
+    return evidence
+
+
+def _verdict_evidence(verdict: dict, record: dict, before: dict, after: dict) -> dict:
+    observations = record.get("observations", [])
+    event_ids = {e["event_id"] for e in record.get("events", [])} | {o["event_id"] for o in observations}
+    changes = {c["path"]: c for c in record.get("file_changes", [])
+               if safe_relative(c["path"]) and (c["path"] in before or c["path"] in after)
+               and before.get(c["path"]) != after.get(c["path"])}
+    accepted, rejected = {}, {}
+    for key, known in (("evidence_event_ids", event_ids), ("evidence_file_paths", changes)):
+        supplied = verdict.get(key, [])
+        refs = supplied if isinstance(supplied, list) else [supplied]
+        accepted[key] = list(dict.fromkeys(r for r in refs if isinstance(r, str) and r in known))
+        rejected[key] = [r for r in refs if not isinstance(r, str) or r not in known]
+    return {**accepted, "rejected_references": rejected,
+            "evidence_observations": [{"event_id": o["event_id"], "observation_index": i}
+                                      for i, o in enumerate(observations, 1) if o["event_id"] in accepted["evidence_event_ids"]],
+            "evidence_files": [{**changes[p], "before_sha256": before.get(p), "after_sha256": after.get(p)}
+                               for p in accepted["evidence_file_paths"]]}
+
+
 def _evaluate_case(case: dict[str, Any], record: dict[str, Any], judge: Callable) -> list[dict[str, Any]]:
     trees = record.pop("_trees", None)
     results = []
     if trees is None:
-        return [{"id": e["id"], "description": e["description"], "basis": e["basis"], "method": "none",
+        return [{**expectation_identity(e), "method": "none",
                  "status": "not_evaluated", "reason": f"case did not run: {record['stop_reason']}",
                  "evidence_event_ids": []} for e in case["expectations"]]
     before, after, root = trees
     page_text = (record["final_page"] or {}).get("text", "")
     deterministic = []
     completed = record["execution_status"] == "completed"
+    derived = {e["id"] for e in case["expectations"] if e.get("upload_relation") == "derived"
+               and any(u.get("vary") for u in case.get("uploads", []))}
     for expectation in case["expectations"]:
         check = expectation.get("check")
-        if not check:
+        if not check or expectation["id"] in derived:
             continue
         status, reason = _deterministic(check, root, before, after, page_text)
         if not completed and (status == "failed" or check["type"] in {"file_absent", "files_unchanged"}):
             # An unfinished case may not have reached the result: a missing output or an untouched
             # file then shows nothing about the app, so only a present result counts.
             status, reason = "not_evaluated", f"case ended as {record['execution_status']} before this result could be checked"
-        deterministic.append({"id": expectation["id"], "status": status, "reason": reason})
-    semantic = [e for e in case["expectations"] if not e.get("check")]
+        deterministic.append({"id": expectation["id"], "status": status, "reason": reason,
+                              "evidence": _check_evidence(check, record, before, after, root)})
+    semantic = [e for e in case["expectations"] if not e.get("check") and e["id"] not in derived]
     verdicts: dict[str, dict[str, Any]] = {}
     judge_call = None
     missing_reason = f"evaluation interrupted: {record.get('stop_reason') or record.get('environment_error')}"
@@ -774,22 +830,31 @@ def _evaluate_case(case: dict[str, Any], record: dict[str, Any], judge: Callable
         except (OSError, RuntimeError, ValueError, KeyError) as error:
             record["environment_error"] = type(error).__name__
             missing_reason = f"judge call failed: {error}"
-    event_ids = {e["event_id"] for e in record["events"]}
     for expectation in case["expectations"]:
-        base = {"id": expectation["id"], "description": expectation["description"], "basis": expectation["basis"]}
+        base = expectation_identity(expectation)
+        if expectation["id"] in derived:
+            results.append({**base, "method": "none", "status": "not_evaluated", "evidence_event_ids": [],
+                            "reason": "derived upload expectation retained; deterministic calculation verification is not supported"})
+            continue
         found = next((d for d in deterministic if d["id"] == expectation["id"]), None)
         if found:
             results.append({**base, "method": "deterministic", "status": found["status"], "reason": found["reason"],
-                            "evidence_event_ids": []})
+                            "evidence_event_ids": [], "check": expectation["check"],
+                            "evidence": found["evidence"]})
             continue
         verdict = verdicts.get(expectation["id"])
         if verdict is None:
             results.append({**base, "method": "judge", "status": "not_evaluated", "reason": missing_reason,
                             "evidence_event_ids": [], "judge_call_id": judge_call})
         else:
-            results.append({**base, "method": "judge", "status": verdict["status"], "reason": verdict["reason"],
-                            "evidence_event_ids": [i for i in verdict["evidence_event_ids"] if i in event_ids],
-                            "judge_call_id": judge_call})
+            evidence = _verdict_evidence(verdict, record, before, after)
+            status, reason = verdict["status"], verdict.get("reason", "")
+            if status in {"passed", "failed"} and not (evidence["evidence_event_ids"] or evidence["evidence_file_paths"]):
+                status, reason = "not_evaluated", "judge supplied no valid observation or output-file reference"
+            if expectation.get("precondition") and verdict.get("precondition_met") is not True:
+                status, reason = "not_evaluated", "the expectation's precondition was not observed; the trial limit is not a failure"
+            results.append({**base, "method": "judge", "status": status, "reason": reason, **evidence,
+                            "raw_judgment": verdict, "judge_call_id": judge_call})
     return results
 
 
@@ -809,7 +874,7 @@ def freeze_demo_plan(demo_plan: Any, claim_id: str, source_root: Path | None, de
     """Write a researched demo plan and its upload files before any implementation exists."""
     if not isinstance(demo_plan, dict) or {"schema_version", "claim_id", "manifest"} & set(demo_plan):
         raise ValueError("demo_plan must be an object without schema_version, claim_id or manifest")
-    plan = {"schema_version": PLAN_SCHEMA, "claim_id": claim_id, **demo_plan}
+    plan = {"schema_version": PLAN_SCHEMA, "claim_id": claim_id, **deepcopy(demo_plan), "criteria_version": CRITERIA_VERSION}
     uploads = [u.get("path") for c in plan.get("cases", []) if isinstance(c, dict)
                for u in c.get("uploads", []) if isinstance(u, dict)]
     if uploads and source_root is None:
@@ -818,16 +883,23 @@ def freeze_demo_plan(demo_plan: Any, claim_id: str, source_root: Path | None, de
     for name in uploads:
         if not safe_relative(name) or not (source_root / name).is_file() or (source_root / name).is_symlink():
             raise ValueError(f"demo plan upload {name!r} is not a file under the research directory")
+        data = file_bytes(source_root, name)
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source_root / name, target)
+        target.write_bytes(data)
+    for case in plan["cases"]:
+        for upload in case.get("uploads", []):
+            digest = _digest(destination / upload["path"])
+            if upload.get("sha256") is not None and upload["sha256"] != digest:
+                raise ValueError("research upload hash changed before freezing")
+            upload["sha256"] = digest
     validate_demo_plan(plan, destination)
     path = destination / "plan.json"
     _write_json(path, plan)
     return path
 
 
-def web_reproduction_status(result: dict[str, Any]) -> str:
+def web_reproduction_status(result: dict[str, Any], *, legacy: bool = False) -> str:
     """Name what the demo showed; unevaluated expectations never count as failures."""
     if result.get("complete_plan") is False:
         return "not_evaluated"
@@ -837,7 +909,11 @@ def web_reproduction_status(result: dict[str, Any]) -> str:
             and outcome["cases_completed"] == outcome["cases_total"]:
         # Passing the cases is not enough when the code was not shown to implement the workflow itself,
         # or when the contract left researched customer steps out of the build.
-        whole = not (result.get("scope") or {}).get("excluded_steps")
+        scope = result.get("scope") or {}
+        whole = not scope.get("excluded_steps")
+        if not legacy:
+            whole = whole and not scope.get("uncovered_steps") and not scope.get("unverified_parts")
+            whole = whole and bool(scope.get("steps"))
         return "reproduced" if whole and result["code_review"]["status"] == "passed" else "partially_reproduced"
     if outcome["passed"]:
         return "partially_reproduced"
@@ -848,7 +924,7 @@ def web_reproduction_status(result: dict[str, Any]) -> str:
     return "not_evaluated"
 
 
-def _instance_prompt(case: dict[str, Any], seed: str) -> str:
+def _instance_prompt(case: dict[str, Any], seed: str, plan_dir: Path | None = None) -> str:
     texts = sorted({e["check"]["text"] for e in case["expectations"] if (e.get("check") or {}).get("text")})
     return json.dumps({
         "instruction": (
@@ -859,6 +935,8 @@ def _instance_prompt(case: dict[str, Any], seed: str) -> str:
             "changed, including any in check_texts, as {from, to}."
         ),
         "seed": seed, "variation_rule": case["variation"]["instruction"],
+        "upload_inputs": variation_sources(case, plan_dir) if plan_dir is not None else [],
+        "upload_policy": "For vary uploads, only replacements are used: preserve headers, numeric cell types and workflow; derived expectations remain unevaluated.",
         "case": {"goal": case["goal"], "steps": case["steps"], "facts": case.get("facts", []),
                  "upload_files": [u["path"] for u in case.get("uploads", [])]},
         "check_texts": texts,
@@ -866,6 +944,8 @@ def _instance_prompt(case: dict[str, Any], seed: str) -> str:
 
 
 def _instance_case(case: dict[str, Any], answer: dict[str, Any]) -> dict[str, Any]:
+    if any(u.get("vary") for u in case.get("uploads", [])):
+        return upload_instance(case, answer)
     if (not _nonempty(answer.get("goal")) or not answer.get("steps") or not all(_nonempty(x) for x in answer["steps"])
             or not all(_nonempty(x) for x in answer.get("facts", []))):
         raise ValueError("instance generator returned an incomplete case")
@@ -945,7 +1025,7 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
         raise ValueError("comparison inputs cannot be combined with checkpoint recovery")
     plan_path = plan_path.resolve()
     plan_dir = plan_path.parent
-    plan = validate_demo_plan(json.loads(plan_path.read_text(encoding="utf-8")), plan_dir, manifest_path)
+    plan = validate_demo_plan(json.loads(plan_path.read_text(encoding="utf-8")), plan_dir, manifest_path, for_execution=True)
     manifest_path = _plan_manifest(plan, plan_dir, manifest_path)
     if manifest_path is None:
         raise ValueError("demo plan has no manifest; pass the candidate manifest to run it")
@@ -960,15 +1040,30 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
                      for k in ("tester", "judge", "instance", "code_review")}, "tester_mode": tester_mode,
                      "cache_ttl": cache_ttl if provider == "claude" else None,
                      "stable_prefix": stable_prefix}
-    identity = {"plan_sha256": _digest(plan_path), "candidate_manifest_sha256": _digest(manifest_path),
+    identity = {"evaluation_policy_version": 2, "scope_sha256": hashlib.sha256(
+                    json.dumps(scope, sort_keys=True, ensure_ascii=False).encode()).hexdigest(),
+                "plan_sha256": _digest(plan_path), "candidate_manifest_sha256": _digest(manifest_path),
                 "evaluator_version": evaluator_version(), "model_configuration": configuration,
                 "selected_cases": sorted(selected)}
     previous, reusable = ({}, False) if resume_from is None else load_checkpoint(resume_from.resolve(), identity)
     inputs = (load_input_cases(input_cases_from.resolve(), identity, plan["cases"])
               if input_cases_from is not None else None)
+    input_source = input_cases_from or resume_from
+    source_state = inputs if inputs is not None else previous
+    source_instances = dict(source_state.get("instances", {}))
+    for old_case in source_state.get("cases", []):
+        if old_case.get("instance"):
+            source_instances.setdefault(old_case["case_id"], old_case["instance"])
+    selected_plans = [c for c in plan["cases"] if c["id"] in selected]
+    if input_source is not None:
+        restore_inputs(selected_plans, source_instances, source_state.get("cases", []), input_source,
+                       require_all=input_cases_from is not None)
     if output_dir.exists() and any(output_dir.iterdir()):
         raise ValueError("output directory must be new or empty; earlier demo results are never overwritten")
     output_dir.mkdir(parents=True, exist_ok=True)
+    if input_source is not None:
+        restore_inputs(selected_plans, source_instances, source_state.get("cases", []), input_source, output_dir,
+                       require_all=input_cases_from is not None)
     shutil.copyfile(plan_path, output_dir / "demo-plan.json")
     started, clock = time.time(), time.monotonic()
     # Paused wall time is not active evaluation time. A new observer starts a separately labeled run.
@@ -1004,9 +1099,7 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
     judge = judge or model_call("judge", JUDGE_SCHEMA)
     instance_generator = instance_generator or model_call("instance", INSTANCE_SCHEMA)
     reviewer = reviewer or model_call("code_review", REVIEW_SCHEMA)
-    cases_out, instances = [], dict(previous.get("instances", {}))
-    if inputs is not None:
-        instances = inputs["instances"]
+    cases_out, instances = [], source_instances
     prior_cases = {c["case_id"]: c for c in previous.get("cases", [])}
     for cid, case in prior_cases.items():
         if case.get("instance"):
@@ -1031,8 +1124,7 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
         now = time.time()
         return {"case_id": case["id"], "started_at": now, "ended_at": now, "execution_status": kind,
                 "stop_reason": reason, "events": [], "file_changes": [], "final_page": None, "workspace": None,
-                "expectations": [{"id": e["id"], "description": e["description"], "basis": e["basis"],
-                                  "method": "none", "status": "not_evaluated", "reason": reason,
+                "expectations": [{**expectation_identity(e), "method": "none", "status": "not_evaluated", "reason": reason,
                                   "evidence_event_ids": []} for e in case["expectations"]]}
 
     checkpoint()
@@ -1062,7 +1154,7 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
                 if reusable and prior and prior["execution_status"] == "completed":
                     prior_dir = resume_from / "cases" / cid
                     if prior_dir.exists():
-                        shutil.copytree(prior_dir, output_dir / "cases" / cid)
+                        shutil.copytree(prior_dir, output_dir / "cases" / cid, dirs_exist_ok=True)
                     record = json.loads(json.dumps(prior))
                     for event in record.get("events", []):
                         events_log.write(json.dumps(event, ensure_ascii=False) + "\n")
@@ -1089,23 +1181,40 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
                     record = blocked_case(case, reason)
                 else:
                     try:
+                        if info.get("input_error"):
+                            raise InputVariationError(info["input_error"])
                         if case.get("variation"):
                             if not info.get("steps"):
-                                info = {"values": "drawn_at_run", "seed": info.get("seed") or secrets.token_hex(8)}
+                                info = {**info, "values": "drawn_at_run", "seed": info.get("seed") or secrets.token_hex(8),
+                                        "generation_attempts": info.get("generation_attempts", 0) + 1}
                                 instances[cid] = info
                                 checkpoint()
-                                answer, call_id = instance_generator(_instance_prompt(case, info["seed"]))
-                                instance = _instance_case(case, answer)
+                                answer, call_id = instance_generator(_instance_prompt(case, info["seed"], plan_dir))
+                                info["generator_call_id"] = call_id
+                                try:
+                                    instance = _instance_case(case, answer)
+                                except (ValueError, KeyError, TypeError) as error:
+                                    raise InputVariationError(str(error)) from error
                                 info.update({"generator_call_id": call_id, "goal": instance["goal"], "steps": instance["steps"],
                                              "facts": instance["facts"], "replacements": answer.get("replacements", [])})
                             case = _instance_case(case, info)
                         else:
-                            info = {"values": "example", "note": case.get("variation_note")}
+                            info = {**info, "values": "example", "note": case.get("variation_note")}
                         instances[cid] = info
+                        if "input_files" not in info:
+                            info["input_state"] = "preparing"
+                        checkpoint()
+                        if "input_files" not in info:
+                            contents = (render_uploads(source_case, info, plan_dir)
+                                        if any(u.get("vary") for u in case.get("uploads", [])) else None)
+                            seal_inputs(case, plan_dir, output_dir, info, contents=contents)
+                        else:
+                            sealed_uploads(case, output_dir, info["input_files"])
+                        info["input_state"] = "sealed"
                         checkpoint()
                         record = _run_case(case, plan, plan_dir, manifest_path, output_dir / "cases" / cid,
                                            Path(meter) / "bin", tester, deadline, browser, events_log, gate, company,
-                                           tester_mode=tester_mode)
+                                           tester_mode=tester_mode, input_files=info["input_files"])
                         if read_limit_gate(gate):
                             record["environment_error"] = "ModelUsageLimitError"
                         # The gate in model_call stops the judge before sending when runtime calls hit a limit.
@@ -1113,6 +1222,10 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
                         if record.get("environment_error"):
                             interruption = {"kind": record["environment_error"], "case_id": cid,
                                             "reason": record.get("stop_reason")}
+                    except InputVariationError as error:
+                        info["input_error"] = str(error)
+                        instances[cid] = info
+                        record = blocked_case(case, f"input variation rejected: {error}")
                     except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
                         record = blocked_case(case, f"instance generation failed: {error}")
                         interruption = {"kind": type(error).__name__, "phase": "instance", "reason": str(error)}
@@ -1164,7 +1277,7 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
         },
         "cases": [{**{k: v for k, v in c.items() if k not in {"events", "observations", "tree_before", "tree_after"}},
                    "event_count": len(c.get("events", []))} for c in cases_out],
-        "code_review": code_review, "scope": scope or {"note": "No researched workflow was given; step coverage was not checked."},
+        "code_review": code_review, "scope": verification_scope(scope, cases_out) if scope else {"note": "No researched workflow was given; step coverage was not checked."},
         "outcome": {"passed": statuses.count("passed"), "failed": statuses.count("failed"), "not_evaluated": statuses.count("not_evaluated"),
                     "cases_completed": sum(c["execution_status"] == "completed" for c in cases_out), "cases_total": len(cases_out)},
         "human_review": "optional; not required for this result",

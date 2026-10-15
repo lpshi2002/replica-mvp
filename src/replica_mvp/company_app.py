@@ -205,6 +205,10 @@ def company_app_session(company: str, features: list[dict[str, Any]], timeout: f
     with contextlib.ExitStack() as stack:
         running, roots = [], {}
         for feature in features:
+            if feature.get("manifest_sha256"):
+                from .web_checkpoint import digest
+                if digest(Path(feature["manifest"])) != feature["manifest_sha256"]:
+                    raise ValueError("bound feature manifest changed before startup")
             manifest = json.loads(Path(feature["manifest"]).read_text(encoding="utf-8"))
             if not mountable(validate_web_runtime(manifest.get("runtime"))):
                 raise ValueError(f"{feature['id']}: the bundle declares no base_path_argument, "
@@ -220,20 +224,26 @@ def company_app_session(company: str, features: list[dict[str, Any]], timeout: f
 
 def company_features(registry: dict[str, Any], root: Path, state: Path) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     """Bound web-app features of a run that the company app can mount, and the claims it leaves out."""
+    from .agent_harness import _validate_bound_artifact
+    from .bundle_runtime import validate_bundle_files
     features, excluded = [], []
     for claim in registry["claims"]:
         bound = claim.get("implementation_result")
         if not bound or not claim.get("web_demo"):
             excluded.append({"claim_id": claim["claim_id"], "reason": "no bound web-app implementation"})
             continue
-        manifest = root / bound["candidate_path"]
-        if not mountable(json.loads(manifest.read_text(encoding="utf-8")).get("runtime") or {}):
-            excluded.append({"claim_id": claim["claim_id"],
-                             "reason": "bundle declares no base_path_argument (built before the company app)"})
+        try:
+            manifest = _validate_bound_artifact(root, {
+                "path": bound["candidate_path"], "sha256": bound["candidate_sha256"]}, label=claim["claim_id"])
+            value = validate_bundle_files(manifest)
+            if not mountable(value.get("runtime") or {}):
+                raise ValueError("bundle declares no base_path_argument (built before the company app)")
+            plan = json.loads((root / claim["web_demo"]["plan_path"]).read_text(encoding="utf-8"))
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            excluded.append({"claim_id": claim["claim_id"], "reason": str(error)})
             continue
-        plan = json.loads((root / claim["web_demo"]["plan_path"]).read_text(encoding="utf-8"))
         features.append({"id": claim["claim_id"], "title": plan["title"], "manifest": manifest,
-                         "workspace": state / claim["claim_id"]})
+                         "manifest_sha256": bound["candidate_sha256"], "workspace": state / claim["claim_id"]})
     return features, excluded
 
 

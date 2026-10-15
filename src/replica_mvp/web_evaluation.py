@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .resources import utc_now
-from .web_demo import run_web_demo, web_reproduction_status
+from .web_demo import run_web_demo, web_reproduction_status, validate_demo_plan
 from .web_checkpoint import evaluator_version
 from .model_calls import summarize_receipts, summarize_receipt_directories
 
@@ -200,6 +200,7 @@ def evaluate_web_bundle(registry_path: Path, claim_id: str, *, provider: str | N
     if _digest(plan_path) != web["plan_sha256"]:
         raise ValueError("the frozen demo plan changed after it was fixed")
     manifest_path = root / claim["implementation_result"]["candidate_path"]
+    validate_demo_plan(json.loads(plan_path.read_text(encoding="utf-8")), plan_path.parent, manifest_path, for_execution=True)
     manifest_sha256 = _digest(manifest_path)
     previous, resume_from = None, None
     if recovering:
@@ -290,12 +291,14 @@ def validate_web_result(root: Path, claim: dict[str, Any]) -> dict[str, Any]:
             or _digest(public_dir / "demo-result.json") != final["result_sha256"]):
         raise ValueError("web demo result binding changed")
     result = json.loads((public_dir / "demo-result.json").read_text(encoding="utf-8"))
+    if result.get("evaluation_policy_version") not in {None, 2}:
+        raise ValueError("unsupported stored evaluation policy version")
     if (result.get("claim_id") != claim["claim_id"]
             or result.get("candidate_manifest_sha256") != final["candidate_sha256"]
             or final["candidate_sha256"] != claim["implementation_result"]["candidate_sha256"]
             or result.get("plan_sha256") != final["plan_sha256"]
             or final["plan_sha256"] != claim["web_demo"]["plan_sha256"]
-            or web_reproduction_status(result) != final["reproduction_status"]
+            or web_reproduction_status(result, legacy=result.get("evaluation_policy_version") is None) != final["reproduction_status"]
             or (claim["status"] == "RESULT_SUCCESS") != (final["reproduction_status"] == "reproduced")):
         raise ValueError("web demo result status binding changed")
     return result

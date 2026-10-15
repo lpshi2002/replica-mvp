@@ -9,6 +9,7 @@ from typing import Any
 from .completion import _valid_completion_contract, research_test_kind
 from .experience import validate_experience_profile
 from .resources import validate_budget
+from .web_contract import validate_verification_parts
 
 
 LEGACY_SECOND_PASS_SCHEMA = "replica-second-pass-result/v1"
@@ -511,6 +512,10 @@ def _step_coverage(
             if disposition == "excluded":
                 record.update(_left_out(claim_id, f"excluded step {owner}#{index}", entry))
             (excluded if disposition == "excluded" else external).append(record)
+        try:
+            validate_verification_parts(entry.get("verification_parts", []))
+        except ValueError as error:
+            raise ResearchIncomplete(claim_id, str(error)) from error
         parts = entry.get("excluded_parts", [])
         if not isinstance(parts, list) or (parts and disposition == "excluded"):
             raise ResearchIncomplete(

@@ -286,13 +286,53 @@ built:
   separate model draws this run's values from the rule and the case runs once
   with them, so a Replica fitted to the example fails. Use `null` with a
   `variation_note` only when nothing can vary; such a case runs as written.
-- `expectations`, each `{id, description, basis: {type, source}}` where `type`
-  is `public_rule`, `original_observation`, `separate_verification`, or
-  `our_condition`. A separate judge decides them from the recorded actions,
-  final page, and saved-file changes. Add a deterministic `check`
-  (`file_exists`, `file_absent`, `file_contains`, `files_unchanged` with a glob
-  under the app's working directory, or `page_contains` with text) only when it
-  can be named without knowing how the app will be built.
+- Upload sources are copied and SHA-256 bound by the freeze step. New execution
+  requires those hashes. The runner seals the final uploaded bytes before app
+  startup and reuses them exactly on resume/comparison; existing records are
+  never retroactively rewritten to claim a prior seal.
+- Declare `vary: true` on each upload to vary, together with the case's variation
+  rule. Initial variation support is UTF-8 TXT/CSV up to 20KB. This is a test-data
+  generator limit, not a reduction of the product's required input formats.
+  Use literal substitutions that preserve CSV headers/shape and numeric types.
+  Fixed attachments remain fixed; avoid substitutions that conflict with them.
+  Each expectation in such a case declares `upload_relation`: `literal` for a
+  directly corresponding value, `derived` for computed results, or `none` for
+  independent behavior. Derived criteria remain present but unevaluated until a
+  deterministic calculation verifier exists. Unsupported/invalid/unchanged
+  variations are recorded as unexecuted/unevaluated; there is no original-file
+  fallback or redraw-until-pass. Valid saved substitutions may finish rendering
+  after an interruption, but sealed input bytes are never regenerated.
+- `criteria_version: 2` and `sources: [{id, source, excerpt}]` bind acceptance
+  criteria to recorded material. Each expectation has `id`, `description`,
+  `covers_steps` (within its case's route), and `basis`:
+
+  | `basis.type` | Meaning and required fields |
+  |---|---|
+  | `public_rule` | A rule actually published by the company; `source`, `source_id`, exact `quote`, and `interpretation` connecting that quote to this expectation. |
+  | `original_observation` | Behavior directly observed in the original; the same source fields plus `conditions` recording product version, input and observation conditions. |
+  | `separate_verification` | An independently established expected result; the same source fields plus `method` explaining the verification and its limits. Another unsupported model opinion is not independent verification. |
+  | `our_condition` | Our own functional or quality requirement; `source` naming its origin and `rationale` explaining why it is relevant. |
+
+  A quotation must occur in the referenced source's recorded excerpt. Structural
+  validation checks that binding; you must also check that the quotation supports
+  the full rule, including every threshold, and does not contradict `boundaries`.
+  Split mixed public rules and our conditions into separate expectations.
+- Keep trial budgets in the case's `execution_limits: [description]` and the
+  plan's `budget`. Reaching an action/answer/time limit is not evidence of a
+  functional defect. For example, “at 100% a new topic appears” is a public rule;
+  “stop after six answers” is our execution limit, not a public completion rate.
+  Such a conditional expectation declares `precondition`, a description of the
+  observable trigger. The judge must observe it; an unmet or unknown trigger
+  leaves the conditional result `not_evaluated`. A separate, justified quality
+  requirement may use `our_condition`; relabeling a trial budget is insufficient.
+- A separate judge evaluates semantic expectations from recorded actions,
+  observations and output files. An unconditional expectation may instead have
+  a deterministic `check` (`file_exists`, `file_absent`, `file_contains`,
+  `files_unchanged` with a glob under the app's working directory, or
+  `page_contains` with text) when it can be named before implementation.
+- Before freezing, finish the source/threshold/contradiction review for every
+  expectation. Correcting a frozen criterion requires a new plan and execution
+  version; preserve the earlier plan and results unchanged.
 
 Cover at least a normal, a boundary, and an insufficient-information case,
 plus robustness cases the claim calls for (a paraphrase, a typo, another
@@ -333,6 +373,16 @@ shows, so record:
   excerpts required) or `inferred`.
 - `route`: how the replica performs it (an `implemented` or
   `external_dependency` step).
+- `verification_parts`: important sub-functions/input variants the build includes,
+  each `{id, description}`. Map expectations to them with
+  `covers_parts: [{step_index, part_id}]`. If no final browser case can verify a
+  part, preserve it with `reason`; optional `development_evidence` entries
+  `{source, method, result}` describe separate development checks, never final UI
+  verification. A planned step traversal or source-code review proves no outcome.
+  In-scope untested microphone/expiry behavior belongs here, not in `out_of_scope`.
+  Required unverified parts cap the final verdict at partial (or unevaluated when
+  nothing was observed). Keep truly unrelated workflows in `out_of_scope`; they
+  do not reduce this claim's verdict.
 - `excluded_parts`: on a step the replica performs, each documented
   sub-function or input/output variant left out, as `{part, reason,
   alternatives, needs}`. One makes the scenario a partial scope, like an
@@ -434,7 +484,7 @@ demo plan's upload files under `work/<company>/second_pass/<slug>-uploads/`.
           "alternatives": [{ "candidate": "…", "reason": "…", "sources": [] }], "needs": "…" }
       ],
       "evaluation": { "runtime": { "transport": "stdio_json" }, "…": "see docs/replica-bundle-execution.md" },
-      "demo_plan": { "title": "…", "case_design": "prospective", "case_author": "…", "budget": {},
+      "demo_plan": { "criteria_version": 2, "sources": [], "title": "…", "case_design": "prospective", "case_author": "…", "budget": {},
                      "cases": [{ "id": "…", "goal": "…", "steps": [], "facts": [], "covers_steps": [1],
                                  "variation": { "instruction": "…" }, "targeted_barrier": null, "barrier_note": "…",
                                  "expectations": [] }] },

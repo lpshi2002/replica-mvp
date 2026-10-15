@@ -189,20 +189,33 @@ def native_model_judge(provider: str, request: dict[str, Any], *, model: str | N
         return result
 
 
+def _bundle_file(manifest_path: Path, record: dict) -> tuple[Path, bytes]:
+    name = record["path"]
+    source = manifest_path.parent / name
+    if (not safe_relative(name) or source.is_symlink()
+            or not source.resolve().is_relative_to(manifest_path.parent.resolve())):
+        raise ValueError("bundle file escapes implementation directory")
+    content = source.read_bytes()
+    if hashlib.sha256(content).hexdigest() != record["sha256"]:
+        raise ValueError("bundle file hash mismatch")
+    return source, content
+
+
+def validate_bundle_files(manifest_path: Path) -> dict[str, Any]:
+    """Check source files before selecting a feature; startup checks the copies again."""
+    manifest = json.loads(manifest_path.read_bytes(), parse_constant=_reject_nonstandard_constant)
+    for record in manifest["files"]:
+        _bundle_file(manifest_path, record)
+    return manifest
+
+
 def copy_bundle(manifest_path: Path, destination: Path) -> dict[str, Any]:
     raw = manifest_path.read_bytes()
     manifest = json.loads(raw, parse_constant=_reject_nonstandard_constant)
     destination.mkdir(parents=True, exist_ok=False)
     for record in manifest["files"]:
-        name = record["path"]
-        source = manifest_path.parent / name
-        if (not safe_relative(name) or source.is_symlink()
-                or not source.resolve().is_relative_to(manifest_path.parent.resolve())):
-            raise ValueError("bundle file escapes implementation directory")
-        content = source.read_bytes()
-        if hashlib.sha256(content).hexdigest() != record["sha256"]:
-            raise ValueError("bundle file hash mismatch")
-        target = destination / name
+        source, content = _bundle_file(manifest_path, record)
+        target = destination / record["path"]
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         target.chmod(source.stat().st_mode & 0o777)
