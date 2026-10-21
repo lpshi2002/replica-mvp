@@ -407,13 +407,20 @@ marked not publicly known. Require:
 - `workflow.boundaries` resolved to `stated` or `undisclosed`, never
   `unchecked`;
 - independent corroboration when available;
+- `product_status` `operating` or `changed`, shown by at least one current
+  (non-archived) source;
 - recorded contradictions and limitations;
 - a usable public input source or explicit synthetic fallback;
 - an implementation path and evaluation assets.
 
 Set `readiness.status` to `ready`, `partial`, or `blocked`. Do not require an
-arbitrary source count and do not infer missing details. Record `replicable` and
-its evidence-based reason here; pass 1 never carries it.
+arbitrary source count and do not infer missing details. Only a capability the
+company offers today is a target: a `discontinued` capability gets
+`handoff: reject` even when an archived page documents it, and an `unknown`
+status cannot be `ready`. Implementation refuses a ready claim without a valid
+`product_status`; the company result lists a discontinued claim with that
+reason. Record `replicable` and its evidence-based reason here; pass 1 never
+carries it.
 
 Pass 1 records no boundaries, so pass 2 establishes them by **reopening the
 claim's own official source URLs** — re-reading its own evidence, not recrawling
@@ -462,6 +469,13 @@ any `excluded_parts` of a performed step. An excluded step or part must record
 the `alternatives` checked and what building it would `needs`; implementation
 refuses an exclusion without them. The local CLI's limits are not the app's
 limits, and an unavailable company vendor is not by itself a reason to exclude.
+Technology the company discloses is the default route: when a same-family public
+implementation or API is usable here — public code or API access, runnable by one
+implementer in our environment within the budget, with keys and cost we can
+cover — follow it. A `company_stated` component on a performed step records
+`followed`; `followed: false` needs `same_family`, each same-family candidate
+checked with why it was not used. Following it is not a claim of equivalence to
+the company's internals; the verdict still rests on what the customer receives.
 
 Each scenario carries `id`, `self_sufficiency`, `boundaries` with
 `boundaries_origin` (`company` or `ours`), `input`, `output` including its

@@ -95,7 +95,10 @@ contract or the demo plan before the earlier steps are recorded.
 2. **Find routes step by step.** For each step, look for what could perform it:
    OSS models and libraries, public APIs, synthetic fallbacks. Search each step
    with capability terms (for example "open-source voice cloning", "talking-head
-   video generation"), not only the company's names.
+   video generation"), not only the company's names. When the company discloses
+   the technology or vendor for a step (for example a temporal knowledge graph or
+   a named TTS engine), search that family first: a same-family public
+   implementation or API that is usable here is the default route.
 3. **Choose and record.** Pick a route per step, or leave a step or part of a
    step out, recording what was checked and what building it would take
    (section 6).
@@ -120,6 +123,24 @@ alone.
 
 Collapsing `undisclosed` and `unchecked` into one "unknown" produces scenarios
 with no grounds and a false `ready`. Keep them apart.
+
+**Confirm the capability is offered today.** Only a capability the company
+currently offers its customers is a target. Check the company's changelog,
+product-updates, or current help pages and record `product_status`:
+`{state, as_of, note, sources}`.
+
+| `product_status.state` | When | Consequence |
+|---|---|---|
+| `operating` | a current company page shows it is offered | may be `ready` |
+| `changed` | still offered, but its form changed (renamed, rebuilt, moved) | may be `ready`; `note` says what changed and the contract follows the current form |
+| `discontinued` | the company removed or deprecated it | `readiness` cannot be `ready`; `handoff: reject` |
+| `unknown` | you could not establish that it is offered today | `readiness` cannot be `ready` |
+
+An archived capture (Wayback and similar) may supply the details of a page that
+moved while the feature is still offered, but it cannot show that the feature is
+offered today: `operating` and `changed` need at least one current source.
+Sources from an older form describe the contract only where the current form
+did not change.
 
 ### 2. Check whether your claim is a whole workflow
 
@@ -173,6 +194,7 @@ must absorb; the orchestrator sets `merged_into` and hands them to the parent.
 - every `workflow` field supported or explicitly marked not publicly known;
 - `boundaries.state` is `stated` or `undisclosed` — never `unchecked`;
 - independent corroboration recorded when it exists;
+- `product_status` is `operating` or `changed`, with a current source;
 - contradictions and limitations recorded rather than dropped;
 - a usable public input source, or an explicit synthetic fallback;
 - an implementation path and evaluation assets.
@@ -370,7 +392,14 @@ shows, so record:
 
 - `component`: `{description, origin, sources}` — what appears to perform the
   step in the original product. `origin` is `company_stated` (sources with
-  excerpts required) or `inferred`.
+  excerpts required) or `inferred`. On an `implemented` or `external_dependency`
+  step, a `company_stated` component also records `followed`: `true` when the
+  route uses that technology or a same-family public implementation or API.
+  Usable means public code or API access, runnable by one implementer in our
+  environment within the budget, with keys and cost we can cover. `false` needs
+  `same_family`: each same-family candidate checked as `{candidate, reason,
+  sources}` with why it was not used; implementation refuses a substitution
+  without it. Following is not a claim of equivalence to the company's internals.
 - `route`: how the replica performs it (an `implemented` or
   `external_dependency` step).
 - `verification_parts`: important sub-functions/input variants the build includes,
@@ -455,6 +484,8 @@ demo plan's upload files under `work/<company>/second_pass/<slug>-uploads/`.
     "access_license":     { "state": "…", "note": "…", "sources": [] },
     "impl_path":          { "state": "…", "note": "…", "sources": [] }
   },
+  "product_status": { "state": "operating|changed|discontinued|unknown", "as_of": "YYYY-MM-DD",
+                      "note": "…", "sources": [] },
   "readiness": { "status": "ready|partial|blocked", "reasons": "…" },
   "handoff":   {
     "action": "build|merge|evidence_request|reject",
@@ -476,7 +507,8 @@ demo plan's upload files under `work/<company>/second_pass/<slug>-uploads/`.
       "sources": [],
       "step_coverage": [
         { "step_index": 1, "disposition": "implemented", "reason": "…",
-          "component": { "description": "…", "origin": "company_stated|inferred", "sources": [] },
+          "component": { "description": "…", "origin": "company_stated|inferred", "sources": [],
+                         "followed": false, "same_family": [{ "candidate": "…", "reason": "…", "sources": [] }] },
           "route": "…",
           "excluded_parts": [{ "part": "…", "reason": "…", "alternatives": [{ "candidate": "…", "reason": "…", "sources": [] }], "needs": "…" }] },
         { "step_index": 2, "disposition": "excluded", "reason": "…",

@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from .completion import _valid_completion_contract, research_test_kind
 from .experience import validate_experience_profile
@@ -34,6 +35,10 @@ FINDING_STATES = {"filled", "unknown", "not_applicable"}
 STEP_DISPOSITIONS = {"implemented", "external_dependency", "excluded", "unconfirmed"}
 # Where the estimated component of a step comes from: a public company statement, or our inference.
 COMPONENT_ORIGINS = {"company_stated", "inferred"}
+# Whether the company offers the capability at research time; only an offered one is built.
+PRODUCT_STATES = {"operating", "changed", "discontinued", "unknown"}
+OFFERED_PRODUCT_STATES = {"operating", "changed"}
+ARCHIVE_HOSTS = ("archive.org", "archive.today", "archive.ph", "archive.is")
 REQUIRED_SCENARIO_TEST_KINDS = {"normal", "boundary", "insufficient_information"}
 SECOND_PASS_FIELDS = {
     "schema_version",
@@ -341,6 +346,35 @@ def _read_fragment(claim_id: str, second_pass: dict[str, Any], fragment_root: Pa
     return original
 
 
+def _is_archive_capture(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return any(host == archive or host.endswith("." + archive) for archive in ARCHIVE_HOSTS)
+
+
+def _validate_product_status(claim_id: str, second_pass: dict[str, Any]) -> None:
+    """Only a capability the company offers today is built; a discontinued one is not a target."""
+    status = second_pass.get("product_status")
+    if not isinstance(status, dict) or status.get("state") not in PRODUCT_STATES:
+        raise ResearchIncomplete(
+            claim_id, f"product_status needs a state in {sorted(PRODUCT_STATES)}, as_of, and sources",
+        )
+    if status["state"] not in OFFERED_PRODUCT_STATES:
+        raise ResearchIncomplete(
+            claim_id, f"product_status is {status['state']}; only a capability the company offers today is built",
+        )
+    if not _is_nonempty_text(status.get("as_of")) or not _valid_sources(status.get("sources"), allow_empty=False):
+        raise ResearchIncomplete(claim_id, "product_status needs as_of and sources with excerpts")
+    # An archived capture can fill in details of a moved page but cannot show the capability is offered today.
+    if all(_is_archive_capture(source["url"]) for source in status["sources"]):
+        raise ResearchIncomplete(
+            claim_id, "product_status needs a current source; an archived capture does not show it is offered today",
+        )
+    if status["state"] == "changed" and not _is_nonempty_text(status.get("note")):
+        raise ResearchIncomplete(
+            claim_id, "a changed product_status needs a note on what changed and which form the contract follows",
+        )
+
+
 def _validate_findings(claim_id: str, second_pass: dict[str, Any]) -> None:
     findings = second_pass.get("findings")
     if not isinstance(findings, dict):
@@ -439,12 +473,16 @@ def _confirmed_workflow(claim_id: str, owner: str, claim: dict[str, Any]) -> dic
     }
 
 
+def _checked_candidates(value: Any) -> bool:
+    return (isinstance(value, list) and bool(value)
+            and all(isinstance(a, dict) and _is_nonempty_text(a.get("candidate")) and _is_nonempty_text(a.get("reason"))
+                    for a in value))
+
+
 def _left_out(claim_id: str, label: str, entry: dict[str, Any]) -> dict[str, Any]:
     """A step or part left out of the build must say what was tried and what building it would take."""
     alternatives = entry.get("alternatives")
-    if (not isinstance(alternatives, list) or not alternatives
-            or not all(isinstance(a, dict) and _is_nonempty_text(a.get("candidate")) and _is_nonempty_text(a.get("reason"))
-                       for a in alternatives)):
+    if not _checked_candidates(alternatives):
         raise ResearchIncomplete(
             claim_id,
             f"{label} needs alternatives: each candidate route checked with the reason it was not used",
@@ -454,7 +492,7 @@ def _left_out(claim_id: str, label: str, entry: dict[str, Any]) -> dict[str, Any
     return {"alternatives": copy.deepcopy(alternatives), "needs": entry["needs"]}
 
 
-def _validate_component(claim_id: str, label: str, component: Any) -> None:
+def _validate_component(claim_id: str, label: str, component: Any, disposition: str) -> None:
     if component is None:
         return
     if (not isinstance(component, dict) or not _is_nonempty_text(component.get("description"))
@@ -462,8 +500,25 @@ def _validate_component(claim_id: str, label: str, component: Any) -> None:
         raise ResearchIncomplete(
             claim_id, f"{label} component needs a description and an origin in {sorted(COMPONENT_ORIGINS)}",
         )
-    if component["origin"] == "company_stated" and not _valid_sources(component.get("sources"), allow_empty=False):
+    if component["origin"] != "company_stated":
+        return
+    if not _valid_sources(component.get("sources"), allow_empty=False):
         raise ResearchIncomplete(claim_id, f"{label} component stated by the company needs sources with excerpts")
+    if disposition == "excluded":
+        return
+    # Technology the company disclosed is the default route; choosing another needs the same-family
+    # public implementations or APIs that were checked and why each was not used.
+    followed = component.get("followed")
+    if not isinstance(followed, bool):
+        raise ResearchIncomplete(
+            claim_id, f"{label} component stated by the company needs followed: whether our route uses it "
+                      "or a same-family public implementation or API",
+        )
+    if not followed and not _checked_candidates(component.get("same_family")):
+        raise ResearchIncomplete(
+            claim_id, f"{label} route differs from the company-stated component and needs same_family: each "
+                      "same-family public implementation or API checked with the reason it was not used",
+        )
 
 
 def _step_coverage(
@@ -504,7 +559,7 @@ def _step_coverage(
         step = steps[index - 1].get("step") if isinstance(steps[index - 1], dict) else None
         if disposition == "unconfirmed":
             raise ResearchIncomplete(claim_id, f"workflow step {owner}#{index} is unconfirmed: {step}")
-        _validate_component(claim_id, f"step {owner}#{index}", entry.get("component"))
+        _validate_component(claim_id, f"step {owner}#{index}", entry.get("component"), disposition)
         if disposition in {"excluded", "external_dependency"}:
             if not _is_nonempty_text(entry.get("reason")):
                 raise ResearchIncomplete(claim_id, f"{disposition} step {owner}#{index} needs a reason")
@@ -674,8 +729,11 @@ def _research_agent_claims(
             or readiness.get("status") != "ready"
             or handoff.get("action") != "build"
         ):
+            product_status = second_pass.get("product_status")
             entry["not_executed_reason"] = (
                 f"merged into {entry['merged_into']}" if second_pass.get("status") == "merged"
+                else f"discontinued by the company as of {product_status.get('as_of')}"
+                if isinstance(product_status, dict) and product_status.get("state") == "discontinued"
                 else f"pass-2 research {second_pass.get('status')}, readiness {readiness['status']}, "
                      f"handoff {handoff['action']}"
             )
@@ -724,6 +782,7 @@ def _research_agent_claims(
         selected = next(s for s in scenarios if s["id"] == selected_id)
 
         _validate_findings(claim_id, second_pass)
+        _validate_product_status(claim_id, second_pass)
         if not _valid_sources(selected.get("sources", []), allow_empty=True):
             raise ResearchIncomplete(claim_id, "scenario sources need a url and a non-empty excerpt")
         if "demo_plan" not in selected:

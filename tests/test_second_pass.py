@@ -98,6 +98,7 @@ def _research():
             "boundaries": {"state": "stated", "value": "Text only.", "sources": [SOURCE]},
         },
         "findings": findings,
+        "product_status": {"state": "operating", "as_of": "2026-09-24", "sources": [SOURCE]},
         "readiness": {"status": "ready"},
         "handoff": {"action": "build", "selected_scenario_id": "s-oss", "selection_reason": "Local retrieval was selected by second-pass research."},
         "replication_contract": [scenario, oss],
@@ -250,6 +251,33 @@ class SecondPassParserTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "stated by the company needs sources"):
             parse_second_pass(research)
         entry["component"]["origin"] = "inferred"
+        parse_second_pass(research)
+
+    def test_company_stated_component_is_the_default_route(self):
+        research = _research()
+        entry = self._selected(research)["step_coverage"][0]
+        entry["component"] = {"description": "temporal knowledge graph", "origin": "company_stated",
+                              "sources": [{"url": "https://example.com/dma1", "type": "official",
+                                           "excerpt": "temporally indexed knowledge graph"}]}
+        with self.assertRaisesRegex(ValueError, "component stated by the company needs followed"):
+            parse_second_pass(research)
+        entry["component"]["followed"] = False
+        # Choosing another method needs the same-family public implementations that were checked.
+        with self.assertRaisesRegex(ValueError, "route differs from the company-stated component and needs same_family"):
+            parse_second_pass(research)
+        entry["component"]["same_family"] = [{"candidate": "graphiti", "reason": ""}]
+        with self.assertRaisesRegex(ValueError, "needs same_family"):
+            parse_second_pass(research)
+        entry["component"]["same_family"] = [
+            {"candidate": "graphiti", "reason": "Needs a graph database the sandbox cannot run."}]
+        parse_second_pass(research)
+        entry["component"] = {**entry["component"], "followed": True}
+        del entry["component"]["same_family"]
+        parse_second_pass(research)
+        # An excluded step already records the routes checked in alternatives.
+        entry.update(disposition="excluded", reason="Supplied by the caller.", needs="A graph store.",
+                     alternatives=[{"candidate": "graphiti", "reason": "No graph store."}])
+        del entry["component"]["followed"]
         parse_second_pass(research)
 
     def test_web_claim_does_not_need_json_tests(self):
@@ -435,6 +463,44 @@ class SecondPassParserTest(unittest.TestCase):
         parsed = parse_second_pass(research)
         self.assertEqual(0, parsed["claim_count"])
         self.assertEqual("No public input.", parsed["company_claims"][0]["readiness_reasons"])
+
+    def test_only_a_capability_offered_today_is_built(self):
+        research = _research()
+        status = research["claims"][0]["second_pass"]["product_status"]
+        del research["claims"][0]["second_pass"]["product_status"]
+        with self.assertRaisesRegex(ValueError, "product_status needs a state"):
+            parse_second_pass(research)
+        research["claims"][0]["second_pass"]["product_status"] = status
+        for state in ("discontinued", "unknown"):
+            status["state"] = state
+            with self.assertRaisesRegex(ValueError, f"product_status is {state}; only a capability"):
+                parse_second_pass(research)
+        status["state"] = "operating"
+        # An archived help page may describe a moved page, but cannot show the feature is still offered.
+        archived = {"url": "http://web.archive.org/web/20260224063422/https://docs.example.com/interviewer",
+                    "excerpt": "Each topic shows a completion percentage."}
+        status["sources"] = [archived]
+        with self.assertRaisesRegex(ValueError, "needs a current source"):
+            parse_second_pass(research)
+        status["sources"] = [archived, SOURCE]
+        parse_second_pass(research)
+        status["state"] = "changed"
+        with self.assertRaisesRegex(ValueError, "changed product_status needs a note"):
+            parse_second_pass(research)
+        status["note"] = "Builder replaced by coding-agent actions in 2026; the contract follows the 2026 form."
+        parse_second_pass(research)
+
+    def test_discontinued_claim_stays_in_the_company_result(self):
+        research = _research()
+        second_pass = research["claims"][0]["second_pass"]
+        second_pass.update(readiness={"status": "blocked", "reasons": "Interview mode was deprecated."},
+                           handoff={"action": "reject"},
+                           product_status={"state": "discontinued", "as_of": "2026-06-29", "sources": [SOURCE]})
+        research["summary"].update(ready_count=0, blocked_count=1)
+        parsed = parse_second_pass(research)
+        self.assertEqual(0, parsed["claim_count"])
+        self.assertEqual("discontinued by the company as of 2026-06-29",
+                         parsed["company_claims"][0]["not_executed_reason"])
 
     def test_merged_claim_steps_move_to_the_parent_contract(self):
         research = _research()

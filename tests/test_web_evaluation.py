@@ -283,7 +283,11 @@ class WebHarnessTest(unittest.TestCase):
         coverage = research["claims"][0]["second_pass"]["replication_contract"][1]["step_coverage"]
         coverage[0].update(component={"description": "keyword retrieval over the creator's notes", "origin": "inferred"},
                            route="rank_bm25 in the web app")
-        coverage[1].update(excluded_parts=[{"part": "voice replies", "reason": "No speech route was chosen.",
+        coverage[1].update(component={"description": "temporal knowledge graph", "origin": "company_stated",
+                                      "sources": [{"url": "https://example.com/dma1", "excerpt": "temporal graph"}],
+                                      "followed": False,
+                                      "same_family": [{"candidate": "graphiti", "reason": "No graph database."}]},
+                           excluded_parts=[{"part": "voice replies", "reason": "No speech route was chosen.",
                                             "alternatives": [{"candidate": "an open-source TTS model", "reason": "Fixture."}],
                                             "needs": "A text-to-speech model and a consented voice sample."}])
         registry = _bind_web_app(self.root / "run", research)
@@ -304,6 +308,7 @@ class WebHarnessTest(unittest.TestCase):
         self.assertIn("rank_bm25 in the web app", report)
         self.assertIn("voice replies: No speech route was chosen. → 필요: A text-to-speech model", report)
         self.assertIn("approve completed (충족 2, 불충족 0, 미평가 0)", report)
+        self.assertIn("temporal knowledge graph (기업 공개 · 대체)<br>확인한 같은 계열: graphiti: No graph database.", report)
 
     def test_retry_feedback_writes_reasons_with_the_plan_values(self):
         fitted = APP.replace('if item["state"] == "approved":', 'if item["state"] == "approved" and item["text"] == "노트북 구매":')

@@ -1864,6 +1864,18 @@ _DISPOSITION_KO = {"implemented": "직접 구현", "external_dependency": "외�
 _ORIGIN_KO = {"company_stated": "기업 공개", "inferred": "추론"}
 
 
+def _component_cell(component: dict[str, Any]) -> str:
+    origin = _ORIGIN_KO.get(component.get("origin"), "미기록")
+    followed = component.get("followed")
+    if followed is True:
+        origin += " · 따름"
+    elif followed is False:
+        origin += " · 대체"
+    text = f"{component.get('description')} ({origin})"
+    checked = [f"{c['candidate']}: {c['reason']}" for c in component.get("same_family") or []]
+    return text + ("<br>확인한 같은 계열: " + "; ".join(checked) if checked else "")
+
+
 def render_architecture(company: dict[str, Any]) -> str:
     """A readable plan-versus-observation table per executed claim."""
     def cell(text: Any) -> str:
@@ -1909,7 +1921,7 @@ def render_architecture(company: dict[str, Any]) -> str:
             lines.append("| " + " | ".join(cell(x) for x in (
                 f"{step['claim_id']} {step['step_index']}. {step['step'] or ''}",
                 _DISPOSITION_KO.get(plan.get("disposition"), plan.get("disposition")),
-                f"{component.get('description')} ({_ORIGIN_KO.get(component.get('origin'), '미기록')})" if component else "미기록",
+                _component_cell(component) if component else "미기록",
                 plan.get("route") or ("-" if plan.get("disposition") == "excluded" else "미기록"),
                 "<br>".join(left_out),
                 observed_text)) + " |")
