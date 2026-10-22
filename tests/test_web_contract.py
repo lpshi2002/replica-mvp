@@ -29,6 +29,16 @@ class CriteriaTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "recorded source"):
                     validate_demo_plan(plan, self.root)
 
+    def test_public_rule_cannot_carry_a_bound_its_quote_does_not_state(self):
+        expectation = self.plan["cases"][0]["expectations"][1]
+        expectation["description"] += " If this does not happen within six answers, the expectation fails."
+        with self.assertRaisesRegex(ValueError, "public_rule states within six, which its quote does not"):
+            validate_demo_plan(self.plan, self.root)
+        # Our own bound is allowed as an outcome condition with its reason.
+        expectation["basis"] = {"type": "our_condition", "source": "pass-2 research",
+                                "rationale": "A customer should finish the task within reasonable effort."}
+        validate_demo_plan(self.plan, self.root)
+
     def test_own_condition_needs_reason_and_limits_cannot_be_expectations(self):
         expectation = self.plan["cases"][0]["expectations"][0]
         expectation["basis"].pop("rationale")

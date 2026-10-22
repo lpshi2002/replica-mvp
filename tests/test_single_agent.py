@@ -68,7 +68,11 @@ class SingleAgentTest(unittest.TestCase):
                 finish_agent_harness(path)
             failed = evaluate_agent_bundle(path, "claim-001", semantic_judge=lambda request: {"pass": False, "reason": "Fixture failure"})
             self.assertEqual("RESULT_FAILED", failed["claims"][0]["status"])
+            (workspace / "development-log.jsonl").write_text('{"attempt": 1}\n')
             retried = retry_agent_bundle(path, "claim-001")
+            # The next code review separates this submission's log entries from the following ones.
+            archived = retried["claims"][0]["bundle_submissions"][-1]["development_archive"]
+            self.assertIn("development-log.jsonl", archived["artifacts"])
             self.assertEqual("real-child", retried["claims"][0]["implementer"]["agent_id"])
             self.assertEqual(failed["claims"][0]["started_at"], retried["claims"][0]["started_at"])
             with self.assertRaisesRegex(ValueError, "same candidate"):

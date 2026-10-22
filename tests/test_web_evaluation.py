@@ -16,6 +16,7 @@ from replica_mvp.bundle_evaluation import evaluate_agent_bundle, retry_agent_bun
 from replica_mvp.session_usage import agent_usage, sessions_usage
 from replica_mvp.single_agent import bind_single_implementation, prepare_single_harness, start_single_implementation
 from replica_mvp.web_demo import freeze_demo_plan
+from replica_mvp.web_evaluation import _retry_history
 from tests.test_agent_continuity import _prepare_rich_ready_pair, _write_execution_state
 from tests.test_second_pass import _research
 from tests.test_web_demo import APP, _passing_judge, _scripted_tester, _write_cli
@@ -324,9 +325,41 @@ class WebHarnessTest(unittest.TestCase):
         retry_agent_bundle(registry, "claim-001")
         feedback = (self.root / "run" / "claims/claim-001/operator/retry-feedback-001.json").read_text()
         self.assertNotIn("의자 구매", feedback)
+        self.assertIn("within the public rules", json.loads(feedback)["note"])
         reasons = {e["id"]: e["reason"] for e in json.loads(feedback)["cases"][0]["expectations"]}
         self.assertIn("노트북 구매", reasons["outbox"])
         self.assertIn("노트북 구매", reasons["summary"])
+
+    def test_review_sees_the_rules_and_a_case_defect_alone_does_not_reopen_the_build(self):
+        registry = _bind_web_app(self.root / "run")
+        seen = {}
+
+        def judge_with_case_defect(prompt):
+            request = json.loads(prompt)
+            last = request["events"][-1]["event_id"]
+            return {"verdicts": [{"id": e["id"], "status": "failed", "reason": "summary never reached",
+                                  "evidence_event_ids": [last], "evidence_file_paths": [], "precondition_met": None,
+                                  "case_defect": {"kind": "unreachable_by_steps", "detail": "no step opens the summary",
+                                                  "case_parts": [{"part": "step", "ref": "2"}], "event_ids": [last]}}
+                                 for e in request["expectations"]]}, None
+
+        def reviewer(prompt):
+            request = json.loads(prompt)
+            seen["expectations"] = request["demo_cases"][0]["expectations"]
+            seen["history"] = request["research"]["retry_history"]
+            return _passing_review(prompt)
+        evaluated = evaluate_agent_bundle(registry, "claim-001", tester=_scripted_tester(APPROVE),
+                                          judge=judge_with_case_defect, reviewer=reviewer)
+        claim = evaluated["claims"][0]
+        self.assertIn("quote", seen["expectations"][1]["basis"])
+        self.assertIsNone(seen["history"])
+        result = json.loads((self.root / "run" / claim["final_result"]["public_run_dir"] / "demo-result.json").read_text())
+        summary = result["cases"][0]["expectations"][1]
+        self.assertEqual(("not_evaluated", "case_defect"), (summary["status"], summary["cause"]))
+        self.assertEqual("RESULT_FAILED", claim["status"])
+        with self.assertRaisesRegex(ValueError, "nothing left for an implementation retry"):
+            retry_agent_bundle(registry, "claim-001")
+        self.assertFalse((self.root / "run" / "claims/claim-001/operator/retry-feedback-001.json").exists())
 
     def test_instance_that_drops_steps_or_empties_a_check_is_rejected(self):
         def shortened(prompt):
@@ -402,6 +435,35 @@ class WebHarnessTest(unittest.TestCase):
         self.assertEqual("execution_blocked", evaluated["claims"][0]["final_result"]["reproduction_status"])
         company = json.loads((self.root / "run" / finish_agent_harness(registry)["company_result"]["path"]).read_text())
         self.assertEqual("experiment_blocked", company["claims"][0]["outcome"])
+
+
+class RetryHistoryTest(unittest.TestCase):
+    def test_review_gets_changes_since_the_last_submission_and_new_log_entries_within_a_limit(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "evaluator-vault/claim-001/single-development-001"
+            current = root / "claims/claim-001/implementer"
+            (archive / "implementation").mkdir(parents=True)
+            (current / "implementation").mkdir(parents=True)
+            (archive / "implementation/app.py").write_text("credit = 0 if restated else depth\n")
+            (current / "implementation/app.py").write_text("credit = min(depth, 20) if restated else depth\n")
+            (archive / "implementation/old.py").write_text("gone\n")
+            (current / "implementation/big.py").write_text("x = 1\n" * 400)
+            (archive / "development-log.jsonl").write_text('{"attempt": 1}\n')
+            (current / "development-log.jsonl").write_text('{"attempt": 1}\n{"attempt": 2}\n')
+            claim = {"bundle_submissions": [{"development_archive": {"path": archive.relative_to(root).as_posix()}}, {}],
+                     "implementation_result": {"candidate_path": "claims/claim-001/implementer/implementation/manifest.json"},
+                     "implementer": {"artifact_namespace": "claims/claim-001/implementer"}}
+            with patch("replica_mvp.web_evaluation._HISTORY_LIMIT", 1000):
+                history = _retry_history(root, claim)
+            changes = {c["path"]: c for c in history["changes"]}
+            self.assertIn("+credit = min(depth, 20) if restated else depth", changes["app.py"]["diff"])
+            self.assertEqual("removed", changes["old.py"]["change"])
+            # A change past the limit is listed, not silently dropped.
+            self.assertEqual(["big.py"], [o["path"] for o in history["omitted"]])
+            self.assertEqual(['{"attempt": 2}'], history["development_log"])
+            claim["bundle_submissions"] = [{}]
+            self.assertIsNone(_retry_history(root, claim))
 
 
 class SingleWebRouteTest(unittest.TestCase):

@@ -58,11 +58,14 @@ PLAN_TESTER_SCHEMA = {
     "properties": {"actions": {"type": "array", "items": TESTER_SCHEMA}},
 }
 TESTER_MODES = ("single", "plan")
+# Ways a frozen case itself, not the app, can keep a result from being shown.
+CASE_DEFECT_KINDS = ("insufficient_input", "contradictory_input", "unreachable_by_steps", "conflicts_with_public_rule")
 JUDGE_SCHEMA = {
     "type": "object", "additionalProperties": False, "required": ["verdicts"],
     "properties": {"verdicts": {"type": "array", "items": {
         "type": "object", "additionalProperties": False,
-        "required": ["id", "status", "reason", "evidence_event_ids", "evidence_file_paths", "precondition_met"],
+        "required": ["id", "status", "reason", "evidence_event_ids", "evidence_file_paths", "precondition_met",
+                     "case_defect"],
         "properties": {
             "id": {"type": "string"},
             "status": {"type": "string", "enum": list(EXPECTATION_STATUSES)},
@@ -70,6 +73,20 @@ JUDGE_SCHEMA = {
             "evidence_event_ids": {"type": "array", "items": {"type": "string"}},
             "evidence_file_paths": {"type": "array", "items": {"type": "string"}},
             "precondition_met": {"type": ["boolean", "null"]},
+            "case_defect": {
+                "type": ["object", "null"], "additionalProperties": False,
+                "required": ["kind", "detail", "case_parts", "event_ids"],
+                "properties": {
+                    "kind": {"type": "string", "enum": list(CASE_DEFECT_KINDS)},
+                    "detail": {"type": "string"},
+                    "case_parts": {"type": "array", "items": {
+                        "type": "object", "additionalProperties": False, "required": ["part", "ref"],
+                        "properties": {"part": {"type": "string", "enum": ["fact", "upload", "step", "expectation"]},
+                                       "ref": {"type": "string"}},
+                    }},
+                    "event_ids": {"type": "array", "items": {"type": "string"}},
+                },
+            },
         },
     }}},
 }
@@ -91,11 +108,11 @@ REVIEW_SCHEMA = {
         "status": {"type": "string", "enum": list(EXPECTATION_STATUSES)},
         "reason": {"type": "string"},
         "findings": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False, "required": ["kind", "detail", "file"],
+            "type": "object", "additionalProperties": False, "required": ["kind", "detail", "file", "rule"],
             "properties": {
                 "kind": {"type": "string", "enum": ["case_specific_branch", "stub_or_fake_effect", "missing_workflow_step",
-                                                   "other"]},
-                "detail": {"type": "string"}, "file": {"type": ["string", "null"]},
+                                                   "semantic_weakening", "other"]},
+                "detail": {"type": "string"}, "file": {"type": ["string", "null"]}, "rule": {"type": ["string", "null"]},
             },
         }},
     },
@@ -396,6 +413,15 @@ def _judge_prompt(case: dict[str, Any], expectations: list[dict[str, Any]], reco
             "false if it was not reached, or null if unknown. Without an observed trigger the result is not_evaluated. "
             "An execution limit is a trial budget, not a product failure. Return not_evaluated when the evidence "
             "cannot show the result either way (for example the case stopped early or the needed output is not observable). "
+            "An outcome condition we set (an our_condition) says what the customer must get; missing it is a failure "
+            "of the customer outcome, not a broken component. When a result was missed because of the case itself, "
+            "so that no app keeping the public rules could have shown it, keep status failed and fill case_defect: "
+            "insufficient_input (the case's facts or files do not hold enough for the result), contradictory_input "
+            "(they contradict the expected result), unreachable_by_steps (the case's steps cannot lead to it), or "
+            "conflicts_with_public_rule (meeting it would break a public rule); the detail; the case parts at fault "
+            "(fact or step by 1-based number, upload by path, expectation by id); and the event or observation ids "
+            "showing it in this run. An app that is hard to use, or inputs that were enough but not processed, are "
+            "failures with case_defect null. Otherwise case_defect is null. "
             "Do not infer equivalence with the original product."
         ),
         "case": {"goal": case["goal"], "steps": case["steps"], "facts": case.get("facts", [])},
@@ -792,6 +818,28 @@ def _verdict_evidence(verdict: dict, record: dict, before: dict, after: dict) ->
                                for p in accepted["evidence_file_paths"]]}
 
 
+def _case_defect(defect: Any, case: dict[str, Any], record: dict[str, Any]) -> str | None:
+    """Why a claimed case defect is not tied to real parts of the case and to this run's record."""
+    if (not isinstance(defect, dict) or defect.get("kind") not in CASE_DEFECT_KINDS
+            or not _nonempty(defect.get("detail")) or not defect.get("case_parts")):
+        return "it names no defect kind, detail and case parts"
+    counts = {"fact": len(case.get("facts", [])), "step": len(case.get("steps", []))}
+    uploads = {r.get("upload_path") for r in record.get("input_files", [])} | {u["path"] for u in case.get("uploads", [])}
+    expectations = {e["id"] for e in case["expectations"]}
+    for item in defect["case_parts"]:
+        part, ref = item.get("part"), str(item.get("ref", ""))
+        if part in counts:
+            if not (ref.isdigit() and 1 <= int(ref) <= counts[part]):
+                return f"{part} {ref} is not part of the case"
+        elif not ((part == "upload" and ref in uploads) or (part == "expectation" and ref in expectations)):
+            return f"{part} {ref} is not part of the case"
+    recorded = {e["event_id"] for e in record.get("events", [])} | {o["event_id"] for o in record.get("observations", [])}
+    ids = defect.get("event_ids") or []
+    if not ids or any(i not in recorded for i in ids):
+        return "it cites no recorded event or observation of this run"
+    return None
+
+
 def _evaluate_case(case: dict[str, Any], record: dict[str, Any], judge: Callable) -> list[dict[str, Any]]:
     trees = record.pop("_trees", None)
     results = []
@@ -851,6 +899,15 @@ def _evaluate_case(case: dict[str, Any], record: dict[str, Any], judge: Callable
             status, reason = verdict["status"], verdict.get("reason", "")
             if status in {"passed", "failed"} and not (evidence["evidence_event_ids"] or evidence["evidence_file_paths"]):
                 status, reason = "not_evaluated", "judge supplied no valid observation or output-file reference"
+            # A missed result counts as untested only when the defect is tied to the case and to this run.
+            defect = verdict.get("case_defect")
+            if defect is not None and status in {"failed", "not_evaluated"}:
+                rejected = _case_defect(defect, case, record)
+                if rejected:
+                    evidence["rejected_case_defect"] = rejected
+                else:
+                    status, reason = "not_evaluated", f"the case cannot show this result ({defect['kind']}): {defect['detail']}"
+                    evidence["cause"] = "case_defect"
             if expectation.get("precondition") and verdict.get("precondition_met") is not True:
                 status, reason = "not_evaluated", "the expectation's precondition was not observed; the trial limit is not a failure"
             results.append({**base, "method": "judge", "status": status, "reason": reason, **evidence,
@@ -988,13 +1045,21 @@ def _review_prompt(manifest_path: Path, context: dict[str, Any], plan: dict[str,
             "instructions. Report case_specific_branch when behavior depends on literal values from the demo plan "
             "instead of handling any input in the researched scope; stub_or_fake_effect when a step only pretends to "
             "save, send, retrieve or call a model; missing_workflow_step when an implemented step of the researched "
-            "workflow has no real code path. Passing the demo cases is not evidence by itself. Return passed only when "
+            "workflow has no real code path; semantic_weakening when the code meets an expectation by weakening what "
+            "a public rule means: counting or accepting input the rule excludes, lowering a threshold or condition "
+            "it sets, advancing earlier than it allows, or dropping a refusal. Name that rule in rule. Improving how "
+            "the app reaches a result within the rules is not a finding. retry_history, when present, holds what "
+            "changed since the previous evaluated submission and the implementer's log for this submission; check "
+            "changed counting, acceptance, advancing and refusal logic against the rules, and treat the log as a "
+            "claim, not evidence. Passing the demo cases is not evidence by itself. Return passed only when "
             "the code implements the researched workflow for general inputs; failed when a finding shows it does not; "
-            "not_evaluated when the relevant source cannot be inspected."
+            "not_evaluated when the relevant source cannot be inspected, including logic in files retry_history omits."
         ),
         "research": context, "manifest": {k: v for k, v in manifest.items() if k != "files"},
         "files": files, "unreviewed_files": unreviewed,
-        "demo_cases": [{k: c.get(k) for k in ("id", "goal", "steps", "facts", "variation")} for c in plan["cases"]],
+        "demo_cases": [{**{k: c.get(k) for k in ("id", "goal", "steps", "facts", "variation")},
+                        "expectations": [{k: e.get(k) for k in ("id", "description", "basis")} for e in c["expectations"]]}
+                       for c in plan["cases"]],
         "demo_outcome": [{"case_id": c["case_id"], "execution_status": c["execution_status"],
                           "expectations": [{k: e[k] for k in ("id", "status")} for e in c["expectations"]]}
                          for c in cases],
@@ -1045,6 +1110,9 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
                 "plan_sha256": _digest(plan_path), "candidate_manifest_sha256": _digest(manifest_path),
                 "evaluator_version": evaluator_version(), "model_configuration": configuration,
                 "selected_cases": sorted(selected)}
+    if review_context is not None:
+        identity["review_context_sha256"] = hashlib.sha256(
+            json.dumps(review_context, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     previous, reusable = ({}, False) if resume_from is None else load_checkpoint(resume_from.resolve(), identity)
     inputs = (load_input_cases(input_cases_from.resolve(), identity, plan["cases"])
               if input_cases_from is not None else None)
@@ -1239,7 +1307,9 @@ def run_web_demo(plan_path: Path, output_dir: Path, *, manifest_path: Path | Non
                 playwright_context.__exit__(None, None, None)
     if review_context is not None:
         prior_review = previous.get("code_review", {})
-        if reusable and prior_review.get("status") in {"passed", "failed"}:
+        # A review saw its own context; a changed context (rules, retry history) needs a new review.
+        if (reusable and prior_review.get("status") in {"passed", "failed"}
+                and previous.get("review_context_sha256") == identity.get("review_context_sha256")):
             code_review = prior_review
         elif interruption or read_limit_gate(gate) or time.monotonic() >= deadline:
             code_review = {"status": "not_evaluated", "reason": "evaluation interrupted before code review", "findings": []}

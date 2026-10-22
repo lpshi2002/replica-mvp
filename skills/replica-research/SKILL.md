@@ -497,6 +497,12 @@ anything is built (field contract in `agents/replica-second-pass.md`).
 `agent-harness-init` freezes it with its upload files as
 `claims/<claim-id>/demo/plan.json`; a plan with an expected result lacking a
 basis, or with a missing upload file, makes the claim `RESEARCH_INCOMPLETE`.
+When the company publishes no result or threshold, pass 2 sets an outcome
+condition (`our_condition`: what the customer must get within a reasonable
+effort; missing it is a failure) apart from a trial budget (`execution_limits`:
+reaching it is not evidence). Each outcome condition is frozen with inputs an
+implementation keeping every public rule can meet it with, and a counter-case
+that fails if a rule is loosened to meet it.
 
 For a question-answer capability, also freeze a public `experience` object using
 the `replica-experience/v1` contract. Include a public or synthetic

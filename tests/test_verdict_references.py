@@ -56,6 +56,38 @@ class VerdictReferencesTest(unittest.TestCase):
             self.assertEqual("not_evaluated", result["status"])
         self.assertEqual("failed", self.evaluate(["case-001"], status="failed", precondition_met=True)["status"])
 
+    def test_case_defect_counts_only_when_tied_to_the_case_and_the_run(self):
+        self.case.update(facts=["The order total is 120."], steps=["Open result", "Approve"])
+
+        def evaluate(defect):
+            record = {"_trees": ({}, {}, self.root), "execution_status": "completed", "stop_reason": None,
+                      "events": [{"event_id": "case-001", "action": "click"}],
+                      "observations": [{"event_id": "case-001", "page": {"text": "Total 120"}}],
+                      "file_changes": [], "final_page": {"text": "Total 120"}}
+            verdict = {"id": "result", "status": "failed", "reason": "not shown", "evidence_event_ids": ["case-001"],
+                       "evidence_file_paths": [], "precondition_met": None, "case_defect": defect}
+            return _evaluate_case(self.case, record, lambda prompt: ({"verdicts": [verdict]}, None))[0]
+
+        # Every kind of case defect, not only exhausted inputs, leaves the result untested.
+        for kind, parts in (("insufficient_input", [{"part": "fact", "ref": "1"}]),
+                            ("contradictory_input", [{"part": "fact", "ref": "1"}, {"part": "expectation", "ref": "result"}]),
+                            ("unreachable_by_steps", [{"part": "step", "ref": "2"}]),
+                            ("conflicts_with_public_rule", [{"part": "expectation", "ref": "result"}])):
+            result = evaluate({"kind": kind, "detail": "fixture", "case_parts": parts, "event_ids": ["case-001"]})
+            self.assertEqual(("not_evaluated", "case_defect"), (result["status"], result["cause"]), kind)
+        for defect, message in (
+                ({"kind": "insufficient_input", "detail": "x", "case_parts": [{"part": "fact", "ref": "2"}],
+                  "event_ids": ["case-001"]}, "fact 2"),
+                ({"kind": "unreachable_by_steps", "detail": "x", "case_parts": [{"part": "upload", "ref": "a.csv"}],
+                  "event_ids": ["case-001"]}, "upload a.csv"),
+                ({"kind": "insufficient_input", "detail": "x", "case_parts": [{"part": "fact", "ref": "1"}],
+                  "event_ids": ["other-case-001"]}, "no recorded event"),
+                ({"kind": "the app was slow", "detail": "x", "case_parts": [{"part": "fact", "ref": "1"}],
+                  "event_ids": ["case-001"]}, "no defect kind")):
+            result = evaluate(defect)
+            self.assertEqual("failed", result["status"])
+            self.assertIn(message, result["rejected_case_defect"])
+
     def test_deterministic_absence_and_unchanged_have_snapshot_evidence(self):
         for kind in ("file_absent", "files_unchanged"):
             self.expectation["check"] = {"type": kind, "path": "absent/*"}

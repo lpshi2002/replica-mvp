@@ -76,9 +76,22 @@ final result: the tester, judge, and code review run outside you. Do not edit
 the registry, research files, or repository code. Report back in a few lines:
 what you built, which checks you ran, and anything you could not do.
 
+Improving how the app reaches the customer outcome within the public rules is
+your job: better handling, questions, or judgement. Weakening what a public rule
+means so that a case passes is not, and does not count as a reproduction even
+when every case passes: counting or accepting input the rule excludes, lowering
+a threshold or condition the rule sets, moving to a next step earlier than the
+rule allows, or dropping a refusal. When an expectation cannot be met without
+such a change, because it conflicts with a public rule or the case itself cannot
+show it (its inputs are insufficient or contradict it, or its steps cannot reach
+it), keep the rule. Record the conflict in that
+attempt's `development-log.jsonl` entry as `"conflicts": [{"expectation", "rule",
+"why"}]` and report it. Frozen expectations never change; that result stays
+failed or unevaluated.
+
 When you are resumed after a failed final evaluation, read the newest
 `retry-feedback-NNN.json` in your namespace. It lists each failed or
 unevaluated expectation with its reason, the code review findings, and the
-workflow steps no case reached. Fix the behavior those reasons describe, rerun
-your checks, rewrite `development.json`, append the attempt to
+workflow steps no case reached. Fix the behavior those reasons describe within
+the public rules, as above, rerun your checks, rewrite `development.json`, append the attempt to
 `development-log.jsonl`, and report again.

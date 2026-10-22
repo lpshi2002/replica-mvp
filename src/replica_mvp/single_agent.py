@@ -250,6 +250,10 @@ def retry_single_implementation(registry_path: Path, claim_id: str) -> dict[str,
     import shutil
     shutil.copyfile(state_path, archive / "execution-state.json")
     shutil.copyfile(root / state["development_receipt"]["path"], archive / "development.json")
+    # The next code review reads only the log entries written after this submission.
+    log = root / claim["implementer"]["artifact_namespace"] / "development-log.jsonl"
+    if log.is_file():
+        shutil.copyfile(log, archive / "development-log.jsonl")
     attempts[-1]["development_archive"] = {
         "path": archive.relative_to(root).as_posix(),
         "artifacts": {p.relative_to(archive).as_posix(): digest(p) for p in archive.rglob("*") if p.is_file()},

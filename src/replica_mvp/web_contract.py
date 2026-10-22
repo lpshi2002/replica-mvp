@@ -5,15 +5,46 @@ an author's interpretation of a quotation is correct; pass-2 research owns that 
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 
 CRITERIA_VERSION = 2
 BASIS_TYPES = {"public_rule", "original_observation", "separate_verification", "our_condition"}
+_NUMBER_WORDS = {
+    "once": 1, "twice": 2, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+    "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20, "thirty": 30,
+    "forty": 40, "fifty": 50, "hundred": 100, "thousand": 1000,
+}
+_NUMBER = r"\d[\d,]*(?:\.\d+)?|" + "|".join(sorted(_NUMBER_WORDS, key=len, reverse=True))
+_UNIT = (r"%|percent|times?|turns?|answers?|questions?|messages?|repl(?:y|ies)|steps?|attempts?|tries|"
+         r"seconds?|secs?|ms|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|years?|words?|characters?|chars?|"
+         r"items?|results?|rows?|files?|pages?|[kmg]b|번|회|초|분|시간|일|개|단계|글자|자")
+_BOUND = (r"within|at most|at least|up to|no more than|no fewer than|fewer than|less than|more than|under|over|"
+          r"after|before|exceeds?|maximum of|minimum of|이내|이상|이하|초과|미만")
+_CONDITION = re.compile(rf"(?:\b(?:{_BOUND})\s+(?P<a>{_NUMBER})\b)|(?:\b(?P<b>{_NUMBER})\s*(?:{_UNIT})(?![a-z]))",
+                        re.IGNORECASE)
+_ANY_NUMBER = re.compile(rf"\b(?:{_NUMBER})\b|\d[\d,]*(?:\.\d+)?", re.IGNORECASE)
 
 
 def text(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
+
+
+def _value(token: str) -> float:
+    token = token.lower().replace(",", "")
+    return float(_NUMBER_WORDS[token]) if token in _NUMBER_WORDS else float(token)
+
+
+def unquoted_bounds(description: str, quote: str) -> list[str]:
+    """Numeric conditions (counts, durations, rates, limits) in a criterion that its quotation never states."""
+    stated = {_value(m.group(0)) for m in _ANY_NUMBER.finditer(quote)}
+    found = []
+    for match in _CONDITION.finditer(description):
+        token = match.group("a") or match.group("b")
+        if _value(token) not in stated and match.group(0) not in found:
+            found.append(match.group(0))
+    return found
 
 
 def validate_criteria(plan: dict, *, for_execution: bool = False) -> None:
@@ -48,6 +79,12 @@ def validate_criteria(plan: dict, *, for_execution: bool = False) -> None:
                 if (not source or source["source"] != basis["source"] or not text(quote)
                         or quote not in source["excerpt"] or not text(basis.get("interpretation"))):
                     raise ValueError(f"{label} basis needs a matching recorded source, exact quote and interpretation")
+                # A bound the company never published is ours: an outcome condition or a trial budget, not its rule.
+                unquoted = unquoted_bounds(expectation["description"], quote) if basis["type"] == "public_rule" else []
+                if unquoted:
+                    raise ValueError(
+                        f"{label} public_rule states {', '.join(unquoted)}, which its quote does not; split our own "
+                        "bound into an our_condition with a rationale or into execution_limits")
                 detail = {"original_observation": "conditions", "separate_verification": "method"}.get(basis["type"])
                 if detail and not text(basis.get(detail)):
                     raise ValueError(f"{label} basis needs {detail}")

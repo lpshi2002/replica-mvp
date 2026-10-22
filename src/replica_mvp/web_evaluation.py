@@ -5,6 +5,7 @@ nothing is sealed. The result directory is published under final-results/runs.
 """
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import shutil
@@ -21,6 +22,8 @@ from .model_calls import summarize_receipts, summarize_receipt_directories
 
 WEB_RESULT_SCHEMA = "replica-agent-web-demo-result/v1"
 MAX_WEB_SUBMISSIONS = 3
+# Bytes of retry history the code review receives beyond the current source.
+_HISTORY_LIMIT = 200_000
 
 
 def register_development_run(registry_path: Path, claim_id: str, source: Path) -> dict[str, Any]:
@@ -88,7 +91,58 @@ def review_context(root: Path, claim: dict[str, Any]) -> dict[str, Any]:
         "scenario": {key: selected.get(key) for key in ("input", "output", "boundaries", "out_of_scope",
                                                        "self_sufficiency", "evidence_level")},
         "implementation_path": ((payload["second_pass"].get("findings") or {}).get("impl_path") or {}).get("note"),
+        "retry_history": _retry_history(root, claim),
     }
+
+
+def _files(directory: Path) -> dict[str, Path]:
+    return {p.relative_to(directory).as_posix(): p for p in directory.rglob("*") if p.is_file()} if directory.is_dir() else {}
+
+
+def _retry_history(root: Path, claim: dict[str, Any]) -> dict[str, Any] | None:
+    """What changed since the previous evaluated submission, and the implementer's log since then."""
+    archived = next((a["development_archive"] for a in reversed(claim.get("bundle_submissions", []))
+                     if a.get("development_archive")), None)
+    if archived is None:
+        return None
+    archive = root / archived["path"]
+    before = _files(archive / "implementation")
+    after = _files((root / claim["implementation_result"]["candidate_path"]).parent)
+    changes, omitted, used = [], [], 0
+    for name in sorted(before.keys() | after.keys()):
+        old = before[name].read_bytes() if name in before else b""
+        new = after[name].read_bytes() if name in after else b""
+        if old == new:
+            continue
+        change = "added" if name not in before else "removed" if name not in after else "modified"
+        try:
+            diff = "".join(difflib.unified_diff(old.decode("utf-8").splitlines(True), new.decode("utf-8").splitlines(True),
+                                                f"previous/{name}", f"current/{name}"))
+        except UnicodeDecodeError:
+            changes.append({"path": name, "change": change, "diff": None, "note": "not UTF-8 text"})
+            continue
+        if used + len(diff.encode()) > _HISTORY_LIMIT:
+            omitted.append({"path": name, "change": change, "diff_bytes": len(diff.encode())})
+            continue
+        used += len(diff.encode())
+        changes.append({"path": name, "change": change, "diff": diff})
+    history = {"previous_submission": archived["path"], "changes": changes, "omitted": omitted, "development_log": []}
+    namespace = (claim.get("implementer") or {}).get("artifact_namespace")
+    log = root / namespace / "development-log.jsonl" if namespace else None
+    if log is not None and log.is_file():
+        entries = log.read_text(encoding="utf-8", errors="replace").splitlines()
+        prior = archive / "development-log.jsonl"
+        if prior.is_file():
+            entries = entries[len(prior.read_text(encoding="utf-8", errors="replace").splitlines()):]
+        else:
+            history["development_log_note"] = "the previous submission's log was not archived; earlier entries are included"
+        for entry in entries:
+            if used + len(entry.encode()) > _HISTORY_LIMIT:
+                history["development_log_omitted"] = True
+                break
+            used += len(entry.encode())
+            history["development_log"].append(entry)
+    return history
 
 
 def _run_swaps(case: dict[str, Any]) -> list[tuple[str, str]]:
@@ -132,7 +186,8 @@ def write_retry_feedback(root: Path, claim: dict[str, Any], directory: Path) -> 
             "case_id": case["case_id"], "execution_status": case["execution_status"],
             "stop_reason": _in_plan_terms(case.get("stop_reason"), swaps[case["case_id"]]),
             "expectations": [{"id": item["id"], "description": described[(case["case_id"], item["id"])],
-                              "status": item["status"], "reason": _in_plan_terms(item["reason"], swaps[case["case_id"]])}
+                              "status": item["status"], "reason": _in_plan_terms(item["reason"], swaps[case["case_id"]]),
+                              **({"cause": item["cause"]} if item.get("cause") else {})}
                              for item in case["expectations"]],
         } for case in result["cases"]],
         "code_review": {
@@ -141,13 +196,30 @@ def write_retry_feedback(root: Path, claim: dict[str, Any], directory: Path) -> 
                          if isinstance(finding, dict) else finding for finding in review.get("findings") or []],
         },
         "uncovered_steps": result["scope"].get("uncovered_steps"),
-        "note": ("Fix the behavior these reasons describe for any input in scope. The next evaluation draws new "
-                 "values for every case with a variation rule and reviews the code again; branches for earlier values will not pass."),
+        "note": ("Fix the behavior these reasons describe for any input in scope, within the public rules: never "
+                 "weaken what a rule counts, accepts, advances or refuses to make a case pass; report a conflict "
+                 "instead. An expectation with cause case_defect could not be shown because of the case itself "
+                 "and needs no change to the app. The next evaluation draws new values for every case with a "
+                 "variation rule and reviews the code again; branches for earlier values will not pass."),
     }
+    if not _retry_actionable(result):
+        raise ValueError("nothing left for an implementation retry: every remaining expectation is blocked by a "
+                         "defect in the case itself; a new plan version is needed instead")
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"retry-feedback-{feedback['attempt']:03d}.json"
     path.write_text(json.dumps(feedback, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
+
+
+def _retry_actionable(result: dict[str, Any]) -> bool:
+    """Whether the result leaves anything an implementation change could address."""
+    items = [e for case in result["cases"] for e in case["expectations"]]
+    return (any(e["status"] == "failed" for e in items)
+            or any(e["status"] == "not_evaluated" and e.get("cause") != "case_defect" for e in items)
+            or result["code_review"].get("status") != "passed"
+            # A step left unverified only by those expectations adds nothing; a step no case reached does.
+            or any(not (step.get("verification") or {}).get("expectations")
+                   for step in (result.get("scope") or {}).get("uncovered_steps") or []))
 
 
 def interrupted_attempt(root: Path, attempt: dict[str, Any]) -> bool:

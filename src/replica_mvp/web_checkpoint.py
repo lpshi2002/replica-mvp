@@ -13,8 +13,8 @@ def digest(path: Path) -> str:
 
 def evaluator_version() -> str:
     root = Path(__file__).parent
-    files = ("web_demo.py", "web_checkpoint.py", "web_contract.py", "web_inputs.py", "model_calls.py",
-             "bundle_runtime.py", "company_app.py")
+    files = ("web_demo.py", "web_checkpoint.py", "web_contract.py", "web_inputs.py", "web_evaluation.py",
+             "model_calls.py", "bundle_runtime.py", "company_app.py")
     if (root / "web_actions.py").exists():
         files += ("web_actions.py",)
     return hashlib.sha256("".join(digest(root / name) for name in files).encode()).hexdigest()

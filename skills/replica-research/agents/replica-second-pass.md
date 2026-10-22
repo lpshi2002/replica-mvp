@@ -339,14 +339,41 @@ built:
   validation checks that binding; you must also check that the quotation supports
   the full rule, including every threshold, and does not contradict `boundaries`.
   Split mixed public rules and our conditions into separate expectations.
-- Keep trial budgets in the case's `execution_limits: [description]` and the
-  plan's `budget`. Reaching an action/answer/time limit is not evidence of a
-  functional defect. For example, “at 100% a new topic appears” is a public rule;
-  “stop after six answers” is our execution limit, not a public completion rate.
-  Such a conditional expectation declares `precondition`, a description of the
-  observable trigger. The judge must observe it; an unmet or unknown trigger
-  leaves the conditional result `not_evaluated`. A separate, justified quality
-  requirement may use `our_condition`; relabeling a trial budget is insufficient.
+- Where the company publishes no result or threshold, you set one; judging the
+  customer outcome needs it. Tell apart the two kinds of number you set:
+  - An **outcome condition** says what the customer must get within a
+    reasonable effort, for example a task finished within a number of turns,
+    steps, or seconds. It is an `our_condition` expectation whose `rationale`
+    names the customer outcome and why the bound is reasonable. Missing it is a
+    failure: the customer did not get the result, not a broken component.
+  - A **trial budget** only stops the trial for cost or time. Keep it in the
+    case's `execution_limits: [description]` and the plan's `budget`. Reaching
+    it is not evidence either way. An expectation that depends on a trigger the
+    budget may cut off declares `precondition`, an observable description of the
+    trigger; the judge must observe it, and an unmet or unknown trigger leaves
+    the result `not_evaluated`.
+
+  The rationale decides which kind a number is. Do not turn an outcome condition
+  into a budget to avoid a failure, or promote a budget into an outcome
+  condition. Neither is a `public_rule` unless the quoted source states the
+  bound: “at 100% a new topic appears” can be a public rule, while “within six
+  answers” is ours.
+- Freeze each outcome condition with two safeguards, so that an implementation
+  cannot meet it by weakening a public rule:
+  - **Reachable inputs.** An implementation that keeps every public rule must be
+    able to meet the condition with the case's `facts` and uploads. Give the
+    tester enough distinct material for the turns or steps the condition allows;
+    a tester that runs out of material tests the case, not the app.
+- A result the case itself cannot show is a case defect, not an app failure:
+  inputs that are insufficient for it or contradict it, steps that cannot reach
+  it, or an expectation that would break a public rule. The final judge leaves
+  such a result unevaluated and no implementation retry follows; correcting it
+  needs a new plan version, so check every case for these before freezing.
+  - **A counter-case.** Add a case or expectation that fails if a rule the
+    condition depends on is loosened to meet it: input the public rule excludes
+    must still make no progress, be refused, or produce no result. Cover each
+    form the rule excludes, not only the easiest one — for example both an empty
+    reply and a long one that adds nothing new.
 - A separate judge evaluates semantic expectations from recorded actions,
   observations and output files. An unconditional expectation may instead have
   a deterministic `check` (`file_exists`, `file_absent`, `file_contains`,
