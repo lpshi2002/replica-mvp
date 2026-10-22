@@ -49,6 +49,13 @@ from the cited source and keep them inside its recorded `excerpt`; never write
 from memory, paraphrase, or join a generic AI sentence to a separate feature
 sentence.
 
+An excerpt is contiguous text copied from the page, not a summary from a fetch
+tool. When it names a technology, vendor, product, limit, or condition, start it
+at the sentence that defines or states it: an excerpt that opens with a
+reference back ("said graph", "this engine", "these limits") loses what it
+refers to, so include the earlier sentence. Pass 2 builds its search names and
+conditions from these excerpts.
+
 Never infer company use from the page domain, customer delivery from an
 internal case study, or AI from a product name, heading, site-wide tagline, or
 the company selling AI. "AI-powered platform" alone names no work and fails

@@ -115,6 +115,15 @@ brief. Re-reading your own evidence is not recrawling unrelated pages. Excerpts
 are short and may have cut the conditions off, so do not decide from the excerpt
 alone.
 
+**Quote from the page itself.** A summarizing fetch tool (one that answers a
+prompt about the page instead of returning its text) and search snippets are for
+finding pages only. Any excerpt that `boundaries` or an expectation's `basis`
+rests on is copied from the page text you retrieved directly (for example with
+`curl`, or a browser for a script-rendered page), contiguous and unchanged:
+never join separate sentences or drop words such as `or` and `not`. When you
+cannot retrieve the text directly, say so in the excerpt's source record
+instead of quoting a summary.
+
 | `boundaries.state` | When | Consequence |
 |---|---|---|
 | `stated` | the company published its conditions | scenarios use them, `boundaries_origin: company` |
@@ -335,8 +344,9 @@ built:
   | `separate_verification` | An independently established expected result; the same source fields plus `method` explaining the verification and its limits. Another unsupported model opinion is not independent verification. |
   | `our_condition` | Our own functional or quality requirement; `source` naming its origin and `rationale` explaining why it is relevant. |
 
-  A quotation must occur in the referenced source's recorded excerpt. Structural
-  validation checks that binding; you must also check that the quotation supports
+  A quotation must occur in the referenced source's recorded excerpt, copied
+  from the page text as in section 1. Structural validation checks that binding;
+  you must also check that the quotation supports
   the full rule, including every threshold, and does not contradict `boundaries`.
   Split mixed public rules and our conditions into separate expectations.
 - Where the company publishes no result or threshold, you set one; judging the

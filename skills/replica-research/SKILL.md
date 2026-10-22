@@ -324,12 +324,14 @@ carries `company`, `claim_id`, `slug`, `testable_claim`, `workflow`, `ai_basis`,
 `customer_basis`, `sources`, and `replication_leads`, plus three derived fields.
 
 **`search_names`.** Pass 1 records no per-claim name list, so derive one from
-`customer_basis.subject`, `ai_basis.work_signals`, the proper nouns in
-`testable_claim` and `workflow.steps`, and the path segments of
-`sources[].url`. When the first-pass checkpoints are still present, read their
-company-wide `progress.discovered_names` as a candidate pool and adopt a name
-**only when it literally appears in this claim's own text**; drop the rest.
-Record `names_source` as `derived` or `derived+checkpoint`.
+the product, feature, technology, and vendor names that appear in the claim's
+own `sources[].excerpt`, `customer_basis.subject`, `testable_claim`, and
+`workflow.steps`. Use names, not generic work words: leave out
+`ai_basis.work_signals`, URL path segments, and article titles, which add search
+noise rather than names. When the first-pass checkpoints are still present,
+read their company-wide `progress.discovered_names` as a candidate pool and
+adopt a name **only when it literally appears in this claim's own text**; drop
+the rest. Record `names_source` as `derived` or `derived+checkpoint`.
 
 **`routing`.** Derive it. **Do not read `first_pass.routing`** — record it in
 `routing_raw` for audit and classify from scratch. That field is a free string
