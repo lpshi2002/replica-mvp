@@ -15,6 +15,6 @@
 
 ## 보존 사항
 
-변경은 아직 커밋하지 않았다. 기존 사용자 파일 `docs/diagrams/`, `tmp/`를 건드리지 않는다. `work/`는 Git에서 제외되지만 로컬에 보존되어 있으므로 삭제하거나 `git clean`하지 않는다. 완료 시점 코드·문서·재개 도구 사본과 해시는 `work/evaluation-efficiency-2026-10-13/completed-snapshot/`에 남긴다. 다른 작업 위에 자동 복원하지 않는다.
+이 작업의 변경은 `e289a90`에 커밋됐다. 기존 사용자 파일 `docs/diagrams/`, `tmp/`를 건드리지 않는다. `work/`는 Git에서 제외되지만 로컬에 보존되어 있으므로 삭제하거나 `git clean`하지 않는다. 완료 시점 코드·문서·재개 도구 사본과 해시는 `work/evaluation-efficiency-2026-10-13/completed-snapshot/`에 남긴다. 다른 작업 위에 자동 복원하지 않는다.
 
 기존 Orca 두 작업은 완료 보고·delivery 처리를 마쳤고 user_takeover로 보존되어 있다. 자동 종료하거나 완료된 Dispatch로 새 작업을 보내지 않는다. 새 구현 요청이 있을 때만 기존 native implementer를 올바른 새 조율 경로로 재개한다.
