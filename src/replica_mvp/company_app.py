@@ -105,34 +105,40 @@ nav[data-company-shell] a.shell-home { color: #fff; font-size: 17px; font-weight
 _STYLESHEET = f'<link rel="stylesheet" href="{SHELL_CSS_PATH}">'
 
 
-def _nav(company: str, features: list[dict[str, Any]], current: str | None) -> str:
+def _nav(company: str, features: list[dict[str, Any]], current: str | None, locale: str = "en") -> str:
     links = "".join(
         f'<a href="/{html.escape(f["id"])}/"{" aria-current=page" if f["id"] == current else ""}>'
         f'{html.escape(f["title"])}</a>' for f in features)
-    return (f'<nav {NAV_MARKER} aria-label="Company app">'
+    label = "기능 메뉴" if locale == "ko" else "Company app"
+    return (f'<nav {NAV_MARKER} aria-label="{label}">'
             f'<a class="shell-home" href="/">{html.escape(company)}</a>{links}</nav>')
 
 
-def _menu(company: str, features: list[dict[str, Any]]) -> bytes:
+def _menu(company: str, features: list[dict[str, Any]], locale: str = "en") -> bytes:
     items = "".join(
         f'<li><a href="/{html.escape(f["id"])}/"><strong>{html.escape(f["title"])}</strong>'
         + (f'<span>{html.escape(f["summary"])}</span>' if f.get("summary") else "") + "</a></li>" for f in features)
-    return (f"<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width'>"
-            f"<title>{html.escape(company)}</title>{_STYLESHEET}</head><body>{_nav(company, features, None)}"
-            f"<main><h1>{html.escape(company)}</h1><p class=shell-lead>Choose a feature.</p>"
+    lead = "사용할 기능을 선택하세요." if locale == "ko" else "Choose a feature."
+    return (f'<!doctype html><html lang="{html.escape(locale)}"><head><meta charset=utf-8><meta name=viewport content="width=device-width">'
+            f"<title>{html.escape(company)}</title>{_STYLESHEET}</head><body>{_nav(company, features, None, locale)}"
+            f"<main><h1>{html.escape(company)}</h1><p class=shell-lead>{lead}</p>"
             f"<ul class=shell-features>{items}</ul></main></body></html>").encode()
 
 
 @contextlib.contextmanager
-def company_shell(company: str, features: list[dict[str, Any]], *, port: int = 0) -> Iterator[str]:
+def company_shell(company: str, features: list[dict[str, Any]], *, port: int = 0,
+                  locale: str = "en") -> Iterator[str]:
     """Serve the menu and forward /<id>/... to each feature's url (which ends in /<id>); yield the shell URL."""
+    if locale not in {"en", "ko"}:
+        raise ValueError("company app locale must be en or ko")
     targets = {}
     for feature in features:
         parts = urlsplit(feature["url"])
         if parts.path != f"/{feature['id']}" or parts.hostname != "127.0.0.1":
             raise ValueError("a company feature must run on loopback under /<feature id>")
         targets[feature["id"]] = (parts.hostname, parts.port, f"http://127.0.0.1:{parts.port}")
-    menu = _menu(company, features)
+    menu = _menu(company, features, locale)
+    css = SHELL_CSS.replace(b'Open \\2192', '열기 \\2192'.encode()) if locale == "ko" else SHELL_CSS
 
     class Shell(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -143,10 +149,11 @@ def company_shell(company: str, features: list[dict[str, Any]], *, port: int = 0
             if path == "/":
                 return self.reply(200, [("Content-Type", "text/html; charset=utf-8")], menu)
             if path == SHELL_CSS_PATH:
-                return self.reply(200, [("Content-Type", "text/css; charset=utf-8")], SHELL_CSS)
+                return self.reply(200, [("Content-Type", "text/css; charset=utf-8")], css)
             first = path.split("/")[1]
             if first not in targets:
-                return self.reply(404, [("Content-Type", "text/plain; charset=utf-8")], b"not found")
+                return self.reply(404, [("Content-Type", "text/plain; charset=utf-8")],
+                                  "페이지를 찾을 수 없습니다.".encode() if locale == "ko" else b"not found")
             if path == f"/{first}":
                 return self.reply(308, [("Location", f"/{first}/")], b"")
             host, target_port, origin = targets[first]
@@ -161,14 +168,15 @@ def company_shell(company: str, features: list[dict[str, Any]], *, port: int = 0
                 data = response.read()
             except OSError as error:
                 return self.reply(502, [("Content-Type", "text/plain; charset=utf-8")],
-                                  f"feature unavailable: {error}".encode())
+                                  ("기능에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요." if locale == "ko"
+                                   else f"feature unavailable: {error}").encode())
             finally:
                 connection.close()
             shell_origin = f"http://{self.headers.get('Host') or '127.0.0.1'}"
             out = [(k, v.replace(origin, shell_origin) if k.lower() == "location" else v)
                    for k, v in response.getheaders() if k.lower() not in _HOP]
             if "text/html" in (response.getheader("Content-Type") or "") and self.command != "HEAD":
-                bar = (_STYLESHEET + _nav(company, features, first)).encode()
+                bar = (_STYLESHEET + _nav(company, features, first, locale)).encode()
                 match = _BODY_OPEN.search(data)
                 data = data[:match.end()] + bar + data[match.end():] if match else bar + data
             self.reply(response.status, out, data, response.reason)
@@ -197,7 +205,7 @@ def company_shell(company: str, features: list[dict[str, Any]], *, port: int = 0
 @contextlib.contextmanager
 def company_app_session(company: str, features: list[dict[str, Any]], timeout: float, *,
                         path_prefix: Path | None = None, logs: dict[str, Any] | None = None,
-                        port: int = 0) -> Iterator[tuple[str, dict[str, Path]]]:
+                        port: int = 0, locale: str = "en") -> Iterator[tuple[str, dict[str, Path]]]:
     """Start each mountable bundle under /<id> and the shell in front of them.
 
     features: [{id, title, manifest, workspace, summary?}]. Yields (shell URL, {id: workspace root}).
@@ -218,7 +226,7 @@ def company_app_session(company: str, features: list[dict[str, Any]], timeout: f
                 log=(logs or {}).get(feature["id"]), base_path=f"/{feature['id']}"))
             running.append({**feature, "url": url})
             roots[feature["id"]] = root
-        shell = stack.enter_context(company_shell(company, running, port=port))
+        shell = stack.enter_context(company_shell(company, running, port=port, locale=locale))
         yield shell, roots
 
 

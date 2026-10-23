@@ -873,6 +873,10 @@ API를 사용하는 질문에는 해당 run의 공개 또는 합성 `creator_cor
 따로 하며, AI 테스터는 기업 앱 메뉴에서 시작해 해당 기능으로 들어갑니다.
 `base_path_argument`가 없는 번들은 기업 앱 이전 실행의 단독 앱으로 취급하며, 새 하네스
 실행의 웹 claim은 이를 제출(bind) 단계에서 거부합니다.
+셸 문구는 `en`(기본)과 `ko`를 지원합니다. `company_shell`·`company_app_session`의
+`locale`로 고르며 메뉴 안내, 메뉴 이름, 기능 열기 표시, 404·연결 실패 안내가 바뀝니다.
+다른 값은 거부합니다. 아직 `serve-company`와 하네스는 이 값을 넘기지 않으므로 화면은
+영어로 나옵니다.
 
 ```bash
 # 사람이 브라우저로 직접 사용. 저장 데이터는 --state-dir에 남음
@@ -916,7 +920,11 @@ replica-mvp web-demo plan.json --output work/demo-runs/run-001 [--manifest MANIF
 - `events.jsonl`, `cases/<사례>/screens/`: 행동마다 대상 요소·값·이유·오류와 스크린샷
 - `cases/<사례>/workspace/`, `server.log`: 실행한 구현 사본과 앱이 저장한 데이터
 - `receipts/<호출>/`: 테스터·판정 호출과, 앱이 PATH의 `claude`/`codex`로 한 내부
-  호출의 원본 출력과 시작·종료 기록
+  호출의 원본 출력과 시작·종료 기록. Codex 요청이 UTF-8로 900,000바이트를 넘으면
+  Codex의 턴 입력 한도를 피하려고 원문 전체를 작업 디렉터리의 `request.txt`에 쓰고,
+  읽기 전용 도구로 그 파일을 읽으라는 짧은 안내만 표준 입력으로 보냅니다. 시작 기록의
+  `prompt_transport`(`stdin`·`file`)에 전달 방식이 남고, `prompt_sha256`·`prompt_bytes`는
+  안내가 아닌 원문 기준입니다
 
 비용은 단계(`tester`, `judge`, `instance`(실행 때 값 생성), `code_review`,
 `replica_runtime`)별 호출 수, 상태, 호출 시간,
