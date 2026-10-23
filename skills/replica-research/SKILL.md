@@ -77,6 +77,10 @@ offers**, and records the quoted evidence for why each one qualifies. A claim
 enters the candidate list only when C0, C1, A1, and A2 all pass against recorded
 public sources.
 
+These tests qualify a standalone AI claim, not each supporting stage. Apply
+"Collect one claim per whole workflow" below before discarding related work:
+an AI claim can include documented stages that are not themselves AI.
+
 **C0 — the source attributes the work to this company.** The source must say
 that the company, its named product, or a documented customer deployment
 performs the work. An official-domain article saying only that "AI can" do the
@@ -141,7 +145,7 @@ Put them in `deferred` for the orchestrator instead:
 |---|---|
 | `no_company_attribution` | the current source discusses AI work generally, but another scope may attribute it to the company |
 | `no_customer_delivery` | the current source does not establish a public product or customer deployment |
-| `not_workflow` | the current source shows a model, platform property, UI idea, architecture, or mechanism that may belong to a workflow elsewhere |
+| `not_workflow` | the current source shows a model, platform property, UI idea, architecture, mechanism, or non-AI supporting stage that may belong to a workflow elsewhere, but its relationship is not yet established |
 
 An umbrella phrase such as "AI-powered platform" fails A1 on its own: it names
 no work. Qualify the specific capability the page describes instead, or exclude
@@ -158,19 +162,81 @@ claim is that entire workflow: a real input enters, the system performs the
 documented work, and a final deliverable or decision reaches an external user.
 Normal, boundary, and insufficient-information tests exercise this whole unit.
 
-Do not create a separate claim merely because an intermediate output is
-observable or separately testable. When an output is consumed by the next
-operation inside the same customer task and is not independently delivered,
-record it in the parent claim's `workflow.steps`. It becomes its own claim only
-when an external user can invoke and receive it as a standalone product,
-endpoint, or separately documented workflow.
+This section governs collection, normalization, implementation scope, and
+evaluation in both passes. Worker instructions about standalone endpoints or
+AI exclusions are subject to these boundary rules. Include a pointer to this
+section in each research assignment; keep the rules here rather than copying
+them into each worker contract.
 
-When a broad workflow and narrower examples are both found, keep the broad
-workflow and absorb the examples as sources, steps, input variants, or output
-variants. Channel, industry, and document-type variations do not create new
-claims when the customer goal and final deliverable remain the same. Split only
-when the external user, initiating input, customer goal, or final deliverable
-is genuinely different.
+1. **Identify the customer task.** Record who uses the result, their goal,
+   initiating input or event, and the final result that completes that goal.
+   Distinguish configuring or authoring a capability from running it for a
+   customer, and qualify each against C0/C1/A1/A2 on its own. An external
+   coding agent authoring an automation does not settle who runs the
+   automation or make its runtime workflow an AI claim.
+2. **Resolve relationships before splitting.** For related observations,
+   establish from sources whether they are a stage inside a workflow, another
+   delivery interface for the same capability, a capability shared by distinct
+   workflows, or a follow-up workflow started by an event or schedule. These
+   relationships can coexist: search can be used inside conversation and also
+   exposed as a search API. Record only supported relationships; preserve
+   unresolved leads for investigation rather than assuming inclusion or
+   independence. A separately triggered follow-up is not automatically an
+   in-conversation step.
+3. **Split by independent customer purpose.** A separate claim requires a
+   source-supported, independently useful customer goal and completion result.
+   Standalone invocation is evidence to examine, not sufficient grounds for
+   splitting. API versus UI, developer versus end user, JSON versus prose,
+   channel, industry, and document-type differences alone are delivery variants.
+   Matching names for the goal or result do not justify a merge, and a
+   difference alone does not justify a split: compare the initiating
+   condition, who performs the work, any state carried between runs, and the
+   completion condition. Keep the broad workflow and absorb narrower examples
+   as sources, steps, or variants when these describe one customer task. When
+   a shared capability also qualifies as a separate claim, retain its required
+   work in every workflow that uses it; separate evaluation does not remove
+   inclusion.
+4. **Preserve supporting work without relabeling it AI.** Apply C0/C1/A1/A2
+   to the standalone claim. Preserve source-supported retrieval, permissions,
+   storage, tool execution, and notifications required by that claim even when
+   those stages lack their own AI attribution. A stage is required when a
+   source places it on that claim's path to its completion result; sharing a
+   product or relating to the claim is not enough. Record a conditional stage
+   with its condition. An observation whose role is not established stays a
+   deferred observation or replication lead and does not block the claim.
+   Before a `no_ai_attribution`
+   rejection, attach known supporting work to its workflow. If its relationship
+   needs cross-scope evidence, retain it as `deferred` with `not_workflow` and
+   explain the possible parent or linked workflow and missing evidence. Reject
+   it as a standalone AI claim only after accounting for these relationships.
+5. **Carry scope into implementation and evaluation.** Put required stages
+   and their conditions in each affected claim's `workflow.steps`; retain
+   interface, shared-capability, and follow-up evidence in its own sources and
+   `replication_leads[].finding`, naming related claim IDs when known. Record
+   split/merge reasoning in the existing resolution rationales. Each brief must
+   be self-contained, since workers cannot inspect other claims. Map required
+   work into `step_coverage`, implementation routes, and verification parts or
+   demo expectations. Coverage requires connected behavior: retrieved evidence
+   informs the answer, a tool result affects the response, or a documented event
+   produces its follow-up effect. Another claim's implementation or separate
+   passing component tests do not establish that connection. Record exclusions,
+   external dependencies, and unresolved scope with their effect on readiness
+   and the final result; a shared step's success is not whole-workflow success.
+6. **Check omissions and overlap before finalizing.** Account for every
+   relevant collected observation as an included stage, delivery variant,
+   shared or linked capability, or justified exclusion. The orchestrator checks
+   all checkpoint observations, including exclusions, across scopes before
+   finalizing pass 1 and checks shared stages again when collecting pass 2.
+   An `excluded` entry records rejection as a standalone AI claim, not removal
+   of its work: when an excluded observation is a required stage, leave the
+   entry in place, add its source and step to the claim, and cite the entry in
+   that claim's `replication_leads[].finding`.
+   If later evidence changes a boundary, use the existing merge/revision process
+   and propagate the affected stages and sources. Record overlapping scope in
+   each affected claim's `replication_leads[].finding` and resolution
+   rationales so repeated reproduction of one shared capability is not read as
+   independent technical achievements; per-claim results stay unchanged. The
+   final company result does not surface this overlap automatically.
 
 Record the shape as `workflow` on the claim:
 
@@ -254,10 +320,10 @@ After all five scopes are complete, read their checkpoints and:
 4. apply the step test across scopes: when a provisional claim is only a stage
    of a broader customer workflow, fold its documented work and sources into
    the parent claim instead of keeping another claim;
-5. merge channel, industry, document-type, and product-surface variants when
-   they serve the same customer goal and final deliverable; split only
-   independently invoked workflows with a different user, input, goal, or
-   final deliverable;
+5. apply "Collect one claim per whole workflow" to delivery variants,
+   independently useful workflows, shared capabilities, and linked follow-ups;
+   compare the claims kept separate for missing shared stages, variants, and
+   follow-ups, and check `excluded` entries for required stages;
 6. remove platform properties, UI concepts, and shared architectures from the
    claim list, preserving useful implementation evidence on the relevant claim
    when a parent is known;
@@ -271,8 +337,8 @@ After all five scopes are complete, read their checkpoints and:
 11. run `replica-mvp finalize-pass-1 work/<company>` to validate the result and
     mark pass 1 complete.
 
-Two claims are the same claim when they describe the same customer goal,
-initiating input, final deliverable, and AI workflow. A narrower description of
+Two claims are the same claim when they describe one customer task under rule 3
+of "Collect one claim per whole workflow". A narrower description of
 one stage is supporting evidence for its parent workflow, not another claim.
 Workers see one scope each, so cross-scope step folding, parent merging, and
 deferred resolution belong to the orchestrator.
@@ -382,6 +448,12 @@ parent's `step_coverage` must then map the merged claim's pass-1 steps too
 (entries with `claim_id` set to the merged claim). Implementation refuses a
 merged claim without a researched parent, and a parent contract that does not
 cover the absorbed steps.
+
+A shared capability kept as its own claim is not merged. When collecting,
+compare each fragment with the claims named as sharing its stages in
+`replication_leads[].finding`. When one worker's evidence changes a shared
+stage another claim requires, rerun or resume that claim's worker with the new
+steps and sources, as for a merge parent.
 
 When every worker has finished, attach each fragment to its claim's
 `second_pass`, recompute `workflow.pass_2` and `summary`

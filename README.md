@@ -207,7 +207,13 @@ flowchart TD
 명확한 사내 활용은 `internal_workflow`로 탈락합니다. 워커 범위만으로 회사 귀속,
 고객 제공 또는 워크플로 소속을 확정할 수 없는 경우에는 즉시 탈락시키지 않고
 `deferred`에 `no_company_attribution`, `no_customer_delivery`, `not_workflow`로
-보관하며, 컨트롤러가 모든 범위를 읽은 뒤 최종 처리합니다.
+보관하며, 컨트롤러가 모든 범위를 읽은 뒤 최종 처리합니다. 다른 범위의
+workflow에 속할 수 있는 비AI 지원 단계도 `not_workflow`로 보관합니다.
+
+C0·C1·A1·A2는 독립 AI claim의 자격 시험입니다. claim이 고객 결과에 도달하는 데
+필요한 검색·권한·저장·도구 실행·알림 단계는 AI 근거가 없어도 그 claim의
+`workflow.steps`에 남깁니다. `excluded`는 독립 AI claim으로서의 탈락이며, 탈락한
+항목이 다른 claim의 필수 단계로 밝혀지면 기록을 유지한 채 출처와 단계를 붙입니다.
 
 #### 수집 단위는 전체 워크플로 하나
 
@@ -217,8 +223,12 @@ Replica는 **한 기능의 전체 E2E 워크플로우**를 복제하므로 claim
 
 중간 산출물이 따로 관찰되거나 테스트 가능해도 같은 고객 업무 안에서 다음
 단계가 소비하고 독립적으로 제공되지 않으면 별도 claim으로 세지 않고
-`workflow.steps`에 둡니다. 회사가 별도 제품·API·독립 워크플로로 제공할 때만
-분리합니다.
+`workflow.steps`에 둡니다. 별도 제품·API로 호출할 수 있다는 사실만으로도
+분리하지 않습니다. 독립된 고객 목적과 완료 결과가 출처로 확인될 때만 분리하고,
+API와 UI, 채널, 산업, 문서 유형 차이는 같은 claim의 전달 변형으로 둡니다.
+따로 claim이 된 공유 기능도 그것을 쓰는 다른 claim의 단계에 남깁니다.
+세부 규칙은 `skills/replica-research/SKILL.md`의 "Collect one claim per whole
+workflow"에 있습니다.
 
 | `workflow` 필드 | 내용 |
 |---|---|
@@ -265,7 +275,10 @@ URL, `customer_basis`, `ai_basis`, `workflow`, `replication_leads`, `deferred`�
 모든 `deferred`를 claim 승격·상위 claim 근거 첨부·최종 탈락 중 하나로 처리해
 `deferred_resolutions`에 남깁니다. 같은 고객 목적의 하위 단계와 채널·산업·문서
 유형 변형은 상위 워크플로의 `sources`, `workflow.steps`, `merged_from`으로
-병합합니다. 사용자·입력·목적·최종 산출물이 다른 독립 업무만 분리합니다.
+병합합니다. 목적·산출물의 이름이 같다는 것만으로 병합하지 않고 시작 조건,
+처리 주체, 실행 사이에 유지되는 상태, 완료 조건을 비교해 독립 업무만 분리합니다.
+따로 유지한 claim끼리 공유 단계·전달 변형·후속 작업의 누락을 대조하고,
+`excluded` 항목 중 필수 단계가 있는지도 확인합니다.
 정규화 후 C0·C1·A1·A2와 모든 출처 인덱스를 다시 확인합니다. 채점이나 선별은
 하지 않으며, 정리된 claim 전부가 2차로 넘어갑니다. 체크포인트의 모든 후보는
 `candidate_resolutions`에 유지·병합·제외(사유) 중 하나로 남겨, 수집한 후보가

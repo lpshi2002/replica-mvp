@@ -73,6 +73,8 @@ validation, generation, routing, and other documented stages in
 `workflow.steps` when their outputs are consumed by the same workflow. Open a
 separate claim only when an external user can invoke and receive that result as
 a standalone product, endpoint, or separately documented workflow.
+Standalone access alone is not enough: "Collect one claim per whole workflow"
+in `../SKILL.md` decides splits, merges, and supporting stages.
 
 When a page contains a broad workflow plus channel, industry, document-type, or
 output examples, keep one claim when the customer goal and final deliverable
@@ -88,7 +90,10 @@ claim, not in a claim of its own.
 Append definitive rejections to `excluded` with `reason` set to
 `outcome_metric`, `non_technical`, `no_ai_attribution`, or
 `internal_workflow`. Internal AI coding and other employee-only agent use are
-`internal_workflow`, even when technically detailed.
+`internal_workflow`, even when technically detailed. Before using
+`no_ai_attribution`, record work that a claim in your scope requires as a step
+of that claim; when the parent may be in another scope, defer it as
+`not_workflow` instead.
 
 Put cross-scope uncertainty in `deferred`, not `excluded`. Use
 `no_company_attribution`, `no_customer_delivery`, or `not_workflow`, and record
